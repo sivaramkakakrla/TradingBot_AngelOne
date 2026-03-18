@@ -1,0 +1,34 @@
+# AngelOne SmartAPI
+smartapi-python>=1.4.0
+pyotp>=2.9.0
+logzero>=1.7.0
+
+# Data & Numerics
+pandas>=2.1.0
+numpy>=1.26.0
+
+# Technical Analysis
+ta>=0.11.0
+
+# WebSocket
+websocket-client>=1.7.0
+
+# Scheduling
+schedule>=1.2.0
+
+# Environment
+python-dotenv>=1.0.0
+
+# Dashboard
+flask>=3.0.0
+flask-cors>=4.0.0
+
+# Database (built-in sqlite3, no extra package needed)
+
+# Logging (built-in, no extra package needed)
+
+# HTTP
+requests>=2.31.0
+
+# Testing
+pytest>=7.4.0

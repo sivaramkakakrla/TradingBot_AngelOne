@@ -1,0 +1,1154 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Project Candles - Paper Trading</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --card: #f1f5f9;
+      --border: #e2e8f0;
+      --border-lt: #cbd5e1;
+      --txt: #0f172a;
+      --txt-dim: #64748b;
+      --txt-mute: #94a3b8;
+      --accent: #3b82f6;
+      --green: #16a34a;
+      --green-bg: rgba(22, 163, 74, 0.08);
+      --green-bdr: rgba(22, 163, 74, 0.25);
+      --red: #dc2626;
+      --red-bg: rgba(220, 38, 38, 0.08);
+      --red-bdr: rgba(220, 38, 38, 0.25);
+      --amber: #d97706;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--txt);
+      font-family: 'Inter', system-ui, sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Top bar */
+    .topbar {
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+      height: 44px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      gap: 16px;
+    }
+
+    .logo {
+      font-size: .92rem;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: -.3px;
+    }
+
+    .topbar nav {
+      display: flex;
+      gap: 4px;
+      margin-left: 16px;
+    }
+
+    .topbar nav a {
+      color: var(--txt-dim);
+      text-decoration: none;
+      font-size: .78rem;
+      font-weight: 500;
+      padding: 6px 14px;
+      border-radius: 8px;
+      transition: all .15s;
+    }
+
+    .topbar nav a:hover {
+      color: var(--txt);
+      background: rgba(0, 0, 0, .05);
+    }
+
+    .topbar nav a.active {
+      color: var(--accent);
+      background: rgba(59, 130, 246, .1);
+    }
+
+    .market-badge {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: .7rem;
+      font-weight: 600;
+      letter-spacing: .5px;
+      text-transform: uppercase;
+    }
+
+    .market-badge .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+    }
+
+    .market-badge.live {
+      background: var(--green-bg);
+      color: var(--green);
+      border: 1px solid var(--green-bdr);
+    }
+
+    .market-badge.live .dot {
+      background: var(--green);
+      animation: pulse 1.5s infinite;
+    }
+
+    .market-badge.closed {
+      background: rgba(100, 116, 139, .1);
+      color: var(--txt-dim);
+      border: 1px solid var(--border);
+    }
+
+    .market-badge.closed .dot {
+      background: var(--txt-mute);
+    }
+
+    .market-badge.connecting {
+      background: rgba(245, 158, 11, .1);
+      color: var(--amber);
+      border: 1px solid rgba(245, 158, 11, .25);
+    }
+
+    .market-badge.connecting .dot {
+      background: var(--amber);
+      animation: pulse .8s infinite;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: .3;
+      }
+    }
+
+    /* Ticker */
+    .ticker-strip {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 8px 20px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .ticker-symbol {
+      font-size: .72rem;
+      color: var(--txt-dim);
+      font-weight: 600;
+      letter-spacing: .5px;
+    }
+
+    .ticker-ltp {
+      font-size: 1.5rem;
+      font-weight: 800;
+      letter-spacing: -1px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .ticker-chg {
+      font-size: .82rem;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .pos {
+      color: var(--green) !important;
+    }
+
+    .neg {
+      color: var(--red) !important;
+    }
+
+    /* Full-width option chain */
+    .chain-wrap {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .chain-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .chain-title {
+      font-size: .78rem;
+      font-weight: 700;
+      color: var(--txt);
+      letter-spacing: -.2px;
+    }
+
+    .expiry-tabs {
+      display: flex;
+      gap: 4px;
+      margin-left: 12px;
+    }
+
+    .expiry-tab {
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--txt-dim);
+      padding: 5px 14px;
+      border-radius: 7px;
+      font-size: .72rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all .15s;
+    }
+
+    .expiry-tab:hover {
+      color: var(--txt);
+      border-color: var(--border-lt);
+    }
+
+    .expiry-tab.active {
+      color: var(--accent);
+      border-color: var(--accent);
+      background: rgba(59, 130, 246, .08);
+    }
+
+    .chain-header .refresh-btn {
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--txt-dim);
+      padding: 5px 10px;
+      border-radius: 6px;
+      font-size: .7rem;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all .15s;
+      margin-left: auto;
+    }
+
+    .chain-header .refresh-btn:hover {
+      color: var(--accent);
+      border-color: var(--accent);
+    }
+
+    #chain-status {
+      font-size: .68rem;
+      color: var(--txt-mute);
+    }
+
+    .chain-scroll {
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .chain-loading {
+      text-align: center;
+      padding: 40px;
+      color: var(--txt-mute);
+      font-size: .82rem;
+    }
+
+    .chain-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .73rem;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .chain-table thead {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+
+    .chain-table th {
+      padding: 7px 8px;
+      font-weight: 600;
+      font-size: .65rem;
+      text-transform: uppercase;
+      letter-spacing: .4px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .chain-table .ce-header {
+      background: rgba(34, 197, 94, .08);
+      color: var(--green);
+      text-align: center;
+    }
+
+    .chain-table .pe-header {
+      background: rgba(239, 68, 68, .08);
+      color: var(--red);
+      text-align: center;
+    }
+
+    .chain-table .strike-header {
+      background: var(--surface);
+      color: var(--txt-dim);
+      text-align: center;
+    }
+
+    .chain-table .act-header {
+      background: var(--surface);
+      color: var(--txt-dim);
+      text-align: center;
+      width: 100px;
+    }
+
+    .chain-table td {
+      padding: 6px 8px;
+      border-bottom: 1px solid rgba(30, 42, 58, .4);
+      text-align: center;
+    }
+
+    .chain-table .ce-cell {
+      background: rgba(22, 163, 74, .06);
+    }
+
+    .chain-table .pe-cell {
+      background: rgba(220, 38, 38, .06);
+    }
+
+    .chain-table .strike-cell {
+      background: var(--surface);
+      font-weight: 700;
+      color: var(--txt);
+    }
+
+    .chain-table .atm-row .strike-cell {
+      color: var(--accent);
+      background: rgba(59, 130, 246, .1);
+    }
+
+    .chain-table .itm {
+      font-weight: 600;
+    }
+
+    .chain-table tr {
+      transition: background .1s;
+    }
+
+    .chain-table tbody tr:hover {
+      background: rgba(0, 0, 0, .03);
+    }
+
+    /* LTP flash */
+    .ltp-up {
+      animation: flashGreen .4s;
+    }
+
+    .ltp-down {
+      animation: flashRed .4s;
+    }
+
+    @keyframes flashGreen {
+      0% {
+        background: rgba(34, 197, 94, .2);
+      }
+
+      100% {
+        background: transparent;
+      }
+    }
+
+    @keyframes flashRed {
+      0% {
+        background: rgba(239, 68, 68, .2);
+      }
+
+      100% {
+        background: transparent;
+      }
+    }
+
+    .wl-buy,
+    .wl-sell {
+      border: none;
+      padding: 3px 10px;
+      border-radius: 5px;
+      font-size: .65rem;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all .12s;
+      letter-spacing: .3px;
+    }
+
+    .wl-buy {
+      background: rgba(34, 197, 94, .12);
+      color: var(--green);
+      border: 1px solid var(--green-bdr);
+    }
+
+    .wl-buy:hover {
+      background: var(--green);
+      color: #fff;
+    }
+
+    .wl-sell {
+      background: rgba(239, 68, 68, .12);
+      color: var(--red);
+      border: 1px solid var(--red-bdr);
+    }
+
+    .wl-sell:hover {
+      background: var(--red);
+      color: #fff;
+    }
+
+    /* Modal overlay */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, .6);
+      z-index: 500;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(4px);
+    }
+
+    .modal-overlay.show {
+      display: flex;
+    }
+
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 24px;
+      width: 400px;
+      max-width: 90vw;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, .5);
+    }
+
+    .modal-title {
+      font-size: .9rem;
+      font-weight: 700;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .modal-title .opt-badge {
+      font-size: .72rem;
+      padding: 3px 8px;
+      border-radius: 5px;
+      font-weight: 700;
+    }
+
+    .modal-title .opt-badge.CE {
+      background: var(--green-bg);
+      color: var(--green);
+      border: 1px solid var(--green-bdr);
+    }
+
+    .modal-title .opt-badge.PE {
+      background: var(--red-bg);
+      color: var(--red);
+      border: 1px solid var(--red-bdr);
+    }
+
+    .modal-close {
+      margin-left: auto;
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--txt-dim);
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: .9rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all .15s;
+    }
+
+    .modal-close:hover {
+      color: var(--red);
+      border-color: var(--red);
+    }
+
+    .modal-info {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .modal-info-item {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 6px 10px;
+    }
+
+    .modal-info-label {
+      font-size: .6rem;
+      color: var(--txt-dim);
+      text-transform: uppercase;
+      letter-spacing: .4px;
+    }
+
+    .modal-info-val {
+      font-size: .9rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      margin-top: 2px;
+    }
+
+    .modal-form {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .modal-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .modal-row label {
+      font-size: .72rem;
+      color: var(--txt-dim);
+      font-weight: 500;
+      width: 55px;
+      flex-shrink: 0;
+    }
+
+    .modal-row input {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--txt);
+      padding: 8px 10px;
+      border-radius: 7px;
+      font-size: .85rem;
+      font-weight: 500;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      font-family: inherit;
+      transition: border-color .15s;
+    }
+
+    .modal-row input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .modal-row input[readonly] {
+      color: var(--txt-dim);
+      cursor: default;
+    }
+
+    .modal-row .toggle-custom {
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--txt-dim);
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: .7rem;
+      cursor: pointer;
+      font-family: inherit;
+      white-space: nowrap;
+      transition: all .15s;
+    }
+
+    .modal-row .toggle-custom.active {
+      color: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .modal-actions button {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      border-radius: 8px;
+      font-size: .85rem;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all .15s;
+      letter-spacing: .3px;
+    }
+
+    .modal-actions .mbuy {
+      background: linear-gradient(135deg, #16a34a, #22c55e);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(34, 197, 94, .2);
+    }
+
+    .modal-actions .msell {
+      background: linear-gradient(135deg, #dc2626, #ef4444);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(239, 68, 68, .2);
+    }
+
+    .modal-actions button:hover {
+      filter: brightness(1.1);
+      transform: translateY(-1px);
+    }
+
+    .modal-actions button:active {
+      transform: translateY(0);
+      filter: brightness(.95);
+    }
+
+    #modal-msg {
+      font-size: .72rem;
+      min-height: 1em;
+      margin-top: 4px;
+    }
+
+    /* Toast */
+    .toast-area {
+      position: fixed;
+      top: 50px;
+      right: 16px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .toast {
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: .75rem;
+      font-weight: 500;
+      animation: slideIn .3s ease-out;
+      min-width: 220px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, .4);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .toast.success {
+      background: var(--green-bg);
+      color: var(--green);
+      border: 1px solid var(--green-bdr);
+    }
+
+    .toast.error {
+      background: var(--red-bg);
+      color: var(--red);
+      border: 1px solid var(--red-bdr);
+    }
+
+    .toast.info {
+      background: rgba(59, 130, 246, .1);
+      color: var(--accent);
+      border: 1px solid rgba(59, 130, 246, .25);
+    }
+
+    .toast.warn {
+      background: rgba(245, 158, 11, .1);
+      color: var(--amber);
+      border: 1px solid rgba(245, 158, 11, .25);
+    }
+
+    @keyframes slideIn {
+      from {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+
+    /* Status bar */
+    .statusbar {
+      padding: 3px 20px;
+      font-size: .66rem;
+      color: var(--txt-mute);
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 5px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 3px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--border-lt);
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Top bar -->
+  <div class="topbar">
+    <div class="logo">Project Candles</div>
+    <nav>
+      <a href="/">Dashboard</a>
+      <a href="/trade" class="active">Paper Trade</a>
+      <a href="/orders">Orders</a>
+    </nav>
+    <div class="market-badge connecting" id="market-badge">
+      <span class="dot"></span>
+      <span id="market-label">CONNECTING</span>
+    </div>
+  </div>
+
+  <!-- Ticker -->
+  <div class="ticker-strip">
+    <div class="ticker-symbol">NIFTY 50</div>
+    <div class="ticker-ltp" id="ltp-val">--,---.--</div>
+    <div>
+      <span class="ticker-chg" id="chg-val"></span>
+      <span class="ticker-chg" id="chg-pct"></span>
+    </div>
+  </div>
+
+  <!-- Full-width Option chain -->
+  <div class="chain-wrap">
+    <div class="chain-header">
+      <span class="chain-title">NIFTY Options</span>
+      <div class="expiry-tabs" id="expiry-tabs"></div>
+      <button class="refresh-btn" onclick="loadChain()">Refresh</button>
+      <span id="chain-status"></span>
+    </div>
+    <div class="chain-scroll" id="chain-scroll">
+      <table class="chain-table" id="chain-table">
+        <thead>
+          <tr>
+            <th class="ce-header">CE LTP</th>
+            <th class="act-header"></th>
+            <th class="strike-header">Strike</th>
+            <th class="act-header"></th>
+            <th class="pe-header">PE LTP</th>
+          </tr>
+        </thead>
+        <tbody id="chain-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Order modal -->
+  <div class="modal-overlay" id="order-modal">
+    <div class="modal">
+      <div class="modal-title">
+        <span id="modal-dir">BUY</span>
+        <span class="opt-badge" id="modal-otype">CE</span>
+        <span id="modal-sym">NIFTY 24500 CE</span>
+        <button class="modal-close" onclick="closeModal()">&times;</button>
+      </div>
+      <div class="modal-info">
+        <div class="modal-info-item">
+          <div class="modal-info-label">LTP</div>
+          <div class="modal-info-val" id="modal-ltp">--</div>
+        </div>
+        <div class="modal-info-item">
+          <div class="modal-info-label">Strike</div>
+          <div class="modal-info-val" id="modal-strike">--</div>
+        </div>
+        <div class="modal-info-item">
+          <div class="modal-info-label">Expiry</div>
+          <div class="modal-info-val" id="modal-expiry">--</div>
+        </div>
+        <div class="modal-info-item">
+          <div class="modal-info-label">Lot Size</div>
+          <div class="modal-info-val" id="modal-lot">25</div>
+        </div>
+      </div>
+      <div class="modal-form">
+        <div class="modal-row">
+          <label>Qty</label>
+          <input type="number" id="modal-qty" value="25" min="1" step="25" />
+        </div>
+        <div class="modal-row">
+          <label>Price</label>
+          <input type="text" id="modal-price" readonly />
+          <button class="toggle-custom" id="modal-price-toggle" onclick="toggleModalCustomPrice()">Custom</button>
+        </div>
+        <div class="modal-row">
+          <label>SL</label>
+          <input type="number" id="modal-sl" placeholder="Stop Loss" min="0" step="0.05" />
+        </div>
+        <div class="modal-row">
+          <label>Target</label>
+          <input type="number" id="modal-tgt" placeholder="Target" min="0" step="0.05" />
+        </div>
+        <div class="modal-actions" id="modal-actions">
+          <button class="mbuy" id="modal-submit" onclick="submitOrder()">BUY</button>
+        </div>
+        <div id="modal-msg"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-area" id="toast-area"></div>
+  <div class="statusbar">
+    <span id="status-text">Initialising...</span>
+    <span style="margin-left:auto;" id="status-time"></span>
+  </div>
+
+  <script>
+    // ── STATE ──
+    const RS = '\u20b9'; // Rupee sign
+    let feedRunning = false, pollTimer = null, _marketOpen = false;
+    let _chainData = null, _activeExpiry = '', _customModal = false;
+    let _modalOption = null;
+    let _chainRefreshTimer = null;
+    let _prevLTPs = {};
+
+    // ── TOAST ──
+    function toast(msg, type = 'info') {
+      const el = document.createElement('div');
+      el.className = 'toast ' + type; el.textContent = msg;
+      document.getElementById('toast-area').appendChild(el);
+      setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; }, 2500);
+      setTimeout(() => el.remove(), 2900);
+    }
+
+    // ── BADGE ──
+    function updateBadge(isOpen, ok) {
+      const b = document.getElementById('market-badge'), l = document.getElementById('market-label');
+      if (ok && isOpen) { b.className = 'market-badge live'; l.textContent = 'LIVE'; }
+      else if (!isOpen) { b.className = 'market-badge closed'; l.textContent = 'MARKET CLOSED'; }
+      else { b.className = 'market-badge connecting'; l.textContent = 'CONNECTING'; }
+    }
+
+    // ── AUTO FEED ──
+    async function autoStartFeed() {
+      updateBadge(false, false);
+      statusMsg('Connecting to AngelOne...');
+      try {
+        const r = await fetch('/api/feed/start', { method: 'POST' });
+        const d = await r.json();
+        if (d.error) { statusMsg('Feed: ' + d.error, true); }
+        else { feedRunning = true; toast('Feed connected', 'success'); }
+      } catch (e) { statusMsg('Connecting on-demand...', false); }
+      // Always start polling — on serverless, /api/live fetches on-demand
+      pollTimer = setInterval(pollLive, 3000);
+      statusMsg(feedRunning ? 'Live feed active' : 'Live (on-demand)');
+      pollLive();
+    }
+
+    // ── POLL LIVE ──
+    async function pollLive() {
+      try {
+        const r = await fetch('/api/live'), d = await r.json();
+        _marketOpen = !!d.market_open;
+        updateBadge(_marketOpen, feedRunning);
+        if (!d.ltp || d.ltp <= 0) return;
+        const ltp = d.ltp, prev = d.prev_close || 0, chg = prev > 0 ? ltp - prev : 0, pct = prev > 0 ? (chg / prev * 100) : 0, cls = chg >= 0 ? 'pos' : 'neg';
+        document.getElementById('ltp-val').textContent = ltp.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        document.getElementById('ltp-val').className = 'ticker-ltp ' + cls;
+        document.getElementById('chg-val').textContent = (chg >= 0 ? '+' : '') + chg.toFixed(2);
+        document.getElementById('chg-val').className = 'ticker-chg ' + cls;
+        document.getElementById('chg-pct').textContent = '(' + (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%)';
+        document.getElementById('chg-pct').className = 'ticker-chg ' + cls;
+      } catch (_) { }
+    }
+
+    // ── EXPIRIES & CHAIN ──
+    function _computedThursdays(count = 4) {
+      // Compute upcoming Thursday expiry dates client-side (NIFTY weekly = always Thursday)
+      const today = new Date();
+      const wd = today.getDay(); // 0=Sun … 4=Thu
+      const daysToThu = wd <= 4 ? 4 - wd : 11 - wd;
+      const first = new Date(today); first.setDate(today.getDate() + daysToThu);
+      const fmt = d => d.toISOString().split('T')[0];
+      const result = [];
+      const d = new Date(first);
+      for (let i = 0; i < count; i++) { result.push(fmt(d)); d.setDate(d.getDate() + 7); }
+      const isAfterClose = today.getHours() > 15 || (today.getHours() === 15 && today.getMinutes() >= 30);
+      const todayStr = fmt(today);
+      const def = (todayStr === result[0] && isAfterClose) || todayStr > result[0] ? result[1] : result[0];
+      return { expiries: result, this_week: result[0], next_week: result[1], default_expiry: def };
+    }
+
+    async function loadExpiries() {
+      try {
+        const r = await fetch('/api/options/expiries'), d = await r.json();
+        if (d.error) { document.getElementById('chain-status').textContent = d.error; return; }
+        _renderExpiries(d);
+      } catch (e) {
+        // Server unreachable — derive Thursdays in the browser
+        _renderExpiries(_computedThursdays());
+      }
+    }
+
+    function _renderExpiries(d) {
+      const tabs = document.getElementById('expiry-tabs');
+      tabs.innerHTML = '';
+      const expiries = d.expiries || [];
+      const tw = d.this_week || '', nw = d.next_week || '';
+      const def_exp = d.default_expiry || tw;
+      // Show this week & next week + a few more
+      expiries.slice(0, 4).forEach((e) => {
+        const btn = document.createElement('button');
+        btn.className = 'expiry-tab';
+        btn.dataset.expiry = e;
+        if (e === tw) btn.textContent = 'This Week';
+        else if (e === nw) btn.textContent = 'Next Week';
+        else btn.textContent = e;
+        btn.onclick = () => selectExpiry(e);
+        tabs.appendChild(btn);
+      });
+      // Auto-select smart default (next week if today is expiry day after market close)
+      if (expiries.length > 0) {
+        selectExpiry(def_exp || expiries[0]);
+      }
+    }
+
+    function selectExpiry(exp) {
+      _activeExpiry = exp;
+      document.querySelectorAll('.expiry-tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.expiry === exp);
+      });
+      loadChain();
+    }
+
+    let _chainLoading = false;
+    async function loadChain() {
+      if (!_activeExpiry) { toast('Select an expiry first', 'warn'); return; }
+      if (_chainLoading) return;
+      _chainLoading = true;
+      document.getElementById('chain-status').textContent = 'Updating...';
+      try {
+        const r = await fetch('/api/options/chain?expiry=' + _activeExpiry);
+        const d = await r.json();
+        if (d.error) { document.getElementById('chain-status').textContent = d.error; return; }
+        _chainData = d;
+        renderChain(d);
+        document.getElementById('chain-status').textContent = 'ATM: ' + d.atm + ' | ' + d.chain.length + ' strikes';
+      } catch (e) {
+        document.getElementById('chain-status').textContent = 'Refresh failed';
+      } finally { _chainLoading = false; }
+    }
+
+    function renderChain(data) {
+      const tbody = document.getElementById('chain-body');
+      const atm = data.atm;
+      const newLTPs = {};
+      tbody.innerHTML = data.chain.map(row => {
+        const isATM = row.strike === atm;
+        const ceITM = row.strike < atm, peITM = row.strike > atm;
+        const ceLtp = row.CE.ltp > 0 ? row.CE.ltp.toFixed(2) : '--';
+        const peLtp = row.PE.ltp > 0 ? row.PE.ltp.toFixed(2) : '--';
+        // Track LTPs for flash animation
+        const ceKey = 'CE_' + row.strike, peKey = 'PE_' + row.strike;
+        newLTPs[ceKey] = row.CE.ltp; newLTPs[peKey] = row.PE.ltp;
+        let ceFlash = '', peFlash = '';
+        if (_prevLTPs[ceKey] !== undefined && row.CE.ltp !== _prevLTPs[ceKey]) {
+          ceFlash = row.CE.ltp > _prevLTPs[ceKey] ? ' ltp-up' : ' ltp-down';
+        }
+        if (_prevLTPs[peKey] !== undefined && row.PE.ltp !== _prevLTPs[peKey]) {
+          peFlash = row.PE.ltp > _prevLTPs[peKey] ? ' ltp-up' : ' ltp-down';
+        }
+        // CE actions
+        const ceAct = row.CE.token ?
+          '<button class="wl-buy" onclick="openOrder(this,\'CE\',\'LONG\')">B</button> <button class="wl-sell" onclick="openOrder(this,\'CE\',\'SHORT\')">S</button>' : '';
+        const peAct = row.PE.token ?
+          '<button class="wl-buy" onclick="openOrder(this,\'PE\',\'LONG\')">B</button> <button class="wl-sell" onclick="openOrder(this,\'PE\',\'SHORT\')">S</button>' : '';
+
+        const dCE = row.CE.token ? 'data-token="' + row.CE.token + '" data-symbol="' + row.CE.symbol + '" data-ltp="' + row.CE.ltp + '" data-lot="' + (row.CE.lot_size || 25) + '" data-strike="' + row.strike + '" data-expiry="' + data.expiry + '"' : '';
+        const dPE = row.PE.token ? 'data-token="' + row.PE.token + '" data-symbol="' + row.PE.symbol + '" data-ltp="' + row.PE.ltp + '" data-lot="' + (row.PE.lot_size || 25) + '" data-strike="' + row.strike + '" data-expiry="' + data.expiry + '"' : '';
+
+        return '<tr class="' + (isATM ? 'atm-row' : '') + '" ' + dCE + ' data-pe-token="' + (row.PE.token || '') + '" data-pe-symbol="' + (row.PE.symbol || '') + '" data-pe-ltp="' + (row.PE.ltp || 0) + '" data-pe-lot="' + (row.PE.lot_size || 25) + '">' +
+          '<td class="ce-cell ' + (ceITM ? 'itm' : '') + ceFlash + '">' + ceLtp + '</td>' +
+          '<td class="ce-cell" style="padding:4px 2px;">' + ceAct + '</td>' +
+          '<td class="strike-cell">' + row.strike + '</td>' +
+          '<td class="pe-cell" style="padding:4px 2px;">' + peAct + '</td>' +
+          '<td class="pe-cell ' + (peITM ? 'itm' : '') + peFlash + '">' + peLtp + '</td>' +
+          '</tr>';
+      }).join('');
+      _prevLTPs = newLTPs;
+    }
+
+    // ── ORDER MODAL ──
+    function openOrder(btn, otype, direction) {
+      const row = btn.closest('tr');
+      let token, symbol, ltp, lot;
+      if (otype === 'CE') {
+        token = row.dataset.token; symbol = row.dataset.symbol;
+        ltp = parseFloat(row.dataset.ltp) || 0; lot = parseInt(row.dataset.lot) || 25;
+      } else {
+        token = row.dataset.peToken; symbol = row.dataset.peSymbol;
+        ltp = parseFloat(row.dataset.peLtp) || 0; lot = parseInt(row.dataset.peLot) || 25;
+      }
+      if (!token || !symbol) { toast('No data for this option', 'warn'); return; }
+      const strike = row.dataset.strike || '';
+      const expiry = row.dataset.expiry || _activeExpiry;
+
+      _modalOption = { symbol, token, option_type: otype, strike: parseFloat(strike), expiry, ltp, lot_size: lot, direction };
+
+      // Fill modal
+      const isBuy = direction === 'LONG';
+      document.getElementById('modal-dir').textContent = isBuy ? 'BUY' : 'SELL';
+      document.getElementById('modal-dir').className = isBuy ? 'pos' : 'neg';
+      const badge = document.getElementById('modal-otype');
+      badge.textContent = otype; badge.className = 'opt-badge ' + otype;
+      document.getElementById('modal-sym').textContent = symbol;
+      document.getElementById('modal-ltp').textContent = RS + ltp.toFixed(2);
+      document.getElementById('modal-strike').textContent = strike;
+      document.getElementById('modal-expiry').textContent = expiry;
+      document.getElementById('modal-lot').textContent = lot;
+      document.getElementById('modal-qty').value = lot;
+      document.getElementById('modal-price').value = ltp > 0 ? ltp.toFixed(2) : '--';
+      document.getElementById('modal-price').readOnly = true;
+      _customModal = false;
+      document.getElementById('modal-price-toggle').classList.remove('active');
+      document.getElementById('modal-sl').value = '';
+      document.getElementById('modal-tgt').value = '';
+      document.getElementById('modal-msg').innerHTML = '';
+
+      const submitBtn = document.getElementById('modal-submit');
+      submitBtn.textContent = isBuy ? 'BUY' : 'SELL';
+      submitBtn.className = isBuy ? 'mbuy' : 'msell';
+
+      document.getElementById('order-modal').classList.add('show');
+    }
+
+    function closeModal() {
+      document.getElementById('order-modal').classList.remove('show');
+      _modalOption = null;
+    }
+
+    function toggleModalCustomPrice() {
+      _customModal = !_customModal;
+      const btn = document.getElementById('modal-price-toggle');
+      const inp = document.getElementById('modal-price');
+      if (_customModal) {
+        btn.classList.add('active');
+        inp.readOnly = false; inp.value = ''; inp.placeholder = 'Enter price'; inp.focus();
+      } else {
+        btn.classList.remove('active');
+        inp.readOnly = true; inp.placeholder = '';
+        if (_modalOption && _modalOption.ltp > 0) inp.value = _modalOption.ltp.toFixed(2);
+        else inp.value = '--';
+      }
+    }
+
+    async function submitOrder() {
+      if (!_modalOption) return;
+      const qty = parseInt(document.getElementById('modal-qty').value) || 25;
+      const sl = parseFloat(document.getElementById('modal-sl').value) || 0;
+      const tgt = parseFloat(document.getElementById('modal-tgt').value) || 0;
+      const pxVal = parseFloat(document.getElementById('modal-price').value);
+      // Always pass visible LTP to avoid slow server-side AngelOne fetch
+      const price = (_customModal && pxVal > 0) ? pxVal : (_modalOption && _modalOption.ltp > 0 ? _modalOption.ltp : 0);
+      const url = _modalOption.direction === 'LONG' ? '/api/paper/buy' : '/api/paper/sell';
+
+      const payload = {
+        qty, stop_loss: sl, target: tgt, price,
+        symbol: _modalOption.symbol, token: _modalOption.token,
+        option_type: _modalOption.option_type,
+        strike: _modalOption.strike, expiry: _modalOption.expiry
+      };
+
+      const msg = document.getElementById('modal-msg');
+      try {
+        const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        const d = await r.json();
+        if (d.error) { msg.innerHTML = '<span class="neg">' + d.error + '</span>'; toast(d.error, 'error'); return; }
+        const label = d.symbol || _modalOption.symbol;
+        const dir = _modalOption.direction === 'LONG' ? 'BUY' : 'SELL';
+        const cls = _modalOption.direction === 'LONG' ? 'pos' : 'neg';
+        msg.innerHTML = '<span class="' + cls + '">' + dir + ' ' + d.qty + ' ' + label + ' @ ' + RS + d.price.toFixed(2) + '</span>';
+        toast(dir + ' ' + label + ' @ ' + RS + d.price.toFixed(2), _modalOption.direction === 'LONG' ? 'success' : 'error');
+        setTimeout(closeModal, 800);
+      } catch (e) { msg.innerHTML = '<span class="neg">Order failed</span>'; toast('Order failed', 'error'); }
+    }
+
+    // Click outside modal to close
+    document.getElementById('order-modal').addEventListener('click', e => {
+      if (e.target === e.currentTarget) closeModal();
+    });
+
+    // ── HELPERS ──
+    function statusMsg(m, e = false) {
+      document.getElementById('status-text').textContent = m;
+      document.getElementById('status-text').style.color = e ? 'var(--red)' : 'var(--txt-mute)';
+    }
+    function updateClock() {
+      const n = new Date(), ist = new Date(n.getTime() + (5.5 * 60 * 60 * 1000));
+      document.getElementById('status-time').textContent =
+        'IST ' + String(ist.getUTCHours()).padStart(2, '0') + ':' + String(ist.getUTCMinutes()).padStart(2, '0') + ':' + String(ist.getUTCSeconds()).padStart(2, '0');
+    }
+    setInterval(updateClock, 1000);
+
+    // Auto-refresh chain every 10s for live LTP updates
+    function startChainAutoRefresh() {
+      if (_chainRefreshTimer) clearInterval(_chainRefreshTimer);
+      _chainRefreshTimer = setInterval(() => {
+        if (_activeExpiry && feedRunning) loadChain();
+      }, 10000);
+    }
+
+    // ── INIT ──
+    (async () => {
+      updateClock();
+      // Run feed start and expiry load in parallel — they are independent
+      await Promise.allSettled([autoStartFeed(), loadExpiries()]);
+      startChainAutoRefresh();
+    })();
+  </script>
+</body>
+
+</html>

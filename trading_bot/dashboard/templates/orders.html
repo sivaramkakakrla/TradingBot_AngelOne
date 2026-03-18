@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Project Candles - Orders</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --card: #f1f5f9;
+      --border: #e2e8f0;
+      --border-lt: #cbd5e1;
+      --txt: #0f172a;
+      --txt-dim: #64748b;
+      --txt-mute: #94a3b8;
+      --accent: #3b82f6;
+      --green: #16a34a;
+      --green-bg: rgba(22, 163, 74, 0.08);
+      --green-bdr: rgba(22, 163, 74, 0.25);
+      --red: #dc2626;
+      --red-bg: rgba(220, 38, 38, 0.08);
+      --red-bdr: rgba(220, 38, 38, 0.25);
+      --amber: #d97706;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--txt);
+      font-family: 'Inter', system-ui, sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Top bar */
+    .topbar {
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+      height: 44px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      gap: 16px;
+    }
+
+    .logo {
+      font-size: .92rem;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: -.3px;
+    }
+
+    .topbar nav {
+      display: flex;
+      gap: 4px;
+      margin-left: 16px;
+    }
+
+    .topbar nav a {
+      color: var(--txt-dim);
+      text-decoration: none;
+      font-size: .78rem;
+      font-weight: 500;
+      padding: 6px 14px;
+      border-radius: 8px;
+      transition: all .15s;
+    }
+
+    .topbar nav a:hover {
+      color: var(--txt);
+      background: rgba(0, 0, 0, .05);
+    }
+
+    .topbar nav a.active {
+      color: var(--accent);
+      background: rgba(59, 130, 246, .1);
+    }
+
+    .market-badge {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: .7rem;
+      font-weight: 600;
+      letter-spacing: .5px;
+      text-transform: uppercase;
+    }
+
+    .market-badge .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+    }
+
+    .market-badge.live {
+      background: var(--green-bg);
+      color: var(--green);
+      border: 1px solid var(--green-bdr);
+    }
+
+    .market-badge.live .dot {
+      background: var(--green);
+      animation: pulse 1.5s infinite;
+    }
+
+    .market-badge.closed {
+      background: rgba(100, 116, 139, .1);
+      color: var(--txt-dim);
+      border: 1px solid var(--border);
+    }
+
+    .market-badge.closed .dot {
+      background: var(--txt-mute);
+    }
+
+    .market-badge.connecting {
+      background: rgba(245, 158, 11, .1);
+      color: var(--amber);
+      border: 1px solid rgba(245, 158, 11, .25);
+    }
+
+    .market-badge.connecting .dot {
+      background: var(--amber);
+      animation: pulse .8s infinite;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: .3;
+      }
+    }
+
+    /* Portfolio summary strip */
+    .port-strip {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      padding: 10px 24px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .port-item {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    .port-item-label {
+      font-size: .62rem;
+      color: var(--txt-mute);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+    }
+
+    .port-item-val {
+      font-size: 1rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .port-item-val.sm {
+      font-size: .88rem;
+    }
+
+    .port-divider {
+      width: 1px;
+      height: 28px;
+      background: var(--border);
+    }
+
+    .pos {
+      color: var(--green) !important;
+    }
+
+    .neg {
+      color: var(--red) !important;
+    }
+
+    /* Tabs */
+    .tab-bar {
+      display: flex;
+      gap: 0;
+      padding: 0 24px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .tab-btn {
+      background: none;
+      border: none;
+      color: var(--txt-dim);
+      font-size: .8rem;
+      font-weight: 600;
+      padding: 12px 20px;
+      cursor: pointer;
+      font-family: inherit;
+      position: relative;
+      transition: color .15s;
+    }
+
+    .tab-btn:hover {
+      color: var(--txt);
+    }
+
+    .tab-btn.active {
+      color: var(--accent);
+    }
+
+    .tab-btn.active::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 8px;
+      right: 8px;
+      height: 2px;
+      background: var(--accent);
+      border-radius: 1px;
+    }
+
+    .tab-btn .badge {
+      font-size: .65rem;
+      font-weight: 700;
+      background: var(--accent);
+      color: #fff;
+      padding: 1px 6px;
+      border-radius: 10px;
+      margin-left: 4px;
+      vertical-align: middle;
+    }
+
+    /* Tab content */
+    .tab-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 24px;
+    }
+
+    .tab-pane {
+      display: none;
+    }
+
+    .tab-pane.active {
+      display: block;
+    }
+
+    /* Data tables */
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .76rem;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .data-table thead {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    .data-table th {
+      text-align: left;
+      color: var(--txt-mute);
+      font-weight: 600;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+      font-size: .66rem;
+      text-transform: uppercase;
+      letter-spacing: .4px;
+      background: var(--bg);
+    }
+
+    .data-table td {
+      padding: 10px 10px;
+      border-bottom: 1px solid rgba(30, 42, 58, .4);
+    }
+
+    .data-table tbody tr {
+      transition: background .1s;
+    }
+
+    .data-table tbody tr:hover {
+      background: rgba(0, 0, 0, .03);
+    }
+
+    .empty-row {
+      color: var(--txt-mute);
+      text-align: center;
+      padding: 40px 10px !important;
+      font-size: .82rem;
+    }
+
+    .exit-btn {
+      background: transparent;
+      border: 1px solid var(--red-bdr);
+      color: var(--red);
+      padding: 4px 12px;
+      border-radius: 6px;
+      font-size: .7rem;
+      cursor: pointer;
+      font-weight: 700;
+      font-family: inherit;
+      transition: all .15s;
+      letter-spacing: .3px;
+    }
+
+    .exit-btn:hover {
+      background: var(--red);
+      color: #fff;
+      border-color: var(--red);
+    }
+
+    .sl-tag,
+    .tgt-tag {
+      font-size: .6rem;
+      padding: 2px 5px;
+      border-radius: 3px;
+      font-weight: 600;
+      display: inline-block;
+      margin-right: 3px;
+    }
+
+    .sl-tag {
+      background: var(--red-bg);
+      color: var(--red);
+    }
+
+    .tgt-tag {
+      background: var(--green-bg);
+      color: var(--green);
+    }
+
+    .dir-badge {
+      font-size: .68rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 5px;
+      display: inline-block;
+    }
+
+    .dir-badge.LONG {
+      background: var(--green-bg);
+      color: var(--green);
+      border: 1px solid var(--green-bdr);
+    }
+
+    .dir-badge.SHORT {
+      background: var(--red-bg);
+      color: var(--red);
+      border: 1px solid var(--red-bdr);
+    }
+
+    .reason-tag {
+      font-size: .65rem;
+      color: var(--txt-mute);
+      background: var(--card);
+      border: 1px solid var(--border);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    /* P&L tab cards */
+    .pnl-cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .pnl-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 24px;
+      text-align: center;
+    }
+
+    .pnl-card-label {
+      font-size: .68rem;
+      color: var(--txt-mute);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      margin-bottom: 6px;
+    }
+
+    .pnl-card-val {
+      font-size: 1.8rem;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -1px;
+    }
+
+    .pnl-card-sub {
+      font-size: .72rem;
+      color: var(--txt-dim);
+      margin-top: 4px;
+    }
+
+    .pnl-stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .pnl-stat {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      text-align: center;
+    }
+
+    .pnl-stat-val {
+      font-size: 1.1rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .pnl-stat-label {
+      font-size: .64rem;
+      color: var(--txt-mute);
+      text-transform: uppercase;
+      letter-spacing: .4px;
+      margin-top: 2px;
+    }
+
+    /* Toast */
+    .toast-area {
+      position: fixed;
+      top: 50px;
+      right: 16px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .toast {
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: .75rem;
+      font-weight: 500;
+      animation: slideIn .3s ease-out;
+      min-width: 220px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, .4);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .toast.success {
+      background: var(--green-bg);
+      color: var(--green);
+      border: 1px solid var(--green-bdr);
+    }
+
+    .toast.error {
+      background: var(--red-bg);
+      color: var(--red);
+      border: 1px solid var(--red-bdr);
+    }
+
+    .toast.info {
+      background: rgba(59, 130, 246, .1);
+      color: var(--accent);
+      border: 1px solid rgba(59, 130, 246, .25);
+    }
+
+    @keyframes slideIn {
+      from {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+
+    /* Status bar */
+    .statusbar {
+      padding: 3px 20px;
+      font-size: .66rem;
+      color: var(--txt-mute);
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    ::-webkit-scrollbar {
+      width: 5px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 3px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--border-lt);
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Top bar -->
+  <div class="topbar">
+    <div class="logo">Project Candles</div>
+    <nav>
+      <a href="/">Dashboard</a>
+      <a href="/trade">Paper Trade</a>
+      <a href="/orders" class="active">Orders</a>
+    </nav>
+    <div class="market-badge connecting" id="market-badge">
+      <span class="dot"></span>
+      <span id="market-label">CONNECTING</span>
+    </div>
+  </div>
+
+  <!-- Portfolio summary -->
+  <div class="port-strip">
+    <div class="port-item">
+      <span class="port-item-label">Balance</span>
+      <span class="port-item-val" id="port-balance">&#8377;--</span>
+    </div>
+    <div class="port-divider"></div>
+    <div class="port-item">
+      <span class="port-item-label">Total P&amp;L</span>
+      <span class="port-item-val sm" id="port-pnl">&#8377;0.00</span>
+    </div>
+    <div class="port-divider"></div>
+    <div class="port-item">
+      <span class="port-item-label">Win Rate</span>
+      <span class="port-item-val sm" id="port-winrate">0%</span>
+    </div>
+    <div class="port-divider"></div>
+    <div class="port-item">
+      <span class="port-item-label">Trades</span>
+      <span class="port-item-val sm" id="port-trades">0</span>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tab-bar">
+    <button class="tab-btn active" data-tab="positions" onclick="switchTab('positions')">Positions <span class="badge"
+        id="pos-badge" style="display:none;">0</span></button>
+    <button class="tab-btn" data-tab="manual" onclick="switchTab('manual')">Manual Trades <span class="badge"
+        id="manual-badge" style="display:none;">0</span></button>
+    <button class="tab-btn" data-tab="auto" onclick="switchTab('auto')">Auto Trades <span class="badge" id="auto-badge"
+        style="display:none;">0</span></button>
+    <button class="tab-btn" data-tab="pnl" onclick="switchTab('pnl')">P&amp;L</button>
+  </div>
+
+  <!-- Tab content -->
+  <div class="tab-content">
+
+    <!-- Positions tab -->
+    <div class="tab-pane active" id="tab-positions">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Instrument</th>
+            <th>Side</th>
+            <th>Qty</th>
+            <th>Entry</th>
+            <th>LTP</th>
+            <th>P&amp;L</th>
+            <th>Mkt Value</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="pos-body"></tbody>
+      </table>
+    </div>
+
+    <!-- Manual Trades tab -->
+    <div class="tab-pane" id="tab-manual">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Instrument</th>
+            <th>Side</th>
+            <th>Qty</th>
+            <th>Entry</th>
+            <th>Exit</th>
+            <th>P&amp;L</th>
+            <th>Reason</th>
+            <th>Time</th>
+          </tr>
+        </thead>
+        <tbody id="manual-body"></tbody>
+      </table>
+    </div>
+
+    <!-- Auto Trades tab -->
+    <div class="tab-pane" id="tab-auto">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Instrument</th>
+            <th>Side</th>
+            <th>Qty</th>
+            <th>Entry</th>
+            <th>Exit</th>
+            <th>P&amp;L</th>
+            <th>Reason</th>
+            <th>Time</th>
+          </tr>
+        </thead>
+        <tbody id="auto-body"></tbody>
+      </table>
+    </div>
+
+    <!-- P&L tab -->
+    <div class="tab-pane" id="tab-pnl">
+      <div class="pnl-cards">
+        <div class="pnl-card">
+          <div class="pnl-card-label">Unrealized P&amp;L</div>
+          <div class="pnl-card-val" id="unrealized-pnl">&#8377;0.00</div>
+          <div class="pnl-card-sub" id="unrealized-sub">0 open positions</div>
+        </div>
+        <div class="pnl-card">
+          <div class="pnl-card-label">Realized P&amp;L</div>
+          <div class="pnl-card-val" id="realized-pnl">&#8377;0.00</div>
+          <div class="pnl-card-sub" id="realized-sub">0 closed trades</div>
+        </div>
+        <div class="pnl-card">
+          <div class="pnl-card-label">Total P&amp;L</div>
+          <div class="pnl-card-val" id="total-pnl">&#8377;0.00</div>
+          <div class="pnl-card-sub" id="total-sub">--</div>
+        </div>
+      </div>
+      <div class="pnl-stats">
+        <div class="pnl-stat">
+          <div class="pnl-stat-val" id="stat-wins">0</div>
+          <div class="pnl-stat-label">Wins</div>
+        </div>
+        <div class="pnl-stat">
+          <div class="pnl-stat-val" id="stat-losses">0</div>
+          <div class="pnl-stat-label">Losses</div>
+        </div>
+        <div class="pnl-stat">
+          <div class="pnl-stat-val" id="stat-winrate">0%</div>
+          <div class="pnl-stat-label">Win Rate</div>
+        </div>
+        <div class="pnl-stat">
+          <div class="pnl-stat-val" id="stat-total-trades">0</div>
+          <div class="pnl-stat-label">Total Trades</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="toast-area" id="toast-area"></div>
+  <div class="statusbar">
+    <span id="status-text">Loading...</span>
+    <span style="margin-left:auto;" id="status-time"></span>
+  </div>
+
+  <script>
+    const RS = '\u20b9';
+    let feedRunning = false;
+
+    function toast(msg, type = 'info') {
+      const el = document.createElement('div');
+      el.className = 'toast ' + type; el.textContent = msg;
+      document.getElementById('toast-area').appendChild(el);
+      setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; }, 2500);
+      setTimeout(() => el.remove(), 2900);
+    }
+
+    function updateBadge(isOpen, ok) {
+      const b = document.getElementById('market-badge'), l = document.getElementById('market-label');
+      if (ok && isOpen) { b.className = 'market-badge live'; l.textContent = 'LIVE'; }
+      else if (!isOpen) { b.className = 'market-badge closed'; l.textContent = 'MARKET CLOSED'; }
+      else { b.className = 'market-badge connecting'; l.textContent = 'CONNECTING'; }
+    }
+
+    // ── TABS ──
+    function switchTab(tab) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id === 'tab-' + tab));
+    }
+
+    // ── FEED ──
+    async function startFeed() {
+      try {
+        const r = await fetch('/api/feed/start', { method: 'POST' });
+        const d = await r.json();
+        if (!d.error) feedRunning = true;
+      } catch (e) { }
+    }
+
+    async function pollLive() {
+      try {
+        const r = await fetch('/api/live'), d = await r.json();
+        updateBadge(!!d.market_open, feedRunning);
+      } catch (e) { }
+    }
+
+    // ── PORTFOLIO ──
+    async function refreshPortfolio() {
+      try {
+        const r = await fetch('/api/portfolio'), p = await r.json();
+        const pnlCls = p.total_pnl >= 0 ? 'pos' : 'neg';
+        document.getElementById('port-balance').textContent = RS + p.balance.toLocaleString('en-IN', { minimumFractionDigits: 2 });
+        document.getElementById('port-pnl').textContent = RS + p.total_pnl.toLocaleString('en-IN', { minimumFractionDigits: 2 });
+        document.getElementById('port-pnl').className = 'port-item-val sm ' + pnlCls;
+        document.getElementById('port-winrate').textContent = p.win_rate + '%';
+        document.getElementById('port-trades').textContent = p.total_trades;
+        document.getElementById('stat-wins').textContent = p.wins;
+        document.getElementById('stat-losses').textContent = p.losses;
+        document.getElementById('stat-winrate').textContent = p.win_rate + '%';
+        document.getElementById('stat-total-trades').textContent = p.total_trades;
+      } catch (e) { }
+    }
+
+    // ── POSITIONS ──
+    async function refreshPositions() {
+      try {
+        const r = await fetch('/api/paper/positions'), data = await r.json();
+        const tbody = document.getElementById('pos-body');
+        const positions = data.positions || [];
+        const autoClosed = data.auto_closed || [];
+
+        autoClosed.forEach(ac => {
+          toast(ac.reason + ' hit: P&L ' + RS + ac.pnl.toFixed(2), ac.pnl >= 0 ? 'success' : 'error');
+        });
+        if (autoClosed.length > 0) { refreshAllTrades(); refreshPortfolio(); }
+
+        const badge = document.getElementById('pos-badge');
+        if (positions.length > 0) { badge.textContent = positions.length; badge.style.display = 'inline'; }
+        else { badge.style.display = 'none'; }
+
+        if (!positions.length) {
+          tbody.innerHTML = '<tr><td colspan="8" class="empty-row">No open positions</td></tr>';
+          document.getElementById('unrealized-pnl').textContent = RS + '0.00';
+          document.getElementById('unrealized-pnl').className = 'pnl-card-val';
+          document.getElementById('unrealized-sub').textContent = '0 open positions';
+          recalcTotal();
+          return;
+        }
+
+        let totalUr = 0;
+        tbody.innerHTML = positions.map(p => {
+          const cls = p.unrealized >= 0 ? 'pos' : 'neg';
+          totalUr += p.unrealized;
+          let inst = p.symbol;
+          if (p.option_type && p.option_type !== 'IDX') inst = p.strike + ' ' + p.option_type;
+          let tags = '';
+          if (p.stop_loss) tags += '<span class="sl-tag">SL ' + p.stop_loss + '</span>';
+          if (p.target) tags += '<span class="tgt-tag">T ' + p.target + '</span>';
+          return '<tr>' +
+            '<td>' + inst + (tags ? '<br/>' + tags : '') + '</td>' +
+            '<td><span class="dir-badge ' + p.direction + '">' + p.direction + '</span></td>' +
+            '<td>' + p.qty + '</td>' +
+            '<td>' + p.entry_price.toFixed(2) + '</td>' +
+            '<td>' + (p.ltp > 0 ? p.ltp.toFixed(2) : '--') + '</td>' +
+            '<td class="' + cls + '" style="font-weight:700;">' + RS + p.unrealized.toFixed(2) + '</td>' +
+            '<td style="color:var(--txt-dim);">' + RS + p.market_value.toLocaleString('en-IN', { minimumFractionDigits: 0 }) + '</td>' +
+            '<td><button class="exit-btn" onclick="exitTrade(\'' + p.trade_id + '\',' + (p.ltp > 0 ? p.ltp.toFixed(2) : 0) + ')">EXIT</button></td>' +
+            '</tr>';
+        }).join('');
+
+        const uCls = totalUr >= 0 ? 'pos' : 'neg';
+        document.getElementById('unrealized-pnl').textContent = RS + totalUr.toFixed(2);
+        document.getElementById('unrealized-pnl').className = 'pnl-card-val ' + uCls;
+        document.getElementById('unrealized-sub').textContent = positions.length + ' open position' + (positions.length > 1 ? 's' : '');
+        recalcTotal();
+      } catch (e) { console.error('positions err', e); }
+    }
+
+    // ── EXIT TRADE ──
+    async function exitTrade(tradeId, ltp) {
+      try {
+        const payload = { trade_id: tradeId };
+        if (ltp && ltp > 0) payload.price = ltp;
+        const r = await fetch('/api/paper/exit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        const d = await r.json();
+        if (d.error) { toast(d.error, 'error'); return; }
+        toast('Closed: P&L ' + RS + d.pnl.toFixed(2), d.pnl >= 0 ? 'success' : 'error');
+        refreshPositions(); refreshAllTrades(); refreshPortfolio();
+      } catch (e) { toast('Exit failed', 'error'); }
+    }
+
+    // ── TRADE HISTORY (single fetch, split by source) ──
+    let _realizedPnl = 0;
+
+    function _tradeRow(t) {
+      const cls = t.pnl >= 0 ? 'pos' : 'neg';
+      let inst = t.symbol;
+      if (t.option_type && t.option_type !== 'IDX') inst = t.strike + ' ' + t.option_type;
+      const exitTime = t.exit_time ? new Date(t.exit_time).toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short' }) : '--';
+      return '<tr>' +
+        '<td>' + inst + '</td>' +
+        '<td><span class="dir-badge ' + t.direction + '">' + t.direction + '</span></td>' +
+        '<td>' + t.qty + '</td>' +
+        '<td>' + t.entry_price.toFixed(2) + '</td>' +
+        '<td>' + (t.exit_price != null ? t.exit_price.toFixed(2) : '--') + '</td>' +
+        '<td class="' + cls + '" style="font-weight:700;">' + RS + t.pnl.toFixed(2) + '</td>' +
+        '<td>' + (t.exit_reason ? '<span class="reason-tag">' + t.exit_reason + '</span>' : '') + '</td>' +
+        '<td style="color:var(--txt-dim);font-size:.7rem;">' + exitTime + '</td>' +
+        '</tr>';
+    }
+
+    function _setBadge(id, count) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (count > 0) { el.textContent = count; el.style.display = 'inline'; }
+      else { el.style.display = 'none'; }
+    }
+
+    async function refreshAllTrades() {
+      try {
+        const r = await fetch('/api/paper/history'), data = await r.json();
+        const all = data.trades || [];
+
+        const manual = all.filter(t => !t.source || t.source === 'MANUAL');
+        const auto = all.filter(t => t.source === 'AUTO');
+
+        // Render manual tab
+        const mTbody = document.getElementById('manual-body');
+        mTbody.innerHTML = manual.length
+          ? manual.map(_tradeRow).join('')
+          : '<tr><td colspan="8" class="empty-row">No manual trades yet</td></tr>';
+        _setBadge('manual-badge', manual.length);
+
+        // Render auto tab
+        const aTbody = document.getElementById('auto-body');
+        aTbody.innerHTML = auto.length
+          ? auto.map(_tradeRow).join('')
+          : '<tr><td colspan="8" class="empty-row">No automatic trades yet</td></tr>';
+        _setBadge('auto-badge', auto.length);
+
+        // Update P&L card
+        _realizedPnl = all.reduce((s, t) => s + (t.pnl || 0), 0);
+        const rCls = _realizedPnl >= 0 ? 'pos' : 'neg';
+        document.getElementById('realized-pnl').textContent = RS + _realizedPnl.toFixed(2);
+        document.getElementById('realized-pnl').className = 'pnl-card-val ' + rCls;
+        document.getElementById('realized-sub').textContent = all.length + ' closed trade' + (all.length !== 1 ? 's' : '') +
+          ' (' + manual.length + ' manual, ' + auto.length + ' auto)';
+        recalcTotal();
+      } catch (e) { console.error('history err', e); }
+    }
+
+    // Keep old name as alias for compatibility with any other callers
+    const refreshManualTrades = refreshAllTrades;
+    const refreshAutoTrades = () => { };
+
+    function recalcTotal() {
+      const urText = document.getElementById('unrealized-pnl').textContent;
+      const ur = parseFloat(urText.replace(/[^\d.\-]/g, '')) || 0;
+      const re = _realizedPnl || 0;
+      const tot = ur + re;
+      const cls = tot >= 0 ? 'pos' : 'neg';
+      document.getElementById('total-pnl').textContent = RS + tot.toFixed(2);
+      document.getElementById('total-pnl').className = 'pnl-card-val ' + cls;
+      document.getElementById('total-sub').textContent =
+        'Unrealized ' + (ur >= 0 ? '+' : '') + ur.toFixed(2) +
+        ' + Realized ' + (re >= 0 ? '+' : '') + re.toFixed(2);
+    }
+
+    // ── CLOCK ──
+    function updateClock() {
+      const n = new Date(), ist = new Date(n.getTime() + (5.5 * 60 * 60 * 1000));
+      document.getElementById('status-time').textContent =
+        'IST ' + String(ist.getUTCHours()).padStart(2, '0') + ':' +
+        String(ist.getUTCMinutes()).padStart(2, '0') + ':' +
+        String(ist.getUTCSeconds()).padStart(2, '0');
+    }
+    setInterval(updateClock, 1000);
+
+    // ── INIT ──
+    (async () => {
+      updateClock();
+      document.getElementById('status-text').textContent = 'Loading...';
+      // Load data immediately — do NOT wait for feed auth before showing positions
+      startFeed().then(() => {
+        if (feedRunning) document.getElementById('status-text').textContent = 'Live feed active';
+      }).catch(() => { });
+      pollLive().catch(() => { });
+      // Positions, trades, portfolio load right away
+      await Promise.all([refreshPortfolio(), refreshPositions(), refreshAllTrades()]);
+      document.getElementById('status-text').textContent = feedRunning ? 'Live feed active' : 'Ready';
+      // Positions every 5s for responsive LTP updates
+      setInterval(refreshPositions, 5000);
+      // Trades + portfolio every 15s
+      setInterval(() => { refreshAllTrades(); refreshPortfolio(); }, 15000);
+      setInterval(pollLive, 5000);
+    })();
+  </script>
+</body>
+
+</html>

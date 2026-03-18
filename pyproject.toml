@@ -1,0 +1,22 @@
+[project]
+name = "angelone-trading-bot"
+version = "1.0.0"
+requires-python = ">=3.12"
+dependencies = [
+    "flask>=3.0.0",
+    "flask-cors>=4.0.0",
+    "smartapi-python>=1.4.0",
+    "pyotp>=2.9.0",
+    "logzero>=1.7.0",
+    "pandas>=2.1.0",
+    "numpy>=1.26.0",
+    "ta>=0.11.0",
+    "websocket-client>=1.7.0",
+    "schedule>=1.2.0",
+    "python-dotenv>=1.0.0",
+    "requests>=2.31.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["trading_bot/tests"]
+pythonpath = ["."]
