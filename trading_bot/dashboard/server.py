@@ -9,11 +9,13 @@ Endpoints:
 """
 
 import datetime
+import json
 import os
 import threading
 from zoneinfo import ZoneInfo
 
 from flask import Flask, jsonify, render_template, request
+from flask.json.provider import DefaultJSONProvider
 from flask_cors import CORS
 
 import uuid
@@ -46,6 +48,22 @@ IST = ZoneInfo(config.TIMEZONE)
 _HERE = os.path.dirname(os.path.abspath(__file__))
 app = Flask(__name__, template_folder=os.path.join(_HERE, "templates"))
 CORS(app)
+
+
+# ─── Custom JSON encoder for numpy types ─────────────────────────────────────
+class _NumpySafeProvider(DefaultJSONProvider):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super().default(obj)
+
+
+app.json_provider_class = _NumpySafeProvider
+app.json = _NumpySafeProvider(app)
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
