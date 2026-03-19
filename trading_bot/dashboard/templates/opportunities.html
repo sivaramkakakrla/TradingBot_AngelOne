@@ -1203,6 +1203,25 @@
                 const r = await fetch('/api/opportunities');
                 const data = await r.json();
 
+                // Market closed — show message, stop auto-scan
+                if (data.market_closed) {
+                    const list = document.getElementById('signals-list');
+                    list.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">🌙</div>
+          <div class="empty-text">Market is closed</div>
+          <div class="empty-sub">Signals will appear automatically when the market opens (Mon-Fri 9:15 AM - 3:30 PM IST)</div>
+        </div>`;
+                    const panelSub = document.querySelector('.panel-sub');
+                    panelSub.textContent = 'Market closed · no active signals';
+                    panelSub.style.color = '#f59e0b';
+                    statusText.textContent = 'Market closed';
+                    document.getElementById('status-text').textContent = 'Market closed';
+                    clearInterval(scanTimer);
+                    document.getElementById('next-scan-label').textContent = 'Paused';
+                    return;
+                }
+
                 if (data.error) {
                     if (!silent) {
                         document.getElementById('signals-list').innerHTML =
@@ -1330,7 +1349,7 @@
                         '<span>⏱ ' + (d.timeframe || '5m') + ' timeframe</span>';
                 }
             } catch (e) {
-                content.innerHTML = '<div style="color:var(--red);font-size:.8rem;">❌ Failed to connect to AI service</div>';
+                content.innerHTML = '<div style="color:var(--red);font-size:.8rem;">❌ Failed to connect to AI service: ' + (e.message || 'Network error') + '</div>';
             } finally {
                 btn.disabled = false;
                 _aiRunning = false;

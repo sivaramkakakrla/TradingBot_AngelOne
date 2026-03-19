@@ -751,6 +751,10 @@ def api_opportunities():
     """Analyse recent NIFTY 1-minute candles and return confirmed signals."""
     import time as _time
 
+    # ── Return empty when market is closed ──
+    if not _is_market_open():
+        return jsonify({"signals": [], "market_closed": True, "candle_count": 0})
+
     # ── In-memory cache (30 s) — prevents rate-limit storms ──
     if _opp_cache.get("data") and (_time.time() - _opp_cache.get("ts", 0)) < _OPP_CACHE_TTL:
         return jsonify(_opp_cache["data"])

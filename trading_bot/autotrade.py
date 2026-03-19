@@ -314,6 +314,8 @@ def _scan_and_trade():
 
     # Check market conditions
     if not _is_in_trade_window():
+        with _lock:
+            _status["last_scan"] = now_ist().strftime("%H:%M:%S")
         return
 
     if _daily_loss_reached():
