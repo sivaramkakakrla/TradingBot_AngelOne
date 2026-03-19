@@ -105,47 +105,10 @@ def _is_duplicate_signal(direction: str) -> bool:
 
 
 def _fetch_latest_candles(session, timeframe="1m", bars=100) -> pd.DataFrame | None:
-    """Fetch recent NIFTY candles from AngelOne API."""
-    tf_map = {"1m": "ONE_MINUTE", "5m": "FIVE_MINUTE", "15m": "FIFTEEN_MINUTE"}
-    interval = tf_map.get(timeframe, "ONE_MINUTE")
-
-    today = now_ist()
-    from_str = today.strftime("%Y-%m-%d 09:15")
-    to_str = today.strftime("%Y-%m-%d %H:%M")
-
-    try:
-        resp = session.getCandleData({
-            "exchange": config.EXCHANGE,
-            "symboltoken": config.NIFTY_TOKEN,
-            "interval": interval,
-            "fromdate": from_str,
-            "todate": to_str,
-        })
-        if not resp or resp.get("status") is False:
-            return None
-
-        raw = resp.get("data") or []
-        if len(raw) < 20:
-            return None
-
-        rows = []
-        for bar in raw:
-            if len(bar) >= 6:
-                rows.append({
-                    "timestamp": str(bar[0]),
-                    "open": float(bar[1]),
-                    "high": float(bar[2]),
-                    "low": float(bar[3]),
-                    "close": float(bar[4]),
-                    "volume": int(bar[5]),
-                })
-        df = pd.DataFrame(rows[-bars:])
-        for col in ("close", "open", "high", "low", "volume"):
-            df[col] = df[col].astype(float)
-        return df
-    except Exception as exc:
-        log.warning("AutoTrade candle fetch error: %s", exc)
-        return None
+    """Fetch recent NIFTY candles via shared cache (avoids rate limiting)."""
+    from trading_bot.candle_cache import get_candles
+    df, _, _ = get_candles(timeframe, bars)
+    return df
 
 
 def _place_auto_trade(signal, nifty_ltp: float) -> str | None:
@@ -448,7 +411,7 @@ def start(scan_interval: int = 60):
     global _running, _thread, _SCAN_INTERVAL
     if _running and _thread and _thread.is_alive():
         return
-    _SCAN_INTERVAL = scan_interval
+    _SCAN_INTERVAL = max(scan_interval, 60)  # minimum 60s to avoid rate limiting
     _running = True
     with _lock:
         _status["enabled"] = True

@@ -316,12 +316,12 @@ def close_trade(
         cur.execute(sql, (exit_price, exit_time, exit_reason, pnl, exit_order_id, trade_id))
 
 
-def get_open_trades() -> list[sqlite3.Row]:
-    """Return all currently open trades."""
+def get_open_trades() -> list[dict]:
+    """Return all currently open trades as dicts."""
     sql = "SELECT * FROM trades WHERE status = 'OPEN'"
     with get_cursor() as cur:
         cur.execute(sql)
-        return cur.fetchall()
+        return [dict(r) for r in cur.fetchall()]
 
 
 def get_today_pnl(date_str: str) -> float:

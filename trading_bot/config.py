@@ -116,13 +116,12 @@ PCR_BEARISH = 0.8
 
 # Time windows (IST, 24h format)
 TRADE_WINDOWS = [
-    ("09:30", "11:30"),
-    ("13:30", "14:30"),
+    ("09:20", "15:00"),
 ]
 FORCE_EXIT_TIME = "15:00"
 
 # Duplicate signal cooldown (seconds)
-DUPLICATE_SIGNAL_COOLDOWN = 60
+DUPLICATE_SIGNAL_COOLDOWN = 300
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  EXIT / RISK MANAGEMENT

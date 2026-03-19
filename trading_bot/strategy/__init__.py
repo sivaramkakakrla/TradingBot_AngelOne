@@ -240,11 +240,11 @@ def evaluate(df: pd.DataFrame, backtest: bool = False) -> list[Signal]:
             )
 
         filters = {
-            "rsi": _check_rsi(rsi_val, direction),
-            "macd": _check_macd(macd_hist, direction),
-            "supertrend": _check_supertrend(st_dir, direction),
-            "ema_trend": _check_ema_trend(ef, es, direction),
-            "volume": vol_ok,
+            "rsi": bool(_check_rsi(rsi_val, direction)),
+            "macd": bool(_check_macd(macd_hist, direction)),
+            "supertrend": bool(_check_supertrend(st_dir, direction)),
+            "ema_trend": bool(_check_ema_trend(ef, es, direction)),
+            "volume": bool(vol_ok),
         }
 
         confirmations = sum(filters.values())
@@ -303,7 +303,7 @@ def evaluate(df: pd.DataFrame, backtest: bool = False) -> list[Signal]:
                 "timestamp": bar_ts or now_ist().isoformat(),
                 "direction": direction,
                 "strength": strength,
-                "filters": json.dumps(filters),
+                "filters": json.dumps({k: bool(v) for k, v in filters.items()}),
                 "action": action,
                 "reason": reason_str,
             })

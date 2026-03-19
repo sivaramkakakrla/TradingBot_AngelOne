@@ -737,20 +737,20 @@ def api_paper_history():
     return jsonify({"trades": trades})
 
 
+# ─── In-memory cache for opportunities (avoids rate-limiting) ─────────────────
+_opp_cache: dict = {}          # {"data": ..., "ts": float}
+_OPP_CACHE_TTL = 30            # seconds
+
 # ─── Opportunities API ────────────────────────────────────────────────────────
 
 @app.route("/api/opportunities")
 def api_opportunities():
-    """
-    Analyse recent NIFTY 1-minute candles and return confirmed signals.
+    """Analyse recent NIFTY 1-minute candles and return confirmed signals."""
+    import time as _time
 
-    Tries today first, then walks back up to 7 calendar days (skipping
-    weekends) to find the latest trading day with actual data.
-    Calls getCandleData directly (not via _fetch_raw) so real API errors
-    are captured and returned for debugging.
-    """
-    import datetime as _dt
-    from trading_bot.auth.login import get_session
+    # ── In-memory cache (30 s) — prevents rate-limit storms ──
+    if _opp_cache.get("data") and (_time.time() - _opp_cache.get("ts", 0)) < _OPP_CACHE_TTL:
+        return jsonify(_opp_cache["data"])
 
     # ── Redis cache (60 s) ──
     cached = get_cached("nifty:opportunities")
@@ -758,97 +758,22 @@ def api_opportunities():
         return jsonify(cached)
 
     try:
-        session = get_session()
-        rows_raw = []
-        data_date = None
-        diag_errors = []   # per-day diagnostic messages returned in error
-
-        if session:
-            # ── Quick session health-check via ltpData ──────────────────────
-            try:
-                test = session.ltpData(
-                    exchange=config.EXCHANGE,
-                    tradingsymbol=config.UNDERLYING,
-                    symboltoken=config.NIFTY_TOKEN,
-                )
-                if test and test.get("status") is False:
-                    return jsonify({
-                        "signals": [],
-                        "error": f"AngelOne session rejected: {test.get('message','?')} "
-                                 f"(code={test.get('errorcode','')}). "
-                                 "Token may be expired — try refreshing the page.",
-                    })
-            except Exception as te:
-                return jsonify({"signals": [], "error": f"AngelOne session test failed: {te}"})
-
-            today = now_ist().date()
-            now_str = now_ist().strftime("%Y-%m-%d %H:%M")
-
-            # Walk back up to 7 calendar days (handles holidays + weekends)
-            for days_back in range(8):
-                check_date = today - _dt.timedelta(days=days_back)
-                if check_date.weekday() >= 5:   # skip Saturday / Sunday
-                    continue
-                d_str = check_date.strftime("%Y-%m-%d")
-                to_str = now_str if days_back == 0 else f"{d_str} 15:30"
-
-                params = {
-                    "exchange":    config.EXCHANGE,
-                    "symboltoken": config.NIFTY_TOKEN,
-                    "interval":    "ONE_MINUTE",
-                    "fromdate":    f"{d_str} 09:15",
-                    "todate":      to_str,
-                }
-                try:
-                    resp = session.getCandleData(params)
-                except Exception as exc:
-                    diag_errors.append(f"{d_str}: exception — {exc}")
-                    continue
-
-                if not resp:
-                    diag_errors.append(f"{d_str}: empty response")
-                    continue
-
-                if resp.get("status") is False:
-                    msg = resp.get("message", "unknown")
-                    code = resp.get("errorcode", "")
-                    diag_errors.append(f"{d_str}: {msg} (code={code})")
-                    # API-level auth errors won't fix themselves for other dates
-                    if code in ("AB1010", "AB1004", "AG8001", "AB1006"):
-                        break   # token invalid — no point retrying other days
-                    continue
-
-                raw = resp.get("data") or []
-                if raw:
-                    for bar in raw:
-                        if len(bar) >= 6:
-                            rows_raw.append({
-                                "timestamp": str(bar[0]),
-                                "open":      float(bar[1]),
-                                "high":      float(bar[2]),
-                                "low":       float(bar[3]),
-                                "close":     float(bar[4]),
-                                "volume":    int(bar[5]),
-                            })
-                    data_date = check_date.strftime("%d %b %Y")
-                    break   # found data — stop looking back
-                else:
-                    diag_errors.append(f"{d_str}: response OK but data=[]")
+        # Use shared candle cache to avoid rate-limit storms (AB1019)
+        from trading_bot.candle_cache import get_candles as _get_shared_candles
+        df, data_date, _ = _get_shared_candles("1m", 100)
 
         # Fallback: stored candles (populated by main.py when running locally)
-        if not rows_raw:
+        if df is None or len(df) == 0:
             db_rows = fetch_candles(config.UNDERLYING, "1m", limit=100)
             if db_rows:
                 rows_raw = [dict(r) for r in db_rows]
                 data_date = "DB cache"
+                df = pd.DataFrame(rows_raw[-100:])
+                for col in ("close", "open", "high", "low", "volume"):
+                    df[col] = df[col].astype(float)
 
-        if not rows_raw:
-            detail = " | ".join(diag_errors) if diag_errors else "no session or no data"
-            return jsonify({"signals": [], "error": f"No candle data: {detail}"})
-
-        df = pd.DataFrame(rows_raw[-100:])
-        for col in ("close", "open", "high", "low", "volume"):
-            df[col] = df[col].astype(float)
+        if df is None or len(df) == 0:
+            return jsonify({"signals": [], "error": "No candle data available"})
 
         signals = evaluate(df)
         result = [_sanitize(s.to_dict()) for s in signals]
@@ -858,6 +783,8 @@ def api_opportunities():
             "data_date":    data_date,
         }
         set_cached("nifty:opportunities", response, ttl=60)
+        _opp_cache["data"] = response
+        _opp_cache["ts"] = _time.time()
         return jsonify(response)
     except Exception as e:
         log.error("api_opportunities error: %s", e)
