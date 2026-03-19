@@ -1,0 +1,1288 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Project Candles — Opportunities</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg: #f8fafc;
+            --surface: #ffffff;
+            --card: #f1f5f9;
+            --border: #e2e8f0;
+            --border-lt: #cbd5e1;
+            --txt: #0f172a;
+            --txt-dim: #64748b;
+            --txt-mute: #94a3b8;
+            --accent: #3b82f6;
+            --green: #16a34a;
+            --green-bg: rgba(22, 163, 74, 0.08);
+            --green-bdr: rgba(22, 163, 74, 0.25);
+            --red: #dc2626;
+            --red-bg: rgba(220, 38, 38, 0.08);
+            --red-bdr: rgba(220, 38, 38, 0.25);
+            --amber: #d97706;
+            --amber-bg: rgba(217, 119, 6, 0.08);
+            --amber-bdr: rgba(217, 119, 6, 0.25);
+            --purple: #7c3aed;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--txt);
+            font-family: 'Inter', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            -webkit-font-smoothing: antialiased;
+            overflow: hidden;
+        }
+
+        /* Top bar */
+        .topbar {
+            display: flex;
+            align-items: center;
+            padding: 0 24px;
+            height: 48px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+            gap: 16px;
+        }
+
+        .logo {
+            font-size: .95rem;
+            font-weight: 700;
+            color: var(--accent);
+            letter-spacing: -.3px;
+        }
+
+        .topbar nav {
+            display: flex;
+            gap: 4px;
+            margin-left: 16px;
+        }
+
+        .topbar nav a {
+            color: var(--txt-dim);
+            text-decoration: none;
+            font-size: .8rem;
+            font-weight: 500;
+            padding: 6px 16px;
+            border-radius: 8px;
+            transition: all .15s;
+        }
+
+        .topbar nav a:hover {
+            color: var(--txt);
+            background: rgba(0, 0, 0, .05);
+        }
+
+        .topbar nav a.active {
+            color: var(--accent);
+            background: rgba(59, 130, 246, .1);
+        }
+
+        .badge-area {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* Market badge */
+        .market-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 14px;
+            border-radius: 20px;
+            font-size: .72rem;
+            font-weight: 600;
+            letter-spacing: .5px;
+            text-transform: uppercase;
+        }
+
+        .market-badge .dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+        }
+
+        .market-badge.live {
+            background: var(--green-bg);
+            color: var(--green);
+            border: 1px solid var(--green-bdr);
+        }
+
+        .market-badge.live .dot {
+            background: var(--green);
+            animation: pulse 1.5s infinite;
+        }
+
+        .market-badge.closed {
+            background: rgba(100, 116, 139, .1);
+            color: var(--txt-dim);
+            border: 1px solid var(--border);
+        }
+
+        .market-badge.closed .dot {
+            background: var(--txt-mute);
+        }
+
+        .market-badge.connecting {
+            background: rgba(245, 158, 11, .1);
+            color: var(--amber);
+            border: 1px solid rgba(245, 158, 11, .25);
+        }
+
+        .market-badge.connecting .dot {
+            background: var(--amber);
+            animation: pulse .8s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: .3;
+            }
+        }
+
+        /* Ticker strip */
+        .ticker-strip {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 8px 24px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .ticker-symbol {
+            font-size: .72rem;
+            font-weight: 600;
+            color: var(--txt-mute);
+            letter-spacing: .5px;
+            text-transform: uppercase;
+        }
+
+        .ticker-ltp {
+            font-size: 1.3rem;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -.5px;
+        }
+
+        .ticker-chg {
+            font-size: .82rem;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .pos {
+            color: var(--green) !important;
+        }
+
+        .neg {
+            color: var(--red) !important;
+        }
+
+        .neu {
+            color: var(--txt-dim) !important;
+        }
+
+        /* Main layout */
+        .main {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr 360px;
+            gap: 0;
+            overflow: hidden;
+        }
+
+        /* Left panel - signals feed */
+        .signals-panel {
+            padding: 20px 24px;
+            overflow-y: auto;
+            border-right: 1px solid var(--border);
+        }
+
+        .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .panel-title {
+            font-size: .92rem;
+            font-weight: 700;
+            color: var(--txt);
+        }
+
+        .panel-sub {
+            font-size: .72rem;
+            color: var(--txt-mute);
+            margin-top: 2px;
+        }
+
+        .scan-btn {
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            padding: 7px 18px;
+            border-radius: 8px;
+            font-size: .76rem;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+            transition: opacity .15s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .scan-btn:hover {
+            opacity: .85;
+        }
+
+        .scan-btn:disabled {
+            opacity: .5;
+            cursor: not-allowed;
+        }
+
+        .scan-btn .spin {
+            display: inline-block;
+            animation: spin .7s linear infinite;
+        }
+
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Signal cards */
+        .signals-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .signal-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px 20px;
+            transition: border-color .2s, box-shadow .2s;
+        }
+
+        .signal-card:hover {
+            border-color: var(--border-lt);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, .07);
+        }
+
+        .signal-card.bullish {
+            border-left: 3px solid var(--green);
+        }
+
+        .signal-card.bearish {
+            border-left: 3px solid var(--red);
+        }
+
+        .sig-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .sig-time {
+            font-size: .68rem;
+            font-weight: 600;
+            color: var(--txt-mute);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .sig-badge {
+            font-size: .68rem;
+            font-weight: 700;
+            padding: 3px 10px;
+            border-radius: 6px;
+            letter-spacing: .3px;
+            text-transform: uppercase;
+        }
+
+        .sig-badge.BULLISH {
+            background: var(--green-bg);
+            color: var(--green);
+            border: 1px solid var(--green-bdr);
+        }
+
+        .sig-badge.BEARISH {
+            background: var(--red-bg);
+            color: var(--red);
+            border: 1px solid var(--red-bdr);
+        }
+
+        .sig-action {
+            font-size: .68rem;
+            font-weight: 700;
+            padding: 3px 10px;
+            border-radius: 6px;
+            margin-left: auto;
+        }
+
+        .sig-action.ENTER {
+            background: rgba(59, 130, 246, .12);
+            color: var(--accent);
+            border: 1px solid rgba(59, 130, 246, .3);
+        }
+
+        .sig-action.SKIP {
+            background: var(--card);
+            color: var(--txt-mute);
+            border: 1px solid var(--border);
+        }
+
+        .sig-option {
+            font-size: 1rem;
+            font-weight: 800;
+            letter-spacing: -.3px;
+            margin-bottom: 6px;
+        }
+
+        .sig-option .opt-type {
+            font-size: .8rem;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 5px;
+            margin-left: 6px;
+            vertical-align: middle;
+        }
+
+        .opt-type.CE {
+            background: var(--green-bg);
+            color: var(--green);
+            border: 1px solid var(--green-bdr);
+        }
+
+        .opt-type.PE {
+            background: var(--red-bg);
+            color: var(--red);
+            border: 1px solid var(--red-bdr);
+        }
+
+        .sig-body {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .sig-stat {
+            text-align: center;
+            background: var(--card);
+            border-radius: 8px;
+            padding: 8px 4px;
+        }
+
+        .sig-stat-val {
+            font-size: .86rem;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .sig-stat-label {
+            font-size: .6rem;
+            color: var(--txt-mute);
+            text-transform: uppercase;
+            letter-spacing: .3px;
+            margin-top: 2px;
+        }
+
+        .sig-patterns {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-bottom: 8px;
+        }
+
+        .pat-tag {
+            font-size: .62rem;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 4px;
+            background: var(--card);
+            border: 1px solid var(--border);
+            color: var(--txt-dim);
+        }
+
+        .sig-filters {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+        }
+
+        .filter-tag {
+            font-size: .6rem;
+            font-weight: 600;
+            padding: 2px 7px;
+            border-radius: 4px;
+        }
+
+        .filter-tag.pass {
+            background: var(--green-bg);
+            color: var(--green);
+            border: 1px solid var(--green-bdr);
+        }
+
+        .filter-tag.fail {
+            background: var(--card);
+            color: var(--txt-mute);
+            border: 1px solid var(--border);
+        }
+
+        .sig-reason {
+            font-size: .7rem;
+            color: var(--txt-dim);
+            margin-top: 8px;
+            line-height: 1.4;
+        }
+
+        /* Strength bar */
+        .strength-bar-wrap {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .strength-label {
+            font-size: .62rem;
+            color: var(--txt-mute);
+            white-space: nowrap;
+        }
+
+        .strength-bar {
+            flex: 1;
+            height: 5px;
+            background: var(--card);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .strength-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width .4s;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--txt-mute);
+        }
+
+        .empty-icon {
+            font-size: 2.5rem;
+            margin-bottom: 12px;
+        }
+
+        .empty-text {
+            font-size: .85rem;
+            font-weight: 500;
+        }
+
+        .empty-sub {
+            font-size: .75rem;
+            margin-top: 6px;
+        }
+
+        /* Right panel - market context */
+        .context-panel {
+            padding: 20px;
+            overflow-y: auto;
+            background: var(--bg);
+        }
+
+        .context-section {
+            margin-bottom: 20px;
+        }
+
+        .ctx-title {
+            font-size: .72rem;
+            font-weight: 700;
+            color: var(--txt-mute);
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            margin-bottom: 10px;
+        }
+
+        .ctx-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 14px 16px;
+            margin-bottom: 10px;
+        }
+
+        .ctx-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px 0;
+            font-size: .76rem;
+        }
+
+        .ctx-row:not(:last-child) {
+            border-bottom: 1px solid rgba(30, 42, 58, .15);
+        }
+
+        .ctx-key {
+            color: var(--txt-dim);
+            font-weight: 500;
+        }
+
+        .ctx-val {
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .level-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 7px 0;
+            border-bottom: 1px solid rgba(30, 42, 58, .1);
+            font-size: .76rem;
+        }
+
+        .level-item:last-child {
+            border-bottom: none;
+        }
+
+        .level-label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--txt-dim);
+        }
+
+        .level-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+
+        .level-val {
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Auto-scan status */
+        .scan-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: var(--card);
+            border-radius: 8px;
+            margin-bottom: 12px;
+            font-size: .72rem;
+            color: var(--txt-dim);
+        }
+
+        .scan-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--green);
+            animation: pulse 1.5s infinite;
+        }
+
+        .scan-dot.idle {
+            background: var(--txt-mute);
+            animation: none;
+        }
+
+        /* AI Analysis */
+        .ai-btn {
+            background: linear-gradient(135deg, #7c3aed, #a855f7);
+            color: #fff;
+            border: none;
+            padding: 7px 18px;
+            border-radius: 8px;
+            font-size: .76rem;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+            transition: opacity .15s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .ai-btn:hover {
+            opacity: .85;
+        }
+
+        .ai-btn:disabled {
+            opacity: .5;
+            cursor: not-allowed;
+        }
+
+        .ai-panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin-bottom: 16px;
+            display: none;
+        }
+
+        .ai-panel.show {
+            display: block;
+        }
+
+        .ai-panel-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .ai-panel-title {
+            font-size: .82rem;
+            font-weight: 700;
+            color: var(--purple);
+        }
+
+        .ai-model-tag {
+            font-size: .6rem;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 4px;
+            background: rgba(124, 58, 237, .1);
+            color: var(--purple);
+            border: 1px solid rgba(124, 58, 237, .25);
+        }
+
+        .ai-close {
+            margin-left: auto;
+            background: none;
+            border: 1px solid var(--border);
+            color: var(--txt-dim);
+            width: 24px;
+            height: 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: .8rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all .15s;
+        }
+
+        .ai-close:hover {
+            color: var(--red);
+            border-color: var(--red);
+        }
+
+        .ai-content {
+            font-size: .78rem;
+            line-height: 1.7;
+            color: var(--txt);
+            white-space: pre-wrap;
+        }
+
+        .ai-content strong,
+        .ai-content b {
+            font-weight: 700;
+        }
+
+        .ai-content h1,
+        .ai-content h2,
+        .ai-content h3 {
+            margin: 12px 0 6px 0;
+            font-size: .85rem;
+            font-weight: 700;
+            color: var(--txt);
+        }
+
+        .ai-meta {
+            margin-top: 10px;
+            padding-top: 8px;
+            border-top: 1px solid var(--border);
+            font-size: .65rem;
+            color: var(--txt-mute);
+            display: flex;
+            gap: 16px;
+        }
+
+        .ai-loading {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--purple);
+            font-size: .78rem;
+            padding: 20px 0;
+        }
+
+        .ai-loading .spin {
+            display: inline-block;
+            animation: spin .7s linear infinite;
+        }
+
+        /* Status bar */
+        .statusbar {
+            padding: 4px 24px;
+            font-size: .68rem;
+            color: var(--txt-mute);
+            background: var(--surface);
+            border-top: 1px solid var(--border);
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        ::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--border-lt);
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Top bar -->
+    <div class="topbar">
+        <div class="logo">Project Candles</div>
+        <nav>
+            <a href="/">Dashboard</a>
+            <a href="/trade">Paper Trade</a>
+            <a href="/orders">Orders</a>
+            <a href="/opportunities" class="active">Opportunities</a>
+            <a href="/history">History</a>
+        </nav>
+        <div class="badge-area">
+            <div class="market-badge connecting" id="market-badge">
+                <span class="dot"></span>
+                <span id="market-label">CONNECTING</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ticker strip -->
+    <div class="ticker-strip">
+        <div class="ticker-symbol">NIFTY 50</div>
+        <div class="ticker-ltp" id="ltp-val">--,---.--</div>
+        <div class="ticker-chg" id="ltp-chg"></div>
+        <div style="margin-left:auto;display:flex;gap:20px;">
+            <span style="font-size:.72rem;color:var(--txt-mute);">H: <span id="nifty-high"
+                    style="font-weight:600;color:var(--txt);">--</span></span>
+            <span style="font-size:.72rem;color:var(--txt-mute);">L: <span id="nifty-low"
+                    style="font-weight:600;color:var(--txt);">--</span></span>
+            <span style="font-size:.72rem;color:var(--txt-mute);">Prev: <span id="nifty-prev"
+                    style="font-weight:600;color:var(--txt);">--</span></span>
+        </div>
+    </div>
+
+    <!-- Main -->
+    <div class="main">
+
+        <!-- Left: Signal feed -->
+        <div class="signals-panel">
+            <div class="panel-header">
+                <div>
+                    <div class="panel-title">Trade Opportunities</div>
+                    <div class="panel-sub">Live NIFTY candle analysis · signals refresh every 30s</div>
+                </div>
+                <button class="ai-btn" id="ai-btn" onclick="runAIAnalysis()">
+                    <span id="ai-icon">🤖</span> AI Analysis
+                </button>
+                <button class="scan-btn" id="scan-btn" onclick="runScan()">
+                    <span id="scan-icon">⟳</span> Scan Now
+                </button>
+            </div>
+
+            <div class="scan-status" id="scan-status">
+                <span class="scan-dot idle" id="scan-dot"></span>
+                <span id="scan-status-text">Auto-scanning every 30 seconds</span>
+                <span style="margin-left:auto;font-variant-numeric:tabular-nums;" id="next-scan-label"></span>
+            </div>
+
+            <!-- AI Analysis Panel -->
+            <div class="ai-panel" id="ai-panel">
+                <div class="ai-panel-header">
+                    <span class="ai-panel-title">🤖 AI Pattern Analysis</span>
+                    <span class="ai-model-tag" id="ai-model-tag"></span>
+                    <button class="ai-close" onclick="closeAI()">&times;</button>
+                </div>
+                <div class="ai-content" id="ai-content"></div>
+                <div class="ai-meta" id="ai-meta"></div>
+            </div>
+
+            <div class="signals-list" id="signals-list">
+                <div class="empty-state">
+                    <div class="empty-icon">🔭</div>
+                    <div class="empty-text">Scanning for opportunities...</div>
+                    <div class="empty-sub">Results will appear here when patterns are confirmed</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Market context -->
+        <div class="context-panel">
+            <div class="context-section">
+                <div class="ctx-title">Market Snapshot</div>
+                <div class="ctx-card">
+                    <div class="ctx-row"><span class="ctx-key">NIFTY LTP</span><span class="ctx-val"
+                            id="ctx-ltp">--</span></div>
+                    <div class="ctx-row"><span class="ctx-key">Change</span><span class="ctx-val" id="ctx-chg">--</span>
+                    </div>
+                    <div class="ctx-row"><span class="ctx-key">Day High</span><span class="ctx-val"
+                            id="ctx-high">--</span></div>
+                    <div class="ctx-row"><span class="ctx-key">Day Low</span><span class="ctx-val"
+                            id="ctx-low">--</span></div>
+                    <div class="ctx-row"><span class="ctx-key">Prev Close</span><span class="ctx-val"
+                            id="ctx-prev">--</span></div>
+                </div>
+            </div>
+
+            <div class="context-section">
+                <div class="ctx-title">Today's Signals</div>
+                <div class="ctx-card">
+                    <div class="ctx-row"><span class="ctx-key">Total Scanned</span><span class="ctx-val"
+                            id="ctx-total">0</span></div>
+                    <div class="ctx-row"><span class="ctx-key">ENTER Signals</span><span class="ctx-val pos"
+                            id="ctx-enter">0</span></div>
+                    <div class="ctx-row"><span class="ctx-key">SKIP Signals</span><span class="ctx-val"
+                            id="ctx-skip">0</span></div>
+                    <div class="ctx-row"><span class="ctx-key">Bullish</span><span class="ctx-val pos"
+                            id="ctx-bull">0</span></div>
+                    <div class="ctx-row"><span class="ctx-key">Bearish</span><span class="ctx-val neg"
+                            id="ctx-bear">0</span></div>
+                </div>
+            </div>
+
+            <div class="context-section">
+                <div class="ctx-title">Suggested Option</div>
+                <div class="ctx-card" id="ctx-option-card">
+                    <div style="color:var(--txt-mute);font-size:.76rem;text-align:center;padding:10px 0;">No active
+                        signal</div>
+                </div>
+            </div>
+
+            <div class="context-section">
+                <div class="ctx-title">Key Levels</div>
+                <div class="ctx-card">
+                    <div class="level-item">
+                        <span class="level-label"><span class="level-dot"
+                                style="background:var(--green)"></span>Target</span>
+                        <span class="level-val pos" id="lvl-target">--</span>
+                    </div>
+                    <div class="level-item">
+                        <span class="level-label"><span class="level-dot"
+                                style="background:var(--accent)"></span>Entry</span>
+                        <span class="level-val" id="lvl-entry">--</span>
+                    </div>
+                    <div class="level-item">
+                        <span class="level-label"><span class="level-dot" style="background:var(--red)"></span>Stop
+                            Loss</span>
+                        <span class="level-val neg" id="lvl-sl">--</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="statusbar">
+        <span id="status-text">Loading...</span>
+        <span style="margin-left:auto;" id="clock"></span>
+    </div>
+
+    <script>
+        const RS = '\u20b9';
+        const FMT = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
+        let allSignals = [];
+        let nextScanIn = 30;
+        let scanTimer = null;
+        let feedOk = false;
+
+        function fmt(v) { return v > 0 ? v.toLocaleString('en-IN', FMT) : '--'; }
+
+        // ── Clock ──
+        function updateClock() {
+            const n = new Date(), ist = new Date(n.getTime() + 5.5 * 36e5);
+            document.getElementById('clock').textContent =
+                'IST ' + String(ist.getUTCHours()).padStart(2, '0') + ':' +
+                String(ist.getUTCMinutes()).padStart(2, '0') + ':' +
+                String(ist.getUTCSeconds()).padStart(2, '0');
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // ── Feed ──
+        async function startFeed() {
+            try {
+                const r = await fetch('/api/feed/start', { method: 'POST' });
+                const d = await r.json();
+                if (!d.error) feedOk = true;
+            } catch (e) { }
+        }
+
+        async function pollLive() {
+            try {
+                const r = await fetch('/api/live'), d = await r.json();
+                const isOpen = !!d.market_open;
+                const b = document.getElementById('market-badge'), l = document.getElementById('market-label');
+                if (feedOk && isOpen) { b.className = 'market-badge live'; l.textContent = 'LIVE'; }
+                else if (!isOpen) { b.className = 'market-badge closed'; l.textContent = 'MARKET CLOSED'; }
+                else { b.className = 'market-badge connecting'; l.textContent = 'CONNECTING'; }
+
+                if (d.ltp > 0) {
+                    const chg = d.prev_close > 0 ? d.ltp - d.prev_close : 0;
+                    const pct = d.prev_close > 0 ? chg / d.prev_close * 100 : 0;
+                    const cls = chg >= 0 ? 'pos' : 'neg';
+                    document.getElementById('ltp-val').textContent = fmt(d.ltp);
+                    document.getElementById('ltp-val').className = 'ticker-ltp ' + cls;
+                    document.getElementById('ltp-chg').textContent = (chg >= 0 ? '+' : '') + chg.toFixed(2) + ' (' + (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%)';
+                    document.getElementById('ltp-chg').className = 'ticker-chg ' + cls;
+                    document.getElementById('nifty-high').textContent = d.high > 0 ? fmt(d.high) : '--';
+                    document.getElementById('nifty-low').textContent = d.low > 0 ? fmt(d.low) : '--';
+                    document.getElementById('nifty-prev').textContent = d.prev_close > 0 ? fmt(d.prev_close) : '--';
+
+                    // Context panel
+                    document.getElementById('ctx-ltp').textContent = fmt(d.ltp);
+                    document.getElementById('ctx-chg').textContent = (chg >= 0 ? '+' : '') + chg.toFixed(2);
+                    document.getElementById('ctx-chg').className = 'ctx-val ' + cls;
+                    document.getElementById('ctx-high').textContent = d.high > 0 ? fmt(d.high) : '--';
+                    document.getElementById('ctx-low').textContent = d.low > 0 ? fmt(d.low) : '--';
+                    document.getElementById('ctx-prev').textContent = d.prev_close > 0 ? fmt(d.prev_close) : '--';
+                }
+            } catch (e) { }
+        }
+
+        // ── Strength color ──
+        function strengthColor(s) {
+            if (s >= 70) return 'var(--green)';
+            if (s >= 40) return 'var(--amber)';
+            return 'var(--red)';
+        }
+
+        // ── Render signal card ──
+        function renderSignalCard(sig) {
+            const isBull = sig.direction === 'BULLISH';
+            const optType = isBull ? 'CE' : 'PE';
+            const dirWord = isBull ? 'NIFTY UP ▲' : 'NIFTY DOWN ▼';
+            const dirStyle = isBull ? 'color:var(--green)' : 'color:var(--red)';
+            const cardClass = isBull ? 'bullish' : 'bearish';
+            const patterns = (sig.patterns || []).map(p =>
+                '<span class="pat-tag">' + p.replace(/_/g, ' ') + '</span>'
+            ).join('');
+            const filters = Object.entries(sig.filters || {}).map(([k, v]) =>
+                '<span class="filter-tag ' + (v ? 'pass' : 'fail') + '">' + k.replace('_', ' ') + '</span>'
+            ).join('');
+            const timeStr = sig.bar_timestamp
+                ? new Date(sig.bar_timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+                : new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+            const sl = sig.sl_points > 0 ? sig.sl_points.toFixed(1) : '--';
+            const tgt = sig.target_points > 0 ? sig.target_points.toFixed(1) : '--';
+
+            return `
+  <div class="signal-card ${cardClass}">
+    <div class="sig-header">
+      <span class="sig-time">${timeStr}</span>
+      <span class="sig-badge ${sig.direction}">${sig.direction}</span>
+      <span class="sig-action ${sig.action}">${sig.action}</span>
+    </div>
+    <div class="sig-option">
+      <span style="${dirStyle}">${dirWord}</span>
+      <span class="opt-type ${optType}">${optType}</span>
+    </div>
+    <div class="strength-bar-wrap">
+      <span class="strength-label">Strength ${sig.strength}%</span>
+      <div class="strength-bar"><div class="strength-fill" style="width:${sig.strength}%;background:${strengthColor(sig.strength)};"></div></div>
+    </div>
+    <div class="sig-body">
+      <div class="sig-stat">
+        <div class="sig-stat-val">${sig.confirmations || 0}/5</div>
+        <div class="sig-stat-label">Filters</div>
+      </div>
+      <div class="sig-stat">
+        <div class="sig-stat-val" style="${isBull ? 'color:var(--green)' : 'color:var(--red)'}">+${tgt} pts</div>
+        <div class="sig-stat-label">Target</div>
+      </div>
+      <div class="sig-stat">
+        <div class="sig-stat-val neg">-${sl} pts</div>
+        <div class="sig-stat-label">Stop Loss</div>
+      </div>
+    </div>
+    ${patterns ? '<div class="sig-patterns">' + patterns + '</div>' : ''}
+    <div class="sig-filters">${filters}</div>
+    <div class="sig-reason">${sig.reason || ''}</div>
+  </div>`;
+        }
+
+        // ── Update context panel with latest ENTER signal ──
+        function updateContextOption(signals) {
+            const enterSigs = signals.filter(s => s.action === 'ENTER');
+            const topSig = enterSigs.length ? enterSigs[0] : (signals.length ? signals[0] : null);
+
+            const total = signals.length;
+            const enter = enterSigs.length;
+            const skip = total - enter;
+            const bull = signals.filter(s => s.direction === 'BULLISH').length;
+            const bear = signals.filter(s => s.direction === 'BEARISH').length;
+
+            document.getElementById('ctx-total').textContent = total;
+            document.getElementById('ctx-enter').textContent = enter;
+            document.getElementById('ctx-skip').textContent = skip;
+            document.getElementById('ctx-bull').textContent = bull;
+            document.getElementById('ctx-bear').textContent = bear;
+
+            const optCard = document.getElementById('ctx-option-card');
+            if (!topSig) {
+                optCard.innerHTML = '<div style="color:var(--txt-mute);font-size:.76rem;text-align:center;padding:10px 0;">No active signal</div>';
+                document.getElementById('lvl-entry').textContent = '--';
+                document.getElementById('lvl-target').textContent = '--';
+                document.getElementById('lvl-sl').textContent = '--';
+                return;
+            }
+
+            const isBull = topSig.direction === 'BULLISH';
+            const opt = isBull ? 'CE' : 'PE';
+            const col = isBull ? 'var(--green)' : 'var(--red)';
+            const dirLabel = isBull ? '📈 BUY CE (Bullish)' : '📉 BUY PE (Bearish)';
+            optCard.innerHTML = `
+    <div style="font-size:.9rem;font-weight:800;color:${col};margin-bottom:10px;">${dirLabel}</div>
+    <div class="ctx-row"><span class="ctx-key">Option Type</span><span class="ctx-val" style="color:${col};">NIFTY ${opt}</span></div>
+    <div class="ctx-row"><span class="ctx-key">Strength</span><span class="ctx-val">${topSig.strength}%</span></div>
+    <div class="ctx-row"><span class="ctx-key">Filters Passed</span><span class="ctx-val">${topSig.confirmations || 0}/5</span></div>
+    <div class="ctx-row"><span class="ctx-key">Expected Move</span><span class="ctx-val" style="color:${col};">+${topSig.target_points ? topSig.target_points.toFixed(0) : '--'} pts</span></div>
+  `;
+
+            // Key levels based on current LTP
+            const ltpEl = document.getElementById('ltp-val');
+            const ltpText = ltpEl.textContent.replace(/,/g, '');
+            const ltp = parseFloat(ltpText) || 0;
+            if (ltp > 0 && topSig.sl_points > 0 && topSig.target_points > 0) {
+                document.getElementById('lvl-entry').textContent = fmt(ltp);
+                if (isBull) {
+                    document.getElementById('lvl-target').textContent = fmt(ltp + topSig.target_points);
+                    document.getElementById('lvl-sl').textContent = fmt(ltp - topSig.sl_points);
+                } else {
+                    document.getElementById('lvl-target').textContent = fmt(ltp - topSig.target_points);
+                    document.getElementById('lvl-sl').textContent = fmt(ltp + topSig.sl_points);
+                }
+            } else {
+                document.getElementById('lvl-entry').textContent = ltp > 0 ? fmt(ltp) : '--';
+                document.getElementById('lvl-target').textContent = topSig.target_points ? '+' + topSig.target_points.toFixed(0) + ' pts' : '--';
+                document.getElementById('lvl-sl').textContent = topSig.sl_points ? '-' + topSig.sl_points.toFixed(0) + ' pts' : '--';
+            }
+        }
+
+        // ── Scan ──
+        async function runScan(silent) {
+            const btn = document.getElementById('scan-btn');
+            const icon = document.getElementById('scan-icon');
+            const dot = document.getElementById('scan-dot');
+            const statusText = document.getElementById('scan-status-text');
+
+            btn.disabled = true;
+            icon.textContent = '↻';
+            icon.className = 'spin';
+            dot.className = 'scan-dot';
+            statusText.textContent = 'Scanning NIFTY candles...';
+
+            try {
+                const r = await fetch('/api/opportunities');
+                const data = await r.json();
+
+                if (data.error) {
+                    if (!silent) {
+                        document.getElementById('signals-list').innerHTML =
+                            '<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-text">' + data.error + '</div></div>';
+                    }
+                    return;
+                }
+
+                const signals = data.signals || [];
+                allSignals = signals;
+
+                // Show data_date notice when API returns a past trading day
+                const todayStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                const dataDate = data.data_date || null;
+                const isHistorical = dataDate && dataDate !== todayStr;
+                const panelSub = document.querySelector('.panel-sub');
+                if (isHistorical) {
+                    panelSub.innerHTML = '⚠️ Showing data from <strong>' + dataDate + '</strong> (market closed / holiday today)';
+                    panelSub.style.color = '#f59e0b';
+                } else {
+                    panelSub.textContent = 'Live NIFTY candle analysis · signals refresh every 30s';
+                    panelSub.style.color = '';
+                }
+
+                const list = document.getElementById('signals-list');
+                if (!signals.length) {
+                    list.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">🔍</div>
+          <div class="empty-text">No patterns detected right now</div>
+          <div class="empty-sub">Market may be trending without clear signals · next scan in ${nextScanIn}s</div>
+        </div>`;
+                } else {
+                    list.innerHTML = signals.map(renderSignalCard).join('');
+                }
+
+                updateContextOption(signals);
+                const dateLabel = dataDate ? ' · ' + dataDate : '';
+                statusText.textContent = 'Last scan: ' + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + dateLabel;
+                document.getElementById('status-text').textContent = 'Scanned · ' + signals.length + ' signal(s) found';
+
+            } catch (e) {
+                console.error('scan err', e);
+                statusText.textContent = 'Scan failed · retrying...';
+            } finally {
+                btn.disabled = false;
+                icon.textContent = '⟳';
+                icon.className = '';
+                dot.className = 'scan-dot idle';
+            }
+        }
+
+        // ── Auto scan every 30s ──
+        function startAutoScan() {
+            nextScanIn = 30;
+            clearInterval(scanTimer);
+            scanTimer = setInterval(() => {
+                nextScanIn--;
+                if (nextScanIn <= 0) {
+                    nextScanIn = 30;
+                    runScan(true);
+                }
+                document.getElementById('next-scan-label').textContent = 'Next in ' + nextScanIn + 's';
+            }, 1000);
+        }
+
+        // ── AI Analysis ──
+        let _aiRunning = false;
+
+        function formatMarkdown(text) {
+            // Convert **bold** to <strong>
+            text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+            // Convert ### headers
+            text = text.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+            text = text.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+            text = text.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+            // Convert bullet points
+            text = text.replace(/^- (.+)$/gm, '• $1');
+            return text;
+        }
+
+        async function runAIAnalysis() {
+            if (_aiRunning) return;
+            _aiRunning = true;
+
+            const btn = document.getElementById('ai-btn');
+            const panel = document.getElementById('ai-panel');
+            const content = document.getElementById('ai-content');
+            const meta = document.getElementById('ai-meta');
+            const modelTag = document.getElementById('ai-model-tag');
+
+            btn.disabled = true;
+            panel.classList.add('show');
+            content.innerHTML = '<div class="ai-loading"><span class="spin">↻</span> Analysing NIFTY candles with ChatGPT...</div>';
+            meta.innerHTML = '';
+            modelTag.textContent = '';
+
+            // Build signals context string
+            let sigCtx = '';
+            if (allSignals.length > 0) {
+                sigCtx = allSignals.map(s =>
+                    `${s.direction} ${s.action} | Strength: ${s.strength}% | Patterns: ${(s.patterns || []).join(', ')}`
+                ).join('\n');
+            }
+
+            try {
+                const r = await fetch('/api/ai/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        timeframe: '5m',
+                        signals: sigCtx,
+                    }),
+                });
+                const d = await r.json();
+
+                if (d.error) {
+                    content.innerHTML = '<div style="color:var(--red);font-size:.8rem;">⚠️ ' + d.error + '</div>';
+                } else {
+                    content.innerHTML = formatMarkdown(d.analysis || 'No analysis returned.');
+                    modelTag.textContent = d.model || 'GPT';
+                    meta.innerHTML =
+                        '<span>📊 ' + (d.candles_sent || 0) + ' candles analysed</span>' +
+                        '<span>📅 ' + (d.date || '--') + '</span>' +
+                        '<span>⏱ ' + (d.timeframe || '5m') + ' timeframe</span>';
+                }
+            } catch (e) {
+                content.innerHTML = '<div style="color:var(--red);font-size:.8rem;">❌ Failed to connect to AI service</div>';
+            } finally {
+                btn.disabled = false;
+                _aiRunning = false;
+            }
+        }
+
+        function closeAI() {
+            document.getElementById('ai-panel').classList.remove('show');
+        }
+
+        // ── Init ──
+        (async () => {
+            await startFeed();
+            await pollLive();
+            await runScan(false);
+            startAutoScan();
+            setInterval(pollLive, 5000);
+            document.getElementById('status-text').textContent = 'Live · auto-scanning every 30s';
+        })();
+    </script>
+</body>
+
+</html>

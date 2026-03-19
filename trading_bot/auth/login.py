@@ -57,6 +57,24 @@ def authenticate() -> SmartConnect:
             log.debug("Returning cached SmartConnect session.")
             return _session
 
+        # ── Try to restore session from Redis (avoids 2-4 s re-auth on cold start) ──
+        try:
+            from trading_bot.cache import get_cached
+            cached_auth = get_cached("angelone:auth")
+            if cached_auth and cached_auth.get("jwt"):
+                log.info("Restoring AngelOne session from Redis cache (skipping generateSession)")
+                global _auth_token, _feed_token, _refresh_token
+                obj = SmartConnect(api_key=config.ANGEL_API_KEY)
+                obj.access_token  = cached_auth["jwt"]
+                obj.refresh_token = cached_auth.get("refresh", "")
+                _auth_token    = cached_auth["jwt"]
+                _refresh_token = cached_auth.get("refresh", "")
+                _feed_token    = cached_auth.get("feed", "")
+                _session = obj
+                return _session
+        except Exception as _cache_exc:
+            log.warning("Redis auth restore failed, doing fresh login: %s", _cache_exc)
+
         # Validate credentials present
         for name, val in [
             ("ANGEL_API_KEY", config.ANGEL_API_KEY),
@@ -104,6 +122,18 @@ def authenticate() -> SmartConnect:
             config.ANGEL_CLIENT_ID,
             _feed_token[:12] if _feed_token else "N/A",
         )
+
+        # ── Persist tokens to Redis so the next cold start can skip re-auth ──
+        try:
+            from trading_bot.cache import set_cached
+            set_cached("angelone:auth", {
+                "jwt":     _auth_token,
+                "refresh": _refresh_token,
+                "feed":    _feed_token,
+            }, ttl=8 * 3600)   # 8 hours — well within AngelOne's 24 h token lifetime
+        except Exception as _ce:
+            log.warning("Could not cache auth tokens in Redis: %s", _ce)
+
         return _session
 
 

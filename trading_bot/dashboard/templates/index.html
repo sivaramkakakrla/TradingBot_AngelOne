@@ -1,207 +1,467 @@
 ﻿<!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Project Candles &#8212; Dashboard</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-    :root{
-      --bg:#f8fafc;--surface:#ffffff;--card:#f1f5f9;--border:#e2e8f0;--border-lt:#cbd5e1;
-      --txt:#0f172a;--txt-dim:#64748b;--txt-mute:#94a3b8;--accent:#3b82f6;
-      --green:#16a34a;--green-bg:rgba(22,163,74,0.08);--green-bdr:rgba(22,163,74,0.25);
-      --red:#dc2626;--red-bg:rgba(220,38,38,0.08);--red-bdr:rgba(220,38,38,0.25);
-      --amber:#d97706;
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
     }
-    body{background:var(--bg);color:var(--txt);font-family:'Inter',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;-webkit-font-smoothing:antialiased;}
 
-    .topbar{display:flex;align-items:center;padding:0 24px;height:48px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;gap:16px;}
-    .logo{font-size:.95rem;font-weight:700;color:var(--accent);letter-spacing:-.3px;}
-    .topbar nav{display:flex;gap:4px;margin-left:16px;}
-    .topbar nav a{color:var(--txt-dim);text-decoration:none;font-size:.8rem;font-weight:500;padding:6px 16px;border-radius:8px;transition:all .15s;}
-    .topbar nav a:hover{color:var(--txt);background:rgba(0,0,0,.05);}
-    .topbar nav a.active{color:var(--accent);background:rgba(59,130,246,.1);}
-    .badge-area{margin-left:auto;display:flex;align-items:center;gap:10px;}
-    .market-badge{display:flex;align-items:center;gap:6px;padding:5px 14px;border-radius:20px;font-size:.72rem;font-weight:600;letter-spacing:.5px;text-transform:uppercase;}
-    .market-badge .dot{width:7px;height:7px;border-radius:50%;}
-    .market-badge.live{background:var(--green-bg);color:var(--green);border:1px solid var(--green-bdr);}
-    .market-badge.live .dot{background:var(--green);animation:pulse 1.5s infinite;}
-    .market-badge.closed{background:rgba(100,116,139,.1);color:var(--txt-dim);border:1px solid var(--border);}
-    .market-badge.closed .dot{background:var(--txt-mute);}
-    .market-badge.connecting{background:rgba(245,158,11,.1);color:var(--amber);border:1px solid rgba(245,158,11,.25);}
-    .market-badge.connecting .dot{background:var(--amber);animation:pulse .8s infinite;}
-    @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.3;}}
+    :root {
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --card: #f1f5f9;
+      --border: #e2e8f0;
+      --border-lt: #cbd5e1;
+      --txt: #0f172a;
+      --txt-dim: #64748b;
+      --txt-mute: #94a3b8;
+      --accent: #3b82f6;
+      --green: #16a34a;
+      --green-bg: rgba(22, 163, 74, 0.08);
+      --green-bdr: rgba(22, 163, 74, 0.25);
+      --red: #dc2626;
+      --red-bg: rgba(220, 38, 38, 0.08);
+      --red-bdr: rgba(220, 38, 38, 0.25);
+      --amber: #d97706;
+    }
 
-    .main{flex:1;display:flex;align-items:center;justify-content:center;padding:40px 24px;}
+    body {
+      background: var(--bg);
+      color: var(--txt);
+      font-family: 'Inter', system-ui, sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      -webkit-font-smoothing: antialiased;
+    }
 
-    .cards{display:flex;gap:32px;flex-wrap:wrap;justify-content:center;}
+    .topbar {
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      height: 48px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      gap: 16px;
+    }
 
-    .price-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px 40px;min-width:340px;transition:border-color .2s;box-shadow:0 1px 4px rgba(0,0,0,.06);}
-    .price-card:hover{border-color:var(--border-lt);}
-    .pc-header{display:flex;align-items:center;gap:10px;margin-bottom:20px;}
-    .pc-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:800;color:#fff;}
-    .pc-icon.nifty{background:linear-gradient(135deg,#3b82f6,#2563eb);}
-    .pc-icon.sensex{background:linear-gradient(135deg,#f59e0b,#d97706);}
-    .pc-name{font-size:.78rem;font-weight:600;color:var(--txt-dim);text-transform:uppercase;letter-spacing:.8px;}
-    .pc-ltp{font-size:2.6rem;font-weight:800;letter-spacing:-1.5px;font-variant-numeric:tabular-nums;margin-bottom:6px;}
-    .pc-change{font-size:1rem;font-weight:600;font-variant-numeric:tabular-nums;}
-    .pos{color:var(--green)!important;}.neg{color:var(--red)!important;}.neu{color:var(--txt-dim)!important;}
+    .logo {
+      font-size: .95rem;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: -.3px;
+    }
 
-    .pc-details{display:grid;grid-template-columns:1fr 1fr;gap:8px 24px;margin-top:20px;padding-top:16px;border-top:1px solid var(--border);}
-    .pc-det{display:flex;justify-content:space-between;align-items:center;}
-    .pc-det-label{font-size:.7rem;color:var(--txt-mute);font-weight:500;}
-    .pc-det-val{font-size:.82rem;font-weight:600;font-variant-numeric:tabular-nums;}
+    .topbar nav {
+      display: flex;
+      gap: 4px;
+      margin-left: 16px;
+    }
 
-    .status-bar{padding:5px 24px;font-size:.7rem;color:var(--txt-mute);background:var(--surface);border-top:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;gap:16px;}
-    .conn-status{display:flex;align-items:center;gap:5px;}
-    .conn-dot{width:6px;height:6px;border-radius:50%;}
-    .conn-dot.ok{background:var(--green);}.conn-dot.err{background:var(--red);}
+    .topbar nav a {
+      color: var(--txt-dim);
+      text-decoration: none;
+      font-size: .8rem;
+      font-weight: 500;
+      padding: 6px 16px;
+      border-radius: 8px;
+      transition: all .15s;
+    }
+
+    .topbar nav a:hover {
+      color: var(--txt);
+      background: rgba(0, 0, 0, .05);
+    }
+
+    .topbar nav a.active {
+      color: var(--accent);
+      background: rgba(59, 130, 246, .1);
+    }
+
+    .badge-area {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .market-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 14px;
+      border-radius: 20px;
+      font-size: .72rem;
+      font-weight: 600;
+      letter-spacing: .5px;
+      text-transform: uppercase;
+    }
+
+    .market-badge .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+    }
+
+    .market-badge.live {
+      background: var(--green-bg);
+      color: var(--green);
+      border: 1px solid var(--green-bdr);
+    }
+
+    .market-badge.live .dot {
+      background: var(--green);
+      animation: pulse 1.5s infinite;
+    }
+
+    .market-badge.closed {
+      background: rgba(100, 116, 139, .1);
+      color: var(--txt-dim);
+      border: 1px solid var(--border);
+    }
+
+    .market-badge.closed .dot {
+      background: var(--txt-mute);
+    }
+
+    .market-badge.connecting {
+      background: rgba(245, 158, 11, .1);
+      color: var(--amber);
+      border: 1px solid rgba(245, 158, 11, .25);
+    }
+
+    .market-badge.connecting .dot {
+      background: var(--amber);
+      animation: pulse .8s infinite;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: .3;
+      }
+    }
+
+    .main {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 24px;
+    }
+
+    .cards {
+      display: flex;
+      gap: 32px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .price-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px 40px;
+      min-width: 340px;
+      transition: border-color .2s;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, .06);
+    }
+
+    .price-card:hover {
+      border-color: var(--border-lt);
+    }
+
+    .pc-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .pc-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    .pc-icon.nifty {
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+    }
+
+    .pc-icon.sensex {
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+    }
+
+    .pc-name {
+      font-size: .78rem;
+      font-weight: 600;
+      color: var(--txt-dim);
+      text-transform: uppercase;
+      letter-spacing: .8px;
+    }
+
+    .pc-ltp {
+      font-size: 2.6rem;
+      font-weight: 800;
+      letter-spacing: -1.5px;
+      font-variant-numeric: tabular-nums;
+      margin-bottom: 6px;
+    }
+
+    .pc-change {
+      font-size: 1rem;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .pos {
+      color: var(--green) !important;
+    }
+
+    .neg {
+      color: var(--red) !important;
+    }
+
+    .neu {
+      color: var(--txt-dim) !important;
+    }
+
+    .pc-details {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 24px;
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+
+    .pc-det {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .pc-det-label {
+      font-size: .7rem;
+      color: var(--txt-mute);
+      font-weight: 500;
+    }
+
+    .pc-det-val {
+      font-size: .82rem;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .status-bar {
+      padding: 5px 24px;
+      font-size: .7rem;
+      color: var(--txt-mute);
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .conn-status {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .conn-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+
+    .conn-dot.ok {
+      background: var(--green);
+    }
+
+    .conn-dot.err {
+      background: var(--red);
+    }
   </style>
 </head>
+
 <body>
 
-<div class="topbar">
-  <div class="logo">Project Candles</div>
-  <nav>
-    <a href="/" class="active">Dashboard</a>
-    <a href="/trade">Paper Trade</a>
-    <a href="/orders">Orders</a>
-  </nav>
-  <div class="badge-area">
-    <div class="market-badge connecting" id="market-badge">
-      <span class="dot"></span>
-      <span id="market-label">CONNECTING</span>
-    </div>
-  </div>
-</div>
-
-<div class="main">
-  <div class="cards">
-
-    <!-- NIFTY 50 -->
-    <div class="price-card">
-      <div class="pc-header">
-        <div class="pc-icon nifty">N</div>
-        <div class="pc-name">NIFTY 50</div>
-      </div>
-      <div class="pc-ltp" id="nifty-ltp">--,---.--</div>
-      <div><span class="pc-change" id="nifty-chg"></span> <span class="pc-change" id="nifty-pct"></span></div>
-      <div class="pc-details">
-        <div class="pc-det"><span class="pc-det-label">Open</span><span class="pc-det-val" id="nifty-open">--</span></div>
-        <div class="pc-det"><span class="pc-det-label">Prev Close</span><span class="pc-det-val" id="nifty-prev">--</span></div>
-        <div class="pc-det"><span class="pc-det-label">High</span><span class="pc-det-val" id="nifty-high">--</span></div>
-        <div class="pc-det"><span class="pc-det-label">Low</span><span class="pc-det-val" id="nifty-low">--</span></div>
+  <div class="topbar">
+    <div class="logo">Project Candles</div>
+    <nav>
+      <a href="/" class="active">Dashboard</a>
+      <a href="/trade">Paper Trade</a>
+      <a href="/orders">Orders</a>
+      <a href="/opportunities">Opportunities</a>
+      <a href="/history">History</a>
+    </nav>
+    <div class="badge-area">
+      <div class="market-badge connecting" id="market-badge">
+        <span class="dot"></span>
+        <span id="market-label">CONNECTING</span>
       </div>
     </div>
+  </div>
 
-    <!-- SENSEX -->
-    <div class="price-card">
-      <div class="pc-header">
-        <div class="pc-icon sensex">S</div>
-        <div class="pc-name">SENSEX</div>
+  <div class="main">
+    <div class="cards">
+
+      <!-- NIFTY 50 -->
+      <div class="price-card">
+        <div class="pc-header">
+          <div class="pc-icon nifty">N</div>
+          <div class="pc-name">NIFTY 50</div>
+        </div>
+        <div class="pc-ltp" id="nifty-ltp">--,---.--</div>
+        <div><span class="pc-change" id="nifty-chg"></span> <span class="pc-change" id="nifty-pct"></span></div>
+        <div class="pc-details">
+          <div class="pc-det"><span class="pc-det-label">Open</span><span class="pc-det-val" id="nifty-open">--</span>
+          </div>
+          <div class="pc-det"><span class="pc-det-label">Prev Close</span><span class="pc-det-val"
+              id="nifty-prev">--</span></div>
+          <div class="pc-det"><span class="pc-det-label">High</span><span class="pc-det-val" id="nifty-high">--</span>
+          </div>
+          <div class="pc-det"><span class="pc-det-label">Low</span><span class="pc-det-val" id="nifty-low">--</span>
+          </div>
+        </div>
       </div>
-      <div class="pc-ltp" id="sensex-ltp">--,---.--</div>
-      <div><span class="pc-change" id="sensex-chg"></span> <span class="pc-change" id="sensex-pct"></span></div>
-      <div class="pc-details">
-        <div class="pc-det"><span class="pc-det-label">Open</span><span class="pc-det-val" id="sensex-open">--</span></div>
-        <div class="pc-det"><span class="pc-det-label">Prev Close</span><span class="pc-det-val" id="sensex-prev">--</span></div>
-        <div class="pc-det"><span class="pc-det-label">High</span><span class="pc-det-val" id="sensex-high">--</span></div>
-        <div class="pc-det"><span class="pc-det-label">Low</span><span class="pc-det-val" id="sensex-low">--</span></div>
+
+      <!-- SENSEX -->
+      <div class="price-card">
+        <div class="pc-header">
+          <div class="pc-icon sensex">S</div>
+          <div class="pc-name">SENSEX</div>
+        </div>
+        <div class="pc-ltp" id="sensex-ltp">--,---.--</div>
+        <div><span class="pc-change" id="sensex-chg"></span> <span class="pc-change" id="sensex-pct"></span></div>
+        <div class="pc-details">
+          <div class="pc-det"><span class="pc-det-label">Open</span><span class="pc-det-val" id="sensex-open">--</span>
+          </div>
+          <div class="pc-det"><span class="pc-det-label">Prev Close</span><span class="pc-det-val"
+              id="sensex-prev">--</span></div>
+          <div class="pc-det"><span class="pc-det-label">High</span><span class="pc-det-val" id="sensex-high">--</span>
+          </div>
+          <div class="pc-det"><span class="pc-det-label">Low</span><span class="pc-det-val" id="sensex-low">--</span>
+          </div>
+        </div>
       </div>
+
     </div>
-
   </div>
-</div>
 
-<div class="status-bar">
-  <div class="conn-status">
-    <span class="conn-dot" id="conn-dot"></span>
-    <span id="conn-text">Connecting...</span>
+  <div class="status-bar">
+    <div class="conn-status">
+      <span class="conn-dot" id="conn-dot"></span>
+      <span id="conn-text">Connecting...</span>
+    </div>
+    <span style="margin-left:auto;" id="clock"></span>
   </div>
-  <span style="margin-left:auto;" id="clock"></span>
-</div>
 
-<script>
-const FMT = {minimumFractionDigits:2, maximumFractionDigits:2};
+  <script>
+    const FMT = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
 
-function fmt(v){ return v.toLocaleString('en-IN', FMT); }
+    function fmt(v) { return v.toLocaleString('en-IN', FMT); }
 
-function updateBadge(isOpen, ok){
-  const b=document.getElementById('market-badge'), l=document.getElementById('market-label');
-  const d=document.getElementById('conn-dot'), t=document.getElementById('conn-text');
-  if(ok && isOpen){ b.className='market-badge live'; l.textContent='LIVE'; d.className='conn-dot ok'; t.textContent='Live feed active'; }
-  else if(!isOpen){ b.className='market-badge closed'; l.textContent='MARKET CLOSED'; d.className='conn-dot err'; t.textContent='Market closed'; }
-  else { b.className='market-badge connecting'; l.textContent='CONNECTING'; d.className='conn-dot err'; t.textContent='Connecting...'; }
-}
-
-function renderIndex(id, ltp, prev, open, high, low){
-  const chg = prev > 0 ? ltp - prev : 0;
-  const pct = prev > 0 ? (chg / prev * 100) : 0;
-  const cls = chg >= 0 ? 'pos' : 'neg';
-
-  const el = document.getElementById(id+'-ltp');
-  el.textContent = fmt(ltp);
-  el.className = 'pc-ltp ' + cls;
-  document.getElementById(id+'-chg').textContent = (chg>=0?'+':'') + chg.toFixed(2);
-  document.getElementById(id+'-chg').className = 'pc-change ' + cls;
-  document.getElementById(id+'-pct').textContent = '(' + (pct>=0?'+':'') + pct.toFixed(2) + '%)';
-  document.getElementById(id+'-pct').className = 'pc-change ' + cls;
-  document.getElementById(id+'-open').textContent = open > 0 ? fmt(open) : '--';
-  document.getElementById(id+'-prev').textContent = prev > 0 ? fmt(prev) : '--';
-  document.getElementById(id+'-high').textContent = high > 0 ? fmt(high) : '--';
-  document.getElementById(id+'-low').textContent = low > 0 ? fmt(low) : '--';
-}
-
-let feedOk = false;
-
-async function startFeed(){
-  try {
-    const r = await fetch('/api/feed/start', {method:'POST'});
-    const d = await r.json();
-    if(!d.error) feedOk = true;
-  } catch(e){}
-}
-
-async function pollLive(){
-  try {
-    const r = await fetch('/api/live');
-    const d = await r.json();
-    const isOpen = !!d.market_open;
-    updateBadge(isOpen, feedOk);
-
-    if(d.ltp > 0){
-      renderIndex('nifty', d.ltp, d.prev_close||0, d.open||0, d.high||0, d.low||0);
+    function updateBadge(isOpen, ok) {
+      const b = document.getElementById('market-badge'), l = document.getElementById('market-label');
+      const d = document.getElementById('conn-dot'), t = document.getElementById('conn-text');
+      if (ok && isOpen) { b.className = 'market-badge live'; l.textContent = 'LIVE'; d.className = 'conn-dot ok'; t.textContent = 'Live feed active'; }
+      else if (!isOpen) { b.className = 'market-badge closed'; l.textContent = 'MARKET CLOSED'; d.className = 'conn-dot err'; t.textContent = 'Market closed'; }
+      else { b.className = 'market-badge connecting'; l.textContent = 'CONNECTING'; d.className = 'conn-dot err'; t.textContent = 'Connecting...'; }
     }
-    const s = d.sensex || {};
-    if(s.ltp > 0){
-      renderIndex('sensex', s.ltp, s.prev_close||0, s.open||0, s.high||0, s.low||0);
-    } else if(s.prev_close > 0){
-      // Market closed or feed not yet active — show prev close
-      document.getElementById('sensex-ltp').textContent = fmt(s.prev_close);
-      document.getElementById('sensex-ltp').className = 'pc-ltp neu';
-      document.getElementById('sensex-prev').textContent = fmt(s.prev_close);
+
+    function renderIndex(id, ltp, prev, open, high, low) {
+      const chg = prev > 0 ? ltp - prev : 0;
+      const pct = prev > 0 ? (chg / prev * 100) : 0;
+      const cls = chg >= 0 ? 'pos' : 'neg';
+
+      const el = document.getElementById(id + '-ltp');
+      el.textContent = fmt(ltp);
+      el.className = 'pc-ltp ' + cls;
+      document.getElementById(id + '-chg').textContent = (chg >= 0 ? '+' : '') + chg.toFixed(2);
+      document.getElementById(id + '-chg').className = 'pc-change ' + cls;
+      document.getElementById(id + '-pct').textContent = '(' + (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%)';
+      document.getElementById(id + '-pct').className = 'pc-change ' + cls;
+      document.getElementById(id + '-open').textContent = open > 0 ? fmt(open) : '--';
+      document.getElementById(id + '-prev').textContent = prev > 0 ? fmt(prev) : '--';
+      document.getElementById(id + '-high').textContent = high > 0 ? fmt(high) : '--';
+      document.getElementById(id + '-low').textContent = low > 0 ? fmt(low) : '--';
     }
-  } catch(e){}
-}
 
-function updateClock(){
-  const n = new Date();
-  const ist = new Date(n.getTime() + (5.5*60*60*1000));
-  document.getElementById('clock').textContent =
-    'IST ' + String(ist.getUTCHours()).padStart(2,'0') + ':' +
-    String(ist.getUTCMinutes()).padStart(2,'0') + ':' +
-    String(ist.getUTCSeconds()).padStart(2,'0');
-}
+    let feedOk = false;
 
-(async () => {
-  updateClock();
-  setInterval(updateClock, 1000);
-  await startFeed();
-  await pollLive();
-  setInterval(pollLive, 2000);
-})();
-</script>
+    async function startFeed() {
+      try {
+        const r = await fetch('/api/feed/start', { method: 'POST' });
+        const d = await r.json();
+        if (!d.error) feedOk = true;
+      } catch (e) { }
+    }
+
+    async function pollLive() {
+      try {
+        const r = await fetch('/api/live');
+        const d = await r.json();
+        const isOpen = !!d.market_open;
+        updateBadge(isOpen, feedOk);
+
+        if (d.ltp > 0) {
+          renderIndex('nifty', d.ltp, d.prev_close || 0, d.open || 0, d.high || 0, d.low || 0);
+        }
+        const s = d.sensex || {};
+        if (s.ltp > 0) {
+          renderIndex('sensex', s.ltp, s.prev_close || 0, s.open || 0, s.high || 0, s.low || 0);
+        } else if (s.prev_close > 0) {
+          // Market closed or feed not yet active — show prev close
+          document.getElementById('sensex-ltp').textContent = fmt(s.prev_close);
+          document.getElementById('sensex-ltp').className = 'pc-ltp neu';
+          document.getElementById('sensex-prev').textContent = fmt(s.prev_close);
+        }
+      } catch (e) { }
+    }
+
+    function updateClock() {
+      const n = new Date();
+      const ist = new Date(n.getTime() + (5.5 * 60 * 60 * 1000));
+      document.getElementById('clock').textContent =
+        'IST ' + String(ist.getUTCHours()).padStart(2, '0') + ':' +
+        String(ist.getUTCMinutes()).padStart(2, '0') + ':' +
+        String(ist.getUTCSeconds()).padStart(2, '0');
+    }
+
+    (async () => {
+      updateClock();
+      setInterval(updateClock, 1000);
+      await startFeed();
+      await pollLive();
+      setInterval(pollLive, 2000);
+    })();
+  </script>
 </body>
-</html>
 
+</html>

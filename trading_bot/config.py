@@ -175,6 +175,12 @@ WS_NO_TICK_PAUSE_SECONDS = 15     # pause trading if no tick for this long
 ORDER_CONFIRM_TIMEOUT = 3          # seconds to confirm COMPLETE status
 
 # ═══════════════════════════════════════════════════════════════════════════════
+#  OPENAI (LLM ANALYSIS)
+# ═══════════════════════════════════════════════════════════════════════════════
+OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+
+# ═══════════════════════════════════════════════════════════════════════════════
 #  TIMEZONE
 # ═══════════════════════════════════════════════════════════════════════════════
 TIMEZONE = "Asia/Kolkata"

@@ -746,6 +746,8 @@
       <a href="/">Dashboard</a>
       <a href="/trade" class="active">Paper Trade</a>
       <a href="/orders">Orders</a>
+      <a href="/opportunities">Opportunities</a>
+      <a href="/history">History</a>
     </nav>
     <div class="market-badge connecting" id="market-badge">
       <span class="dot"></span>
@@ -1137,7 +1139,7 @@
     function startChainAutoRefresh() {
       if (_chainRefreshTimer) clearInterval(_chainRefreshTimer);
       _chainRefreshTimer = setInterval(() => {
-        if (_activeExpiry && feedRunning) loadChain();
+        if (_activeExpiry) loadChain();
       }, 10000);
     }
 

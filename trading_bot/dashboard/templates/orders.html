@@ -453,6 +453,54 @@
       margin-top: 2px;
     }
 
+    /* Source breakdown */
+    .source-breakdown {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .source-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 20px;
+    }
+
+    .source-card-title {
+      font-size: .7rem;
+      font-weight: 700;
+      color: var(--txt-mute);
+      text-transform: uppercase;
+      letter-spacing: .6px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .src-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .src-dot.manual {
+      background: var(--accent);
+    }
+
+    .src-dot.auto {
+      background: var(--amber);
+    }
+
+    .source-stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
     /* Toast */
     .toast-area {
       position: fixed;
@@ -548,6 +596,8 @@
       <a href="/">Dashboard</a>
       <a href="/trade">Paper Trade</a>
       <a href="/orders" class="active">Orders</a>
+      <a href="/opportunities">Opportunities</a>
+      <a href="/history">History</a>
     </nav>
     <div class="market-badge connecting" id="market-badge">
       <span class="dot"></span>
@@ -684,6 +734,43 @@
         <div class="pnl-stat">
           <div class="pnl-stat-val" id="stat-total-trades">0</div>
           <div class="pnl-stat-label">Total Trades</div>
+        </div>
+      </div>
+      <!-- Per-source breakdown -->
+      <div class="source-breakdown">
+        <div class="source-card">
+          <div class="source-card-title"><span class="src-dot manual"></span>Manual Trades</div>
+          <div class="source-stats-grid">
+            <div class="pnl-stat">
+              <div class="pnl-stat-val" id="stat-manual-trades">0</div>
+              <div class="pnl-stat-label">Total</div>
+            </div>
+            <div class="pnl-stat">
+              <div class="pnl-stat-val" id="stat-manual-wins">0</div>
+              <div class="pnl-stat-label">Wins</div>
+            </div>
+            <div class="pnl-stat">
+              <div class="pnl-stat-val" id="stat-manual-winrate">0%</div>
+              <div class="pnl-stat-label">Win Rate</div>
+            </div>
+          </div>
+        </div>
+        <div class="source-card">
+          <div class="source-card-title"><span class="src-dot auto"></span>Auto Trades</div>
+          <div class="source-stats-grid">
+            <div class="pnl-stat">
+              <div class="pnl-stat-val" id="stat-auto-trades">0</div>
+              <div class="pnl-stat-label">Total</div>
+            </div>
+            <div class="pnl-stat">
+              <div class="pnl-stat-val" id="stat-auto-wins">0</div>
+              <div class="pnl-stat-label">Wins</div>
+            </div>
+            <div class="pnl-stat">
+              <div class="pnl-stat-val" id="stat-auto-winrate">0%</div>
+              <div class="pnl-stat-label">Win Rate</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -870,6 +957,21 @@
           ? auto.map(_tradeRow).join('')
           : '<tr><td colspan="8" class="empty-row">No automatic trades yet</td></tr>';
         _setBadge('auto-badge', auto.length);
+
+        // Per-source stats
+        const mWins = manual.filter(t => (t.pnl || 0) > 0).length;
+        const mLosses = manual.filter(t => (t.pnl || 0) < 0).length;
+        const mWinRate = manual.length ? Math.round(mWins / manual.length * 100) + '%' : '0%';
+        document.getElementById('stat-manual-trades').textContent = manual.length;
+        document.getElementById('stat-manual-wins').textContent = mWins;
+        document.getElementById('stat-manual-winrate').textContent = mWinRate;
+
+        const aWins = auto.filter(t => (t.pnl || 0) > 0).length;
+        const aLosses = auto.filter(t => (t.pnl || 0) < 0).length;
+        const aWinRate = auto.length ? Math.round(aWins / auto.length * 100) + '%' : '0%';
+        document.getElementById('stat-auto-trades').textContent = auto.length;
+        document.getElementById('stat-auto-wins').textContent = aWins;
+        document.getElementById('stat-auto-winrate').textContent = aWinRate;
 
         // Update P&L card
         _realizedPnl = all.reduce((s, t) => s + (t.pnl || 0), 0);

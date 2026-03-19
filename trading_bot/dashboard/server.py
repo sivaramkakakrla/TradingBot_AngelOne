@@ -38,6 +38,7 @@ from trading_bot.options import (
 )
 from trading_bot.utils.logger import get_logger
 from trading_bot.utils.time_utils import now_ist
+from trading_bot.cache import get_cached, set_cached
 
 log = get_logger(__name__)
 
@@ -86,6 +87,16 @@ def trade_page():
 @app.route("/orders")
 def orders_page():
     return render_template("orders.html")
+
+
+@app.route("/opportunities")
+def opportunities_page():
+    return render_template("opportunities.html")
+
+
+@app.route("/history")
+def history_page():
+    return render_template("history.html")
 
 
 @app.route("/api/candles")
@@ -241,12 +252,26 @@ def _is_market_open() -> bool:
 @app.route("/api/live")
 def api_live():
     """Return latest NIFTY + SENSEX market ticks + market status."""
+    # ── Redis cache (30 s) ──
+    cached = get_cached("nifty:live")
+    if cached:
+        return jsonify(cached)
+
     tick = get_latest_tick()
     sensex = get_latest_sensex_tick()
-    # On serverless (no background feed), fetch on-demand
-    if tick.ltp <= 0:
+    # Re-fetch when: no data yet, OR cached data is older than 5 seconds
+    # (background feed not running — serverless / not authenticated)
+    needs_refresh = tick.ltp <= 0
+    if not needs_refresh and tick.fetched_at:
+        try:
+            fa = datetime.datetime.fromisoformat(tick.fetched_at)
+            age = (now_ist() - fa).total_seconds()
+            needs_refresh = age > 5
+        except Exception:
+            needs_refresh = True
+    if needs_refresh:
         tick, sensex = fetch_live_once()
-    return jsonify({
+    result = {
         "ltp":          tick.ltp,
         "open":         tick.open,
         "high":         tick.high,
@@ -264,7 +289,9 @@ def api_live():
             "prev_close": sensex.close,
             "timestamp":  sensex.timestamp,
         },
-    })
+    }
+    set_cached("nifty:live", result, ttl=30)
+    return jsonify(result)
 
 
 @app.route("/api/feed/start", methods=["POST"])
@@ -690,6 +717,273 @@ def api_paper_history():
     return jsonify({"trades": trades})
 
 
+# ─── Opportunities API ────────────────────────────────────────────────────────
+
+@app.route("/api/opportunities")
+def api_opportunities():
+    """
+    Analyse recent NIFTY 1-minute candles and return confirmed signals.
+
+    Tries today first, then walks back up to 7 calendar days (skipping
+    weekends) to find the latest trading day with actual data.
+    Calls getCandleData directly (not via _fetch_raw) so real API errors
+    are captured and returned for debugging.
+    """
+    import datetime as _dt
+    from trading_bot.auth.login import get_session
+
+    # ── Redis cache (60 s) ──
+    cached = get_cached("nifty:opportunities")
+    if cached:
+        return jsonify(cached)
+
+    try:
+        session = get_session()
+        rows_raw = []
+        data_date = None
+        diag_errors = []   # per-day diagnostic messages returned in error
+
+        if session:
+            # ── Quick session health-check via ltpData ──────────────────────
+            try:
+                test = session.ltpData(
+                    exchange=config.EXCHANGE,
+                    tradingsymbol=config.UNDERLYING,
+                    symboltoken=config.NIFTY_TOKEN,
+                )
+                if test and test.get("status") is False:
+                    return jsonify({
+                        "signals": [],
+                        "error": f"AngelOne session rejected: {test.get('message','?')} "
+                                 f"(code={test.get('errorcode','')}). "
+                                 "Token may be expired — try refreshing the page.",
+                    })
+            except Exception as te:
+                return jsonify({"signals": [], "error": f"AngelOne session test failed: {te}"})
+
+            today = now_ist().date()
+            now_str = now_ist().strftime("%Y-%m-%d %H:%M")
+
+            # Walk back up to 7 calendar days (handles holidays + weekends)
+            for days_back in range(8):
+                check_date = today - _dt.timedelta(days=days_back)
+                if check_date.weekday() >= 5:   # skip Saturday / Sunday
+                    continue
+                d_str = check_date.strftime("%Y-%m-%d")
+                to_str = now_str if days_back == 0 else f"{d_str} 15:30"
+
+                params = {
+                    "exchange":    config.EXCHANGE,
+                    "symboltoken": config.NIFTY_TOKEN,
+                    "interval":    "ONE_MINUTE",
+                    "fromdate":    f"{d_str} 09:15",
+                    "todate":      to_str,
+                }
+                try:
+                    resp = session.getCandleData(params)
+                except Exception as exc:
+                    diag_errors.append(f"{d_str}: exception — {exc}")
+                    continue
+
+                if not resp:
+                    diag_errors.append(f"{d_str}: empty response")
+                    continue
+
+                if resp.get("status") is False:
+                    msg = resp.get("message", "unknown")
+                    code = resp.get("errorcode", "")
+                    diag_errors.append(f"{d_str}: {msg} (code={code})")
+                    # API-level auth errors won't fix themselves for other dates
+                    if code in ("AB1010", "AB1004", "AG8001", "AB1006"):
+                        break   # token invalid — no point retrying other days
+                    continue
+
+                raw = resp.get("data") or []
+                if raw:
+                    for bar in raw:
+                        if len(bar) >= 6:
+                            rows_raw.append({
+                                "timestamp": str(bar[0]),
+                                "open":      float(bar[1]),
+                                "high":      float(bar[2]),
+                                "low":       float(bar[3]),
+                                "close":     float(bar[4]),
+                                "volume":    int(bar[5]),
+                            })
+                    data_date = check_date.strftime("%d %b %Y")
+                    break   # found data — stop looking back
+                else:
+                    diag_errors.append(f"{d_str}: response OK but data=[]")
+
+        # Fallback: stored candles (populated by main.py when running locally)
+        if not rows_raw:
+            db_rows = fetch_candles(config.UNDERLYING, "1m", limit=100)
+            if db_rows:
+                rows_raw = [dict(r) for r in db_rows]
+                data_date = "DB cache"
+
+        if not rows_raw:
+            detail = " | ".join(diag_errors) if diag_errors else "no session or no data"
+            return jsonify({"signals": [], "error": f"No candle data: {detail}"})
+
+        df = pd.DataFrame(rows_raw[-100:])
+        for col in ("close", "open", "high", "low", "volume"):
+            df[col] = df[col].astype(float)
+
+        signals = evaluate(df)
+        result = [s.to_dict() for s in signals]
+        response = {
+            "signals":      result,
+            "candle_count": len(df),
+            "data_date":    data_date,
+        }
+        set_cached("nifty:opportunities", response, ttl=60)
+        return jsonify(response)
+    except Exception as e:
+        log.error("api_opportunities error: %s", e)
+        return jsonify({"signals": [], "error": str(e)})
+
+
+# ─── Historical Analysis API ──────────────────────────────────────────────────
+
+@app.route("/api/historical_analysis")
+def api_historical_analysis():
+    """
+    Analyse NIFTY candle patterns across a date range.
+
+    Query params:
+        from      – YYYY-MM-DD  (required)
+        to        – YYYY-MM-DD  (required)
+        timeframe – 1m | 5m | 15m  (default: 5m)
+
+    Fetches candles day-by-day from AngelOne via getCandleData, runs the
+    strategy engine on each day, and returns all signals + per-day summary.
+    Results are cached in Redis for 5 minutes (keyed by date range + tf).
+    """
+    import datetime as _dt
+    from trading_bot.auth.login import get_session
+
+    from_str = request.args.get("from", "")
+    to_str   = request.args.get("to", "")
+    tf       = request.args.get("timeframe", "5m")
+
+    if not from_str or not to_str:
+        return jsonify({"error": "Missing 'from' and 'to' query params"}), 400
+
+    try:
+        from_date = _dt.date.fromisoformat(from_str)
+        to_date   = _dt.date.fromisoformat(to_str)
+    except ValueError:
+        return jsonify({"error": "Invalid date format. Use YYYY-MM-DD"}), 400
+
+    if from_date > to_date:
+        return jsonify({"error": "'from' must be before 'to'"}), 400
+
+    # Cap to 30 calendar days to stay within Vercel timeout
+    max_days = 30
+    if (to_date - from_date).days > max_days:
+        return jsonify({"error": f"Date range too large. Max {max_days} days."}), 400
+
+    # Map user timeframe to AngelOne interval string
+    tf_map = {"1m": "ONE_MINUTE", "5m": "FIVE_MINUTE", "15m": "FIFTEEN_MINUTE"}
+    interval = tf_map.get(tf)
+    if not interval:
+        return jsonify({"error": f"Invalid timeframe '{tf}'. Use 1m, 5m, or 15m."}), 400
+
+    # ── Redis cache (5 min) ──
+    cache_key = f"hist:{from_str}:{to_str}:{tf}"
+    cached = get_cached(cache_key)
+    if cached:
+        return jsonify(cached)
+
+    try:
+        session = get_session()
+        if not session:
+            return jsonify({"error": "Could not authenticate with AngelOne"}), 500
+
+        all_signals = []
+        date_results = []
+        total_candles = 0
+        days_analysed = 0
+
+        current = from_date
+        while current <= to_date:
+            # Skip weekends
+            if current.weekday() >= 5:
+                current += _dt.timedelta(days=1)
+                continue
+
+            days_analysed += 1
+            d_str = current.strftime("%Y-%m-%d")
+            params = {
+                "exchange":    config.EXCHANGE,
+                "symboltoken": config.NIFTY_TOKEN,
+                "interval":    interval,
+                "fromdate":    f"{d_str} 09:15",
+                "todate":      f"{d_str} 15:30",
+            }
+
+            rows_raw = []
+            try:
+                resp = session.getCandleData(params)
+                if resp and resp.get("status") is not False:
+                    raw = resp.get("data") or []
+                    for bar in raw:
+                        if len(bar) >= 6:
+                            rows_raw.append({
+                                "timestamp": str(bar[0]),
+                                "open":      float(bar[1]),
+                                "high":      float(bar[2]),
+                                "low":       float(bar[3]),
+                                "close":     float(bar[4]),
+                                "volume":    int(bar[5]),
+                            })
+            except Exception as exc:
+                log.warning("historical fetch %s: %s", d_str, exc)
+
+            day_signals = []
+            if len(rows_raw) >= 20:   # need minimum bars for indicators
+                total_candles += len(rows_raw)
+                df = pd.DataFrame(rows_raw)
+                for col in ("close", "open", "high", "low", "volume"):
+                    df[col] = df[col].astype(float)
+                try:
+                    sigs = evaluate(df)
+                    for s in sigs:
+                        sd = s.to_dict()
+                        sd["date"] = d_str
+                        day_signals.append(sd)
+                        all_signals.append(sd)
+                except Exception as exc:
+                    log.warning("evaluate %s: %s", d_str, exc)
+
+            enter_cnt = sum(1 for s in day_signals if s.get("action") == "ENTER")
+            date_results.append({
+                "date":         d_str,
+                "candle_count": len(rows_raw),
+                "signal_count": len(day_signals),
+                "enter_count":  enter_cnt,
+            })
+
+            current += _dt.timedelta(days=1)
+
+        response = {
+            "signals":       all_signals,
+            "date_results":  date_results,
+            "from_date":     from_str,
+            "to_date":       to_str,
+            "timeframe":     tf,
+            "days_analysed": days_analysed,
+            "candle_count":  total_candles,
+        }
+        set_cached(cache_key, response, ttl=300)
+        return jsonify(response)
+
+    except Exception as e:
+        log.error("historical_analysis error: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
 # ─── Options Chain APIs ───────────────────────────────────────────────────────
 
 @app.route("/api/options/expiries")
@@ -752,6 +1046,12 @@ def api_options_chain():
         except ValueError:
             return jsonify({"error": f"Invalid expiry date: {expiry_str}"}), 400
 
+    # ── Redis cache (60 s, keyed by expiry) ──
+    cache_key = f"nifty:chain:{expiry_str or 'default'}"
+    cached = get_cached(cache_key)
+    if cached:
+        return jsonify(cached)
+
     # Get NIFTY spot for ATM calculation
     tick = get_latest_tick()
     nifty_spot = tick.ltp
@@ -765,6 +1065,7 @@ def api_options_chain():
     try:
         session = get_session()
         chain = build_option_chain(session, nifty_spot, expiry_date)
+        set_cached(cache_key, chain, ttl=60)
         return jsonify(chain)
     except Exception as e:
         log.error("Option chain error: %s", e)
@@ -783,6 +1084,86 @@ def api_options_load():
     except Exception as e:
         log.error("Instrument load error: %s", e)
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/ai/analyze", methods=["POST"])
+def api_ai_analyze():
+    """
+    Send chart candle data to ChatGPT for AI pattern analysis.
+
+    Body JSON (optional):
+        date      – YYYY-MM-DD  (default: today)
+        timeframe – 1m | 5m | 15m  (default: 5m)
+        model     – OpenAI model  (default: from config)
+        signals   – existing signal context to include
+    """
+    data = request.get_json(force=True) if request.is_json else {}
+
+    date_str  = data.get("date", now_ist().strftime("%Y-%m-%d"))
+    timeframe = data.get("timeframe", "5m")
+    model     = data.get("model", config.OPENAI_MODEL or "gpt-4o-mini")
+    signals   = data.get("signals", "")
+
+    # ── Gather candle data ──
+    rows = fetch_candles_by_date(config.UNDERLYING, timeframe, date_str)
+
+    # Fallback: try fetching from API if no local data
+    if not rows:
+        import datetime as _dt
+        from trading_bot.auth.login import get_session
+        tf_map = {"1m": "ONE_MINUTE", "5m": "FIVE_MINUTE", "15m": "FIFTEEN_MINUTE"}
+        interval = tf_map.get(timeframe, "FIVE_MINUTE")
+        try:
+            session = get_session()
+            if session:
+                params = {
+                    "exchange":    config.EXCHANGE,
+                    "symboltoken": config.NIFTY_TOKEN,
+                    "interval":    interval,
+                    "fromdate":    f"{date_str} 09:15",
+                    "todate":      f"{date_str} 15:30",
+                }
+                resp = session.getCandleData(params)
+                if resp and resp.get("status") is not False:
+                    raw = resp.get("data") or []
+                    rows = [
+                        {"timestamp": str(bar[0]), "open": float(bar[1]),
+                         "high": float(bar[2]), "low": float(bar[3]),
+                         "close": float(bar[4]), "volume": int(bar[5])}
+                        for bar in raw if len(bar) >= 6
+                    ]
+        except Exception as exc:
+            log.warning("AI analyze fallback fetch: %s", exc)
+
+    if not rows:
+        return jsonify({"error": f"No candle data for {date_str} ({timeframe})"}), 400
+
+    # Convert sqlite3.Row to dicts if needed
+    candles = [dict(r) if not isinstance(r, dict) else r for r in rows]
+
+    # Build extra context from existing signals
+    extra = ""
+    if signals:
+        extra = f"Existing algorithm signals detected:\n{signals}"
+
+    from trading_bot.llm.analyzer import analyze_candles
+    result = analyze_candles(
+        candles=candles,
+        timeframe=timeframe,
+        extra_context=extra,
+        model=model,
+    )
+
+    if result["error"]:
+        return jsonify(result), 400 if "not configured" in (result["error"] or "") else 200
+
+    return jsonify({
+        "analysis":     result["analysis"],
+        "model":        result["model"],
+        "candles_sent": result["candles_sent"],
+        "date":         date_str,
+        "timeframe":    timeframe,
+    })
 
 
 @app.route("/api/options/debug")
