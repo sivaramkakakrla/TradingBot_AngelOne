@@ -783,23 +783,23 @@
         </div>
         <div class="sum-stat">
             <div class="sum-val" id="sum-signals">--</div>
-            <div class="sum-lbl">Total Signals</div>
+            <div class="sum-lbl">Trades Taken</div>
         </div>
         <div class="sum-stat">
-            <div class="sum-val pos" id="sum-enter">--</div>
-            <div class="sum-lbl">ENTER Signals</div>
+            <div class="sum-val pos" id="sum-wins">--</div>
+            <div class="sum-lbl">Wins (Target Hit)</div>
         </div>
         <div class="sum-stat">
-            <div class="sum-val pos" id="sum-bull">--</div>
-            <div class="sum-lbl">Bullish (CE)</div>
+            <div class="sum-val neg" id="sum-losses">--</div>
+            <div class="sum-lbl">Losses (SL Hit)</div>
         </div>
         <div class="sum-stat">
-            <div class="sum-val neg" id="sum-bear">--</div>
-            <div class="sum-lbl">Bearish (PE)</div>
+            <div class="sum-val" id="sum-winrate">--</div>
+            <div class="sum-lbl">Win Rate</div>
         </div>
         <div class="sum-stat">
-            <div class="sum-val" id="sum-patterns">--</div>
-            <div class="sum-lbl">Unique Patterns</div>
+            <div class="sum-val" id="sum-pnl">--</div>
+            <div class="sum-lbl">Total P&amp;L (pts)</div>
         </div>
     </div>
 
@@ -847,7 +847,7 @@
                             id="ctx-days-sigs">--</span></div>
                     <div class="ctx-row"><span class="ctx-key">Avg Signals/Day</span><span class="ctx-val"
                             id="ctx-avg">--</span></div>
-                    <div class="ctx-row"><span class="ctx-key">ENTER Rate</span><span class="ctx-val pos"
+                    <div class="ctx-row"><span class="ctx-key">Win Rate</span><span class="ctx-val pos"
                             id="ctx-enter-rate">--</span></div>
                 </div>
             </div>
@@ -1009,18 +1009,21 @@
         function updateSummary(data) {
             const sigs = data.signals || [];
             const days = data.days_analysed || 0;
-            const enter = sigs.filter(s => s.action === 'ENTER').length;
-            const bull = sigs.filter(s => s.direction === 'BULLISH').length;
-            const bear = sigs.filter(s => s.direction === 'BEARISH').length;
-            const patterns = new Set(sigs.flatMap(s => s.patterns || []));
+            const trades = data.trades_taken || 0;
+            const wins = data.wins || 0;
+            const losses = data.losses || 0;
+            const totalPnl = data.total_pnl || 0;
+            const winRate = trades > 0 ? Math.round(wins / trades * 100) : 0;
             const daysSigs = new Set(sigs.map(s => (s.bar_timestamp || s.date || '').slice(0, 10))).size;
 
             document.getElementById('sum-days').textContent = days;
-            document.getElementById('sum-signals').textContent = sigs.length;
-            document.getElementById('sum-enter').textContent = enter;
-            document.getElementById('sum-bull').textContent = bull;
-            document.getElementById('sum-bear').textContent = bear;
-            document.getElementById('sum-patterns').textContent = patterns.size;
+            document.getElementById('sum-signals').textContent = trades;
+            document.getElementById('sum-wins').textContent = wins;
+            document.getElementById('sum-losses').textContent = losses;
+            document.getElementById('sum-winrate').textContent = trades > 0 ? winRate + '%' : '--';
+            const pnlEl = document.getElementById('sum-pnl');
+            pnlEl.textContent = totalPnl !== 0 ? (totalPnl >= 0 ? '+' : '') + totalPnl.toFixed(2) : '--';
+            pnlEl.className = 'sum-val ' + (totalPnl >= 0 ? 'pos' : 'neg');
 
             document.getElementById('ctx-range').textContent =
                 (data.from_date || '--') + ' → ' + (data.to_date || '--');
@@ -1030,9 +1033,9 @@
             document.getElementById('ctx-avg').textContent =
                 days > 0 ? (sigs.length / days).toFixed(1) : '--';
             document.getElementById('ctx-enter-rate').textContent =
-                sigs.length > 0 ? Math.round(enter / sigs.length * 100) + '%' : '--';
+                trades > 0 ? winRate + '%' : '--';
             document.getElementById('result-sub').textContent =
-                sigs.length + ' signal(s) across ' + days + ' day(s) · ' + data.timeframe + ' candles';
+                trades + ' trade(s) across ' + days + ' day(s) · P&L: ' + (totalPnl >= 0 ? '+' : '') + totalPnl.toFixed(2) + ' pts';
         }
 
         // ── Pattern heatmap ───────────────────────────────────────────────────────

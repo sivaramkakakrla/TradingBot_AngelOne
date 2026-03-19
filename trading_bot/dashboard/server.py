@@ -968,10 +968,55 @@ def api_historical_analysis():
                 for col in ("close", "open", "high", "low", "volume"):
                     df[col] = df[col].astype(float)
                 try:
-                    sigs = evaluate(df)
+                    sigs = evaluate(df, backtest=True)
                     for s in sigs:
                         sd = _sanitize(s.to_dict())
                         sd["date"] = d_str
+
+                        # ── Simulate trade: walk forward from signal bar ──
+                        if s.action == "ENTER" and s.bar_index >= 0 and s.entry_price > 0:
+                            entry_px = s.entry_price
+                            is_bull = (s.direction == "BULLISH")
+                            tgt_px = entry_px + s.target_points if is_bull else entry_px - s.target_points
+                            sl_px  = entry_px - s.sl_points     if is_bull else entry_px + s.sl_points
+                            exit_px = entry_px
+                            exit_ts = sd.get("bar_timestamp", "")
+                            outcome = "OPEN"
+
+                            for bi in range(s.bar_index + 1, len(df)):
+                                bar_high  = float(df["high"].iloc[bi])
+                                bar_low   = float(df["low"].iloc[bi])
+                                bar_close = float(df["close"].iloc[bi])
+                                bar_ts    = str(df["timestamp"].iloc[bi])
+
+                                if is_bull:
+                                    if bar_low <= sl_px:
+                                        exit_px, exit_ts, outcome = sl_px, bar_ts, "SL_HIT"
+                                        break
+                                    if bar_high >= tgt_px:
+                                        exit_px, exit_ts, outcome = tgt_px, bar_ts, "TARGET_HIT"
+                                        break
+                                else:
+                                    if bar_high >= sl_px:
+                                        exit_px, exit_ts, outcome = sl_px, bar_ts, "SL_HIT"
+                                        break
+                                    if bar_low <= tgt_px:
+                                        exit_px, exit_ts, outcome = tgt_px, bar_ts, "TARGET_HIT"
+                                        break
+
+                                # EOD — last bar
+                                if bi == len(df) - 1:
+                                    exit_px, exit_ts, outcome = bar_close, bar_ts, "EOD_EXIT"
+
+                            pnl = (exit_px - entry_px) if is_bull else (entry_px - exit_px)
+                            sd["entry_price"]  = round(entry_px, 2)
+                            sd["exit_price"]   = round(exit_px, 2)
+                            sd["exit_time"]    = exit_ts
+                            sd["target_price"] = round(tgt_px, 2)
+                            sd["sl_price"]     = round(sl_px, 2)
+                            sd["pnl_points"]   = round(pnl, 2)
+                            sd["outcome"]      = outcome
+
                         day_signals.append(sd)
                         all_signals.append(sd)
                 except Exception as exc:
@@ -987,6 +1032,12 @@ def api_historical_analysis():
 
             current += _dt.timedelta(days=1)
 
+        # ── Aggregate P&L for ENTER trades ──
+        total_pnl = sum(s.get("pnl_points", 0) for s in all_signals if s.get("outcome"))
+        wins = sum(1 for s in all_signals if s.get("outcome") == "TARGET_HIT")
+        losses = sum(1 for s in all_signals if s.get("outcome") == "SL_HIT")
+        trades_taken = sum(1 for s in all_signals if s.get("outcome"))
+
         response = {
             "signals":       all_signals,
             "date_results":  date_results,
@@ -995,6 +1046,10 @@ def api_historical_analysis():
             "timeframe":     tf,
             "days_analysed": days_analysed,
             "candle_count":  total_candles,
+            "total_pnl":     round(total_pnl, 2),
+            "wins":          wins,
+            "losses":        losses,
+            "trades_taken":  trades_taken,
         }
         set_cached(cache_key, response, ttl=300)
         return jsonify(response)

@@ -71,6 +71,8 @@ class Signal:
     sl_points: float = 0.0              # suggested stop-loss distance
     target_points: float = 0.0          # suggested target distance
     bar_timestamp: str = ""             # timestamp of the signal bar
+    entry_price: float = 0.0            # close of the signal bar (entry level)
+    bar_index: int = -1                 # index in the DF for backtesting
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -168,7 +170,7 @@ def _calc_sl_target(atr_val: float) -> tuple[float, float]:
 #  MAIN EVALUATION
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def evaluate(df: pd.DataFrame) -> list[Signal]:
+def evaluate(df: pd.DataFrame, backtest: bool = False) -> list[Signal]:
     """
     Evaluate the most recent candle data for confirmed signals.
 
@@ -176,6 +178,8 @@ def evaluate(df: pd.DataFrame) -> list[Signal]:
     ----------
     df : DataFrame with OHLCV columns (timestamp, open, high, low, close, volume)
          Must have at least 20 rows for meaningful indicator computation.
+    backtest : if True, skip trade-window check (all signals get ENTER/SKIP
+               based on confirmations only).
 
     Returns
     -------
@@ -246,7 +250,7 @@ def evaluate(df: pd.DataFrame) -> list[Signal]:
         sl, target = _calc_sl_target(atr_val)
 
         # ── Step 5: Decide ENTER vs SKIP ─────────────────────────────
-        in_window = _in_trade_window()
+        in_window = backtest or _in_trade_window()
         reasons = []
         if confirmations < MIN_CONFIRMATIONS:
             reasons.append(f"only {confirmations}/{MIN_CONFIRMATIONS} confirmations")
@@ -268,6 +272,8 @@ def evaluate(df: pd.DataFrame) -> list[Signal]:
         if "timestamp" in df.columns:
             bar_ts = str(df["timestamp"].iloc[ref_idx])
 
+        entry_px = float(df["close"].iloc[ref_idx])
+
         signal = Signal(
             direction=direction,
             strength=strength,
@@ -279,6 +285,8 @@ def evaluate(df: pd.DataFrame) -> list[Signal]:
             sl_points=sl,
             target_points=target,
             bar_timestamp=bar_ts,
+            entry_price=entry_px,
+            bar_index=int(ref_idx),
         )
         results.append(signal)
 
