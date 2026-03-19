@@ -682,6 +682,7 @@ def api_paper_positions():
             "unrealized":  round(unrealized, 2),
             "stop_loss":   t["stop_loss"],
             "target":      t["target"],
+            "source":      t.get("source") or "MANUAL",
         })
 
     # Auto-close positions hitting SL / Target
@@ -711,14 +712,16 @@ def api_paper_history():
     with get_cursor() as cur:
         cur.execute(sql, params)
         rows = cur.fetchall()
+        cols = [d[0] for d in cur.description] if cur.description else []
+    has_source = "source" in cols
     trades = []
-    cols = [d[0] for d in cur.description] if hasattr(cur, 'description') and cur.description else []
     for r in rows:
-        src = r["source"] if "source" in (cols or []) else "MANUAL"
-        try:
-            src = r["source"]
-        except (IndexError, KeyError):
-            src = "MANUAL"
+        src = "MANUAL"
+        if has_source:
+            try:
+                src = r["source"] or "MANUAL"
+            except (IndexError, KeyError):
+                src = "MANUAL"
         trades.append({
             "trade_id":    r["trade_id"],
             "symbol":      r["symbol"],
@@ -732,7 +735,7 @@ def api_paper_history():
             "entry_time":  r["entry_time"],
             "exit_time":   r["exit_time"],
             "exit_reason": r["exit_reason"],
-            "source":      src or "MANUAL",
+            "source":      src,
         })
     return jsonify({"trades": trades})
 

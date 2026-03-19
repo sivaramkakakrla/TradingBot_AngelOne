@@ -874,6 +874,7 @@
           let inst = p.symbol;
           if (p.option_type && p.option_type !== 'IDX') inst = p.strike + ' ' + p.option_type;
           let tags = '';
+          if (p.source === 'AUTO') tags += '<span class="reason-tag" style="background:rgba(99,102,241,.15);color:#818cf8;margin-right:4px;">AUTO</span>';
           if (p.stop_loss) tags += '<span class="sl-tag">SL ' + p.stop_loss + '</span>';
           if (p.target) tags += '<span class="tgt-tag">T ' + p.target + '</span>';
           return '<tr>' +
@@ -1025,8 +1026,8 @@
       document.getElementById('status-text').textContent = feedRunning ? 'Live feed active' : 'Ready';
       // Positions every 5s for responsive LTP updates
       setInterval(refreshPositions, 5000);
-      // Trades + portfolio every 15s
-      setInterval(() => { refreshAllTrades(); refreshPortfolio(); }, 15000);
+      // Trades + portfolio every 5s for instant auto-trade visibility
+      setInterval(() => { refreshAllTrades(); refreshPortfolio(); }, 5000);
       setInterval(pollLive, 5000);
     })();
   </script>
