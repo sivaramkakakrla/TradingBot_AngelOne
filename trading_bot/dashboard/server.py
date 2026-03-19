@@ -15,7 +15,6 @@ import threading
 from zoneinfo import ZoneInfo
 
 from flask import Flask, jsonify, render_template, request
-from flask.json.provider import DefaultJSONProvider
 from flask_cors import CORS
 
 import uuid
@@ -50,20 +49,23 @@ app = Flask(__name__, template_folder=os.path.join(_HERE, "templates"))
 CORS(app)
 
 
-# ─── Custom JSON encoder for numpy types ─────────────────────────────────────
-class _NumpySafeProvider(DefaultJSONProvider):
-    def default(self, obj):
-        if isinstance(obj, np.integer):
-            return int(obj)
-        if isinstance(obj, np.floating):
-            return float(obj)
-        if isinstance(obj, np.ndarray):
-            return obj.tolist()
-        return super().default(obj)
+# ─── Numpy-safe JSON helper ───────────────────────────────────────────────────
 
-
-app.json_provider_class = _NumpySafeProvider
-app.json = _NumpySafeProvider(app)
+def _sanitize(obj):
+    """Recursively convert numpy scalars/arrays to native Python types."""
+    if isinstance(obj, dict):
+        return {k: _sanitize(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize(v) for v in obj]
+    if isinstance(obj, np.integer):
+        return int(obj)
+    if isinstance(obj, np.floating):
+        return float(obj)
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    if isinstance(obj, np.bool_):
+        return bool(obj)
+    return obj
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -849,7 +851,7 @@ def api_opportunities():
             df[col] = df[col].astype(float)
 
         signals = evaluate(df)
-        result = [s.to_dict() for s in signals]
+        result = [_sanitize(s.to_dict()) for s in signals]
         response = {
             "signals":      result,
             "candle_count": len(df),
@@ -968,7 +970,7 @@ def api_historical_analysis():
                 try:
                     sigs = evaluate(df)
                     for s in sigs:
-                        sd = s.to_dict()
+                        sd = _sanitize(s.to_dict())
                         sd["date"] = d_str
                         day_signals.append(sd)
                         all_signals.append(sd)
