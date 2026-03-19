@@ -419,6 +419,23 @@ _PATTERN_WEIGHT = {
     "wick_rejection": 2,
 }
 
+# Human-readable descriptions for each pattern
+_PATTERN_DESC = {
+    "hammer": "Hammer — Bullish reversal at support. Long lower wick shows buyers rejected lower prices aggressively.",
+    "shooting_star": "Shooting Star — Bearish reversal at resistance. Long upper wick shows sellers rejected higher prices.",
+    "marubozu": "Marubozu — Strong momentum candle with little/no wicks. Full body indicates dominant buying (green) or selling (red) pressure.",
+    "bullish_engulfing": "Bullish Engulfing — Large green candle fully engulfs prior red candle. Strong reversal signal showing buyers overwhelmed sellers.",
+    "bearish_engulfing": "Bearish Engulfing — Large red candle fully engulfs prior green candle. Strong reversal signal showing sellers overwhelmed buyers.",
+    "piercing_line": "Piercing Line — Green candle opens below prior low but closes above midpoint. Bullish reversal showing buying pressure after a gap down.",
+    "dark_cloud_cover": "Dark Cloud Cover — Red candle opens above prior high but closes below midpoint. Bearish reversal showing selling pressure after a gap up.",
+    "morning_star": "Morning Star — 3-bar bullish reversal: large red → small body (indecision) → large green. Very reliable bottom reversal pattern.",
+    "evening_star": "Evening Star — 3-bar bearish reversal: large green → small body (indecision) → large red. Very reliable top reversal pattern.",
+    "three_white_soldiers": "Three White Soldiers — Three consecutive large green candles. Powerful bullish continuation showing sustained buying pressure.",
+    "three_black_crows": "Three Black Crows — Three consecutive large red candles. Powerful bearish continuation showing sustained selling pressure.",
+    "strong_momentum": "Strong Momentum — Unusually large body relative to recent candles. Indicates a breakout or institutional activity.",
+    "wick_rejection": "Wick Rejection — Long wick on one side with small body. Price tested a level but was strongly rejected, indicating reversal.",
+}
+
 
 def detect_all(df: pd.DataFrame) -> dict[str, pd.Series]:
     """Run every pattern detector. Returns {name: signal_series}."""

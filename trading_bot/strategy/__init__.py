@@ -36,7 +36,7 @@ from typing import List
 import pandas as pd
 
 from trading_bot import config
-from trading_bot.candles import detect_all, scan_signals, _PATTERN_WEIGHT
+from trading_bot.candles import detect_all, scan_signals, _PATTERN_WEIGHT, _PATTERN_DESC
 from trading_bot.indicators import (
     rsi as calc_rsi,
     macd as calc_macd,
@@ -73,6 +73,8 @@ class Signal:
     bar_timestamp: str = ""             # timestamp of the signal bar
     entry_price: float = 0.0            # close of the signal bar (entry level)
     bar_index: int = -1                 # index in the DF for backtesting
+    pattern_descriptions: list[str] = field(default_factory=list)  # human-readable pattern explanations
+    expected_profit_pts: float = 0.0    # expected profit in points (= target_points)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -274,6 +276,9 @@ def evaluate(df: pd.DataFrame, backtest: bool = False) -> list[Signal]:
 
         entry_px = float(df["close"].iloc[ref_idx])
 
+        # Build pattern descriptions list
+        pat_descs = [_PATTERN_DESC.get(p, p) for p in pattern_names]
+
         signal = Signal(
             direction=direction,
             strength=strength,
@@ -287,6 +292,8 @@ def evaluate(df: pd.DataFrame, backtest: bool = False) -> list[Signal]:
             bar_timestamp=bar_ts,
             entry_price=entry_px,
             bar_index=int(ref_idx),
+            pattern_descriptions=pat_descs,
+            expected_profit_pts=target,
         )
         results.append(signal)
 

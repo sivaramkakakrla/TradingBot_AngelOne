@@ -1258,6 +1258,33 @@ def api_options_debug():
         return jsonify({"error": str(e)}), 500
 
 
+# ─── Auto-Trade API ───────────────────────────────────────────────────────────
+
+@app.route("/api/autotrade/start", methods=["POST"])
+def api_autotrade_start():
+    """Start the auto-trade engine."""
+    from trading_bot.autotrade import start as at_start, get_status
+    data = request.get_json(force=True) if request.is_json else {}
+    interval = int(data.get("interval", 60))
+    at_start(scan_interval=interval)
+    return jsonify(get_status())
+
+
+@app.route("/api/autotrade/stop", methods=["POST"])
+def api_autotrade_stop():
+    """Stop the auto-trade engine."""
+    from trading_bot.autotrade import stop as at_stop, get_status
+    at_stop()
+    return jsonify(get_status())
+
+
+@app.route("/api/autotrade/status")
+def api_autotrade_status():
+    """Return current auto-trade status, log, and last signal."""
+    from trading_bot.autotrade import get_status
+    return jsonify(get_status())
+
+
 # ─── Start helper ─────────────────────────────────────────────────────────────
 
 def start_dashboard(

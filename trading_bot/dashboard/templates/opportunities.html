@@ -471,6 +471,26 @@
             line-height: 1.4;
         }
 
+        /* Pattern description */
+        .pat-desc-list {
+            margin-bottom: 8px;
+            padding: 8px 10px;
+            background: rgba(59, 130, 246, .05);
+            border: 1px solid rgba(59, 130, 246, .15);
+            border-radius: 8px;
+        }
+
+        .pat-desc-item {
+            font-size: .7rem;
+            color: var(--txt-dim);
+            line-height: 1.5;
+            padding: 3px 0;
+        }
+
+        .pat-desc-item:not(:last-child) {
+            border-bottom: 1px solid rgba(59, 130, 246, .1);
+        }
+
         /* Strength bar */
         .strength-bar-wrap {
             display: flex;
@@ -928,6 +948,29 @@
                     </div>
                 </div>
             </div>
+
+            <div class="context-section">
+                <div class="ctx-title">Auto-Trade Engine</div>
+                <div class="ctx-card">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                        <span style="font-size:.78rem;font-weight:700;" id="at-status-label">DISABLED</span>
+                        <button id="at-toggle-btn" onclick="toggleAutoTrade()"
+                            style="background:var(--accent);color:#fff;border:none;padding:6px 16px;border-radius:7px;font-size:.72rem;font-weight:700;cursor:pointer;font-family:inherit;">
+                            START
+                        </button>
+                    </div>
+                    <div class="ctx-row"><span class="ctx-key">Open Positions</span><span class="ctx-val"
+                            id="at-open">0</span></div>
+                    <div class="ctx-row"><span class="ctx-key">Today's P&amp;L</span><span class="ctx-val"
+                            id="at-pnl">₹0</span></div>
+                    <div class="ctx-row"><span class="ctx-key">Last Scan</span><span class="ctx-val"
+                            id="at-last-scan">--</span></div>
+                    <div id="at-last-signal" style="margin-top:8px;"></div>
+                    <div id="at-log"
+                        style="margin-top:8px;max-height:120px;overflow-y:auto;font-size:.65rem;color:var(--txt-mute);line-height:1.6;font-family:monospace;">
+                    </div>
+                </div>
+            </div>
         </div>
 
     </div>
@@ -1024,6 +1067,16 @@
                 : new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
             const sl = sig.sl_points > 0 ? sig.sl_points.toFixed(1) : '--';
             const tgt = sig.target_points > 0 ? sig.target_points.toFixed(1) : '--';
+            const expectedProfit = sig.expected_profit_pts > 0 ? sig.expected_profit_pts.toFixed(1) : tgt;
+            const entryPx = sig.entry_price > 0 ? sig.entry_price.toFixed(2) : '--';
+
+            // Build pattern descriptions HTML
+            const patDescs = (sig.pattern_descriptions || []);
+            const patDescHtml = patDescs.length > 0
+                ? '<div class="pat-desc-list">' + patDescs.map(d =>
+                    '<div class="pat-desc-item">💡 ' + d + '</div>'
+                ).join('') + '</div>'
+                : '';
 
             return `
   <div class="signal-card ${cardClass}">
@@ -1046,14 +1099,29 @@
         <div class="sig-stat-label">Filters</div>
       </div>
       <div class="sig-stat">
-        <div class="sig-stat-val" style="${isBull ? 'color:var(--green)' : 'color:var(--red)'}">+${tgt} pts</div>
-        <div class="sig-stat-label">Target</div>
+        <div class="sig-stat-val" style="color:var(--green)">+${expectedProfit} pts</div>
+        <div class="sig-stat-label">Expected Profit</div>
       </div>
       <div class="sig-stat">
         <div class="sig-stat-val neg">-${sl} pts</div>
-        <div class="sig-stat-label">Stop Loss</div>
+        <div class="sig-stat-label">Risk (SL)</div>
       </div>
     </div>
+    <div class="sig-body" style="margin-top:0;">
+      <div class="sig-stat">
+        <div class="sig-stat-val">${entryPx}</div>
+        <div class="sig-stat-label">Entry Price</div>
+      </div>
+      <div class="sig-stat">
+        <div class="sig-stat-val pos">${isBull ? '+' : '-'}${tgt}</div>
+        <div class="sig-stat-label">Target</div>
+      </div>
+      <div class="sig-stat">
+        <div class="sig-stat-val" style="color:var(--accent)">1:2</div>
+        <div class="sig-stat-label">Risk:Reward</div>
+      </div>
+    </div>
+    ${patDescHtml}
     ${patterns ? '<div class="sig-patterns">' + patterns + '</div>' : ''}
     <div class="sig-filters">${filters}</div>
     <div class="sig-reason">${sig.reason || ''}</div>
@@ -1273,6 +1341,73 @@
             document.getElementById('ai-panel').classList.remove('show');
         }
 
+        // ── Auto-Trade Controls ──
+        let _atEnabled = false;
+
+        async function toggleAutoTrade() {
+            const btn = document.getElementById('at-toggle-btn');
+            const url = _atEnabled ? '/api/autotrade/stop' : '/api/autotrade/start';
+            btn.disabled = true;
+            try {
+                const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+                const d = await r.json();
+                _atEnabled = !!d.enabled;
+                updateATPanel(d);
+            } catch (e) {
+                console.error('AutoTrade toggle error', e);
+            }
+            btn.disabled = false;
+        }
+
+        function updateATPanel(d) {
+            _atEnabled = !!d.enabled;
+            const btn = document.getElementById('at-toggle-btn');
+            const label = document.getElementById('at-status-label');
+            if (_atEnabled) {
+                btn.textContent = 'STOP';
+                btn.style.background = 'var(--red)';
+                label.textContent = 'RUNNING';
+                label.style.color = 'var(--green)';
+            } else {
+                btn.textContent = 'START';
+                btn.style.background = 'var(--accent)';
+                label.textContent = 'DISABLED';
+                label.style.color = 'var(--txt-dim)';
+            }
+            document.getElementById('at-open').textContent = d.open_positions || 0;
+            const pnl = d.pnl_today || 0;
+            const pnlEl = document.getElementById('at-pnl');
+            pnlEl.textContent = (pnl >= 0 ? '+' : '') + '₹' + pnl.toFixed(2);
+            pnlEl.className = 'ctx-val ' + (pnl >= 0 ? 'pos' : 'neg');
+            document.getElementById('at-last-scan').textContent = d.last_scan || '--';
+
+            // Last signal
+            const sigEl = document.getElementById('at-last-signal');
+            if (d.last_signal) {
+                const s = d.last_signal;
+                const col = s.direction === 'BULLISH' ? 'var(--green)' : 'var(--red)';
+                sigEl.innerHTML = '<div style="font-size:.7rem;padding:6px 8px;background:var(--card);border-radius:6px;border:1px solid var(--border);">' +
+                    '<div style="font-weight:700;color:' + col + ';">' + s.direction + ' @ ' + (s.entry_price || 0).toFixed(2) + ' (' + s.time + ')</div>' +
+                    '<div style="color:var(--txt-dim);margin-top:3px;">Patterns: ' + (s.patterns || []).join(', ').replace(/_/g, ' ') + '</div>' +
+                    '<div style="color:var(--txt-dim);">Expected: +' + (s.expected_profit_pts || 0).toFixed(1) + ' pts | SL: -' + (s.sl_points || 0).toFixed(1) + ' pts</div>' +
+                    '</div>';
+            }
+
+            // Log
+            const logEl = document.getElementById('at-log');
+            if (d.log && d.log.length > 0) {
+                logEl.innerHTML = d.log.slice(-15).reverse().map(l => '<div>' + l + '</div>').join('');
+            }
+        }
+
+        async function pollAutoTradeStatus() {
+            try {
+                const r = await fetch('/api/autotrade/status');
+                const d = await r.json();
+                updateATPanel(d);
+            } catch (e) { }
+        }
+
         // ── Init ──
         (async () => {
             await startFeed();
@@ -1280,6 +1415,8 @@
             await runScan(false);
             startAutoScan();
             setInterval(pollLive, 5000);
+            setInterval(pollAutoTradeStatus, 5000);
+            pollAutoTradeStatus();
             document.getElementById('status-text').textContent = 'Live · auto-scanning every 30s';
         })();
     </script>

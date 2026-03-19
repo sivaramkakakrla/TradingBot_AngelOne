@@ -491,6 +491,25 @@
             line-height: 1.4;
         }
 
+        .pat-desc-list {
+            margin-bottom: 8px;
+            padding: 8px 10px;
+            background: rgba(59, 130, 246, .05);
+            border: 1px solid rgba(59, 130, 246, .15);
+            border-radius: 8px;
+        }
+
+        .pat-desc-item {
+            font-size: .7rem;
+            color: var(--txt-dim);
+            line-height: 1.5;
+            padding: 3px 0;
+        }
+
+        .pat-desc-item:not(:last-child) {
+            border-bottom: 1px solid rgba(59, 130, 246, .1);
+        }
+
         .strength-bar-wrap {
             display: flex;
             align-items: center;
@@ -951,6 +970,15 @@
             }
             const sl = sig.sl_points > 0 ? sig.sl_points.toFixed(1) : '--';
             const tgt = sig.target_points > 0 ? sig.target_points.toFixed(1) : '--';
+            const expectedProfit = sig.expected_profit_pts > 0 ? sig.expected_profit_pts.toFixed(1) : tgt;
+
+            // Build pattern descriptions
+            const patDescs = (sig.pattern_descriptions || []);
+            const patDescHtml = patDescs.length > 0
+                ? '<div class="pat-desc-list">' + patDescs.map(d =>
+                    '<div class="pat-desc-item">💡 ' + d + '</div>'
+                ).join('') + '</div>'
+                : '';
 
             return `
 <div class="signal-card ${cardClass}">
@@ -976,14 +1004,15 @@
       <div class="sig-stat-label">Filters</div>
     </div>
     <div class="sig-stat">
-      <div class="sig-stat-val" style="${isBull ? 'color:var(--green)' : 'color:var(--red)'}">+${tgt} pts</div>
-      <div class="sig-stat-label">Target</div>
+      <div class="sig-stat-val" style="color:var(--green)">+${expectedProfit} pts</div>
+      <div class="sig-stat-label">Expected Profit</div>
     </div>
     <div class="sig-stat">
       <div class="sig-stat-val neg">-${sl} pts</div>
-      <div class="sig-stat-label">Stop Loss</div>
+      <div class="sig-stat-label">Risk (SL)</div>
     </div>
   </div>
+  ${patDescHtml}
   ${patterns ? '<div class="sig-patterns">' + patterns + '</div>' : ''}
   <div class="sig-filters">${filters}</div>
   <div class="sig-reason">${sig.reason || ''}</div>
