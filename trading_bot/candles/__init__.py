@@ -482,3 +482,34 @@ def scan_signals(df: pd.DataFrame) -> list[dict]:
     # Sort by weight descending, then most recent first
     signals.sort(key=lambda s: (-s["weight"], s["bars_ago"]))
     return signals
+
+
+def scan_signals_all(df: pd.DataFrame) -> list[dict]:
+    """
+    Scan ALL bars in the DataFrame for pattern signals (not just last 3).
+    Used for historical/backtest analysis where we need every signal in the day.
+
+    Returns signals grouped by bar — each with bar_index pointing to
+    the actual candle where the pattern fired.
+    """
+    if len(df) < 5:
+        return []
+
+    patterns = detect_all(df)
+    signals = []
+
+    for name, series in patterns.items():
+        for idx in range(len(df)):
+            val = series.iloc[idx]
+            if val != 0:
+                signals.append({
+                    "pattern": name,
+                    "direction": "BULLISH" if val > 0 else "BEARISH",
+                    "weight": _PATTERN_WEIGHT.get(name, 1),
+                    "bar_index": idx,
+                    "bars_ago": len(df) - 1 - idx,
+                })
+
+    # Sort by bar_index (chronological), then weight descending
+    signals.sort(key=lambda s: (s["bar_index"], -s["weight"]))
+    return signals

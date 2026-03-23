@@ -48,9 +48,9 @@ EXCHANGE = "NSE"
 NFO_EXCHANGE = "NFO"
 NIFTY_TOKEN = "99926000"           # NIFTY 50 index token
 SENSEX_TOKEN = "99919000"          # SENSEX index token (BSE)
-LOT_SIZE = 25                      # NIFTY lot size (as of 2026)
-TRADE_LOTS = 2                     # lots per trade
-TRADE_QTY = LOT_SIZE * TRADE_LOTS  # 50
+LOT_SIZE = 65                      # NIFTY lot size (as of Nov 2024, SEBI revised)
+TRADE_LOTS = 1                     # lots per trade
+TRADE_QTY = LOT_SIZE * TRADE_LOTS  # 65
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  MULTI‑TIMEFRAME SETTINGS

@@ -68,7 +68,7 @@ def _download_and_cache() -> list[dict]:
                 "symbol":   r["symbol"],
                 "expiry":   r.get("expiry", ""),
                 "strike":   strike,
-                "lotsize":  int(r.get("lotsize", 25)),
+                "lotsize":  int(r.get("lotsize", 65)),
             })
 
     log.info("Filtered %d NIFTY options from %d total instruments", len(nifty_opts), len(master))
@@ -122,9 +122,20 @@ def _parse_expiry(exp_str: str) -> datetime.date | None:
 
 
 def get_weekly_expiries() -> tuple[datetime.date, datetime.date]:
-    """Return (this_week_expiry, next_week_expiry) — both Thursdays."""
+    """Return (nearest_expiry, second_nearest_expiry) from instrument master.
+    Falls back to computed Thursdays if master isn't loaded yet."""
     today = datetime.date.today()
-    wd = today.weekday()  # Mon=0 … Sun=6
+    try:
+        expiries = get_available_expiries()  # sorted ISO strings
+        future = [datetime.date.fromisoformat(e) for e in expiries if e >= today.isoformat()]
+        if len(future) >= 2:
+            return future[0], future[1]
+        elif len(future) == 1:
+            return future[0], future[0] + datetime.timedelta(days=7)
+    except Exception:
+        pass
+    # Fallback: Thursday-based computation
+    wd = today.weekday()
     if wd <= 3:
         this_thu = today + datetime.timedelta(days=3 - wd)
     else:
@@ -164,8 +175,8 @@ def build_option_chain(
             "chain": [
                 {
                     "strike": 24000,
-                    "CE": {"token": "...", "symbol": "...", "ltp": 0, "lot_size": 25},
-                    "PE": {"token": "...", "symbol": "...", "ltp": 0, "lot_size": 25},
+                    "CE": {"token": "...", "symbol": "...", "ltp": 0, "lot_size": 65},
+                    "PE": {"token": "...", "symbol": "...", "ltp": 0, "lot_size": 65},
                 },
                 ...
             ]
@@ -203,16 +214,18 @@ def build_option_chain(
             "token":    opt["token"],
             "symbol":   opt["symbol"],
             "ltp":      0.0,
+            "oi":       0,
+            "volume":   0,
             "lot_size": opt["lotsize"],
         }
         token_map[opt["token"]] = (strike, otype)
 
-    # ── Batch-fetch premiums via getMarketData (LTP mode, up to 1000) ──
+    # ── Batch-fetch premiums via getMarketData (FULL mode for OI + LTP) ──
     all_tokens = list(token_map.keys())
     if all_tokens and session:
         try:
             resp = session.getMarketData(
-                mode="LTP",
+                mode="FULL",
                 exchangeTokens={"NFO": all_tokens},
             )
             if resp and resp.get("data"):
@@ -221,11 +234,13 @@ def build_option_chain(
                     if tk and tk in token_map:
                         s, ot = token_map[tk]
                         chain_map[s][ot]["ltp"] = float(item.get("ltp", 0))
+                        chain_map[s][ot]["oi"] = int(item.get("opnInterest", 0))
+                        chain_map[s][ot]["volume"] = int(item.get("tradeVolume", 0) or item.get("exchTradeVal", 0) or 0)
         except Exception as e:
-            log.error("getMarketData LTP failed: %s", e)
+            log.error("getMarketData FULL failed: %s", e)
 
     # Sort by strike and package
-    _empty = {"token": "", "symbol": "", "ltp": 0.0, "lot_size": 25}
+    _empty = {"token": "", "symbol": "", "ltp": 0.0, "oi": 0, "volume": 0, "lot_size": 65}
     chain_list = []
     for s in sorted(chain_map.keys()):
         chain_list.append({
@@ -263,3 +278,81 @@ def get_option_ltp(session, tokens: list[str]) -> dict[str, float]:
         except Exception as e:
             log.error("Option LTP batch fetch failed: %s", e)
     return result
+
+
+def get_nearest_expiry() -> datetime.date | None:
+    """Return the nearest future expiry date from the instrument master."""
+    options = load_options()
+    today = datetime.date.today()
+    nearest = None
+    for opt in options:
+        d = _parse_expiry(opt["expiry"])
+        if d and d >= today:
+            if nearest is None or d < nearest:
+                nearest = d
+    return nearest
+
+
+def find_atm_option(
+    nifty_spot: float,
+    option_type: str,
+    expiry_date: datetime.date | None = None,
+    strike_step: int = 50,
+) -> dict | None:
+    """
+    Find the ATM option contract for a given option type (CE/PE).
+
+    Returns:
+        {"token": str, "symbol": str, "strike": float, "expiry": str,
+         "option_type": str, "lotsize": int}
+        or None if not found.
+    """
+    options = load_options()
+    if not options:
+        log.warning("No options loaded — cannot find ATM option")
+        return None
+
+    if expiry_date is None:
+        expiry_date = get_nearest_expiry()
+        if expiry_date is None:
+            log.warning("No future expiry dates found")
+            return None
+
+    atm_strike = round(nifty_spot / strike_step) * strike_step
+    otype = option_type.upper()
+
+    # Search for exact ATM strike first, then nearest
+    best = None
+    best_diff = float("inf")
+
+    for opt in options:
+        exp = _parse_expiry(opt["expiry"])
+        if exp != expiry_date:
+            continue
+        sym = opt["symbol"]
+        if not sym.endswith(otype):
+            continue
+        diff = abs(opt["strike"] - atm_strike)
+        if diff < best_diff:
+            best_diff = diff
+            best = opt
+
+    if best is None:
+        log.warning("No %s option found for expiry %s near strike %s",
+                    otype, expiry_date, atm_strike)
+        return None
+
+    return {
+        "token":       best["token"],
+        "symbol":      best["symbol"],
+        "strike":      best["strike"],
+        "expiry":      expiry_date.strftime("%d %b").lstrip("0"),
+        "expiry_date": expiry_date.isoformat(),
+        "option_type": otype,
+        "lotsize":     best["lotsize"],
+    }
+
+
+def format_option_name(strike: float, option_type: str, expiry_str: str) -> str:
+    """Format as 'NIFTY 24 Mar 23650 PE'."""
+    return f"NIFTY {expiry_str} {int(strike)} {option_type}"

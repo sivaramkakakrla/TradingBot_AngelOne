@@ -426,7 +426,7 @@
 
     .pnl-stats {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(6, 1fr);
       gap: 12px;
       margin-bottom: 24px;
     }
@@ -456,7 +456,7 @@
     /* Source breakdown */
     .source-breakdown {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr 1fr 1fr;
       gap: 16px;
       margin-bottom: 24px;
     }
@@ -495,9 +495,13 @@
       background: var(--amber);
     }
 
+    .src-dot.gpt {
+      background: #8b5cf6;
+    }
+
     .source-stats-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(4, 1fr);
       gap: 8px;
     }
 
@@ -636,6 +640,8 @@
         id="manual-badge" style="display:none;">0</span></button>
     <button class="tab-btn" data-tab="auto" onclick="switchTab('auto')">Auto Trades <span class="badge" id="auto-badge"
         style="display:none;">0</span></button>
+    <button class="tab-btn" data-tab="gpt" onclick="switchTab('gpt')">GPT Trades <span class="badge" id="gpt-badge"
+        style="display:none;">0</span></button>
     <button class="tab-btn" data-tab="pnl" onclick="switchTab('pnl')">P&amp;L</button>
   </div>
 
@@ -699,6 +705,25 @@
       </table>
     </div>
 
+    <!-- GPT Trades tab -->
+    <div class="tab-pane" id="tab-gpt">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Instrument</th>
+            <th>Side</th>
+            <th>Qty</th>
+            <th>Entry</th>
+            <th>Exit</th>
+            <th>P&amp;L</th>
+            <th>Reason</th>
+            <th>Time</th>
+          </tr>
+        </thead>
+        <tbody id="gpt-body"></tbody>
+      </table>
+    </div>
+
     <!-- P&L tab -->
     <div class="tab-pane" id="tab-pnl">
       <div class="pnl-cards">
@@ -720,6 +745,10 @@
       </div>
       <div class="pnl-stats">
         <div class="pnl-stat">
+          <div class="pnl-stat-val" id="stat-total-trades">0</div>
+          <div class="pnl-stat-label">Total Trades</div>
+        </div>
+        <div class="pnl-stat">
           <div class="pnl-stat-val" id="stat-wins">0</div>
           <div class="pnl-stat-label">Wins</div>
         </div>
@@ -732,8 +761,12 @@
           <div class="pnl-stat-label">Win Rate</div>
         </div>
         <div class="pnl-stat">
-          <div class="pnl-stat-val" id="stat-total-trades">0</div>
-          <div class="pnl-stat-label">Total Trades</div>
+          <div class="pnl-stat-val pos" id="stat-total-profit">&#8377;0</div>
+          <div class="pnl-stat-label">Total Profit</div>
+        </div>
+        <div class="pnl-stat">
+          <div class="pnl-stat-val neg" id="stat-total-loss">&#8377;0</div>
+          <div class="pnl-stat-label">Total Loss</div>
         </div>
       </div>
       <!-- Per-source breakdown -->
@@ -753,6 +786,10 @@
               <div class="pnl-stat-val" id="stat-manual-winrate">0%</div>
               <div class="pnl-stat-label">Win Rate</div>
             </div>
+            <div class="pnl-stat">
+              <div class="pnl-stat-val" id="stat-manual-pnl">&#8377;0</div>
+              <div class="pnl-stat-label">P&amp;L</div>
+            </div>
           </div>
         </div>
         <div class="source-card">
@@ -769,6 +806,31 @@
             <div class="pnl-stat">
               <div class="pnl-stat-val" id="stat-auto-winrate">0%</div>
               <div class="pnl-stat-label">Win Rate</div>
+            </div>
+            <div class="pnl-stat">
+              <div class="pnl-stat-val" id="stat-auto-pnl">&#8377;0</div>
+              <div class="pnl-stat-label">P&amp;L</div>
+            </div>
+          </div>
+        </div>
+        <div class="source-card">
+          <div class="source-card-title"><span class="src-dot gpt"></span>GPT Trades</div>
+          <div class="source-stats-grid">
+            <div class="pnl-stat">
+              <div class="pnl-stat-val" id="stat-gpt-trades">0</div>
+              <div class="pnl-stat-label">Total</div>
+            </div>
+            <div class="pnl-stat">
+              <div class="pnl-stat-val" id="stat-gpt-wins">0</div>
+              <div class="pnl-stat-label">Wins</div>
+            </div>
+            <div class="pnl-stat">
+              <div class="pnl-stat-val" id="stat-gpt-winrate">0%</div>
+              <div class="pnl-stat-label">Win Rate</div>
+            </div>
+            <div class="pnl-stat">
+              <div class="pnl-stat-val" id="stat-gpt-pnl">&#8377;0</div>
+              <div class="pnl-stat-label">P&amp;L</div>
             </div>
           </div>
         </div>
@@ -871,15 +933,16 @@
         tbody.innerHTML = positions.map(p => {
           const cls = p.unrealized >= 0 ? 'pos' : 'neg';
           totalUr += p.unrealized;
-          let inst = p.symbol;
-          if (p.option_type && p.option_type !== 'IDX') inst = p.strike + ' ' + p.option_type;
+          let inst = _fmtSym(p.symbol, p.strike, p.option_type);
+          const dirLabel = (p.option_type && p.option_type !== 'IDX') ? 'BUY' : p.direction;
           let tags = '';
           if (p.source === 'AUTO') tags += '<span class="reason-tag" style="background:rgba(99,102,241,.15);color:#818cf8;margin-right:4px;">AUTO</span>';
-          if (p.stop_loss) tags += '<span class="sl-tag">SL ' + p.stop_loss + '</span>';
-          if (p.target) tags += '<span class="tgt-tag">T ' + p.target + '</span>';
+          if (p.source === 'GPT') tags += '<span class="reason-tag" style="background:rgba(139,92,246,.15);color:#8b5cf6;margin-right:4px;">GPT</span>';
+          if (p.stop_loss) tags += '<span class="sl-tag">SL ' + p.stop_loss.toFixed(2) + '</span>';
+          if (p.target) tags += '<span class="tgt-tag">T ' + p.target.toFixed(2) + '</span>';
           return '<tr>' +
             '<td>' + inst + (tags ? '<br/>' + tags : '') + '</td>' +
-            '<td><span class="dir-badge ' + p.direction + '">' + p.direction + '</span></td>' +
+            '<td><span class="dir-badge LONG">' + dirLabel + '</span></td>' +
             '<td>' + p.qty + '</td>' +
             '<td>' + p.entry_price.toFixed(2) + '</td>' +
             '<td>' + (p.ltp > 0 ? p.ltp.toFixed(2) : '--') + '</td>' +
@@ -913,14 +976,28 @@
     // ── TRADE HISTORY (single fetch, split by source) ──
     let _realizedPnl = 0;
 
+    function _fmtSym(sym, strike, otype) {
+      // If symbol is raw AngelOne format like NIFTY19MAR2624000CE, format nicely
+      if (!sym) return 'NIFTY';
+      if (otype && otype !== 'IDX' && strike) {
+        var m = sym.match(/^NIFTY(\d{1,2})([A-Z]{3})(\d{2,4})(\d+)(CE|PE)$/i);
+        if (m) {
+          var months = { JAN: 'Jan', FEB: 'Feb', MAR: 'Mar', APR: 'Apr', MAY: 'May', JUN: 'Jun', JUL: 'Jul', AUG: 'Aug', SEP: 'Sep', OCT: 'Oct', NOV: 'Nov', DEC: 'Dec' };
+          return 'NIFTY ' + m[1] + ' ' + (months[m[2].toUpperCase()] || m[2]) + ' ' + parseInt(strike) + ' ' + otype;
+        }
+        return 'NIFTY ' + parseInt(strike) + ' ' + otype;
+      }
+      return sym;
+    }
+
     function _tradeRow(t) {
       const cls = t.pnl >= 0 ? 'pos' : 'neg';
-      let inst = t.symbol;
-      if (t.option_type && t.option_type !== 'IDX') inst = t.strike + ' ' + t.option_type;
+      let inst = _fmtSym(t.symbol, t.strike, t.option_type);
+      const dirLabel = (t.option_type && t.option_type !== 'IDX') ? 'BUY ' + t.option_type : t.direction;
       const exitTime = t.exit_time ? new Date(t.exit_time).toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short' }) : '--';
       return '<tr>' +
         '<td>' + inst + '</td>' +
-        '<td><span class="dir-badge ' + t.direction + '">' + t.direction + '</span></td>' +
+        '<td><span class="dir-badge LONG">' + dirLabel + '</span></td>' +
         '<td>' + t.qty + '</td>' +
         '<td>' + t.entry_price.toFixed(2) + '</td>' +
         '<td>' + (t.exit_price != null ? t.exit_price.toFixed(2) : '--') + '</td>' +
@@ -944,6 +1021,7 @@
 
         const manual = all.filter(t => !t.source || t.source === 'MANUAL');
         const auto = all.filter(t => t.source === 'AUTO');
+        const gpt = all.filter(t => t.source === 'GPT');
 
         // Render manual tab
         const mTbody = document.getElementById('manual-body');
@@ -959,20 +1037,49 @@
           : '<tr><td colspan="8" class="empty-row">No automatic trades yet</td></tr>';
         _setBadge('auto-badge', auto.length);
 
+        // Render GPT tab
+        const gTbody = document.getElementById('gpt-body');
+        gTbody.innerHTML = gpt.length
+          ? gpt.map(_tradeRow).join('')
+          : '<tr><td colspan="8" class="empty-row">No GPT trades yet</td></tr>';
+        _setBadge('gpt-badge', gpt.length);
+
         // Per-source stats
         const mWins = manual.filter(t => (t.pnl || 0) > 0).length;
         const mLosses = manual.filter(t => (t.pnl || 0) < 0).length;
         const mWinRate = manual.length ? Math.round(mWins / manual.length * 100) + '%' : '0%';
+        const mPnl = manual.reduce((s, t) => s + (t.pnl || 0), 0);
         document.getElementById('stat-manual-trades').textContent = manual.length;
         document.getElementById('stat-manual-wins').textContent = mWins;
         document.getElementById('stat-manual-winrate').textContent = mWinRate;
+        document.getElementById('stat-manual-pnl').textContent = RS + mPnl.toFixed(2);
+        document.getElementById('stat-manual-pnl').className = 'pnl-stat-val ' + (mPnl >= 0 ? 'pos' : 'neg');
 
         const aWins = auto.filter(t => (t.pnl || 0) > 0).length;
         const aLosses = auto.filter(t => (t.pnl || 0) < 0).length;
         const aWinRate = auto.length ? Math.round(aWins / auto.length * 100) + '%' : '0%';
+        const aPnl = auto.reduce((s, t) => s + (t.pnl || 0), 0);
         document.getElementById('stat-auto-trades').textContent = auto.length;
         document.getElementById('stat-auto-wins').textContent = aWins;
         document.getElementById('stat-auto-winrate').textContent = aWinRate;
+        document.getElementById('stat-auto-pnl').textContent = RS + aPnl.toFixed(2);
+        document.getElementById('stat-auto-pnl').className = 'pnl-stat-val ' + (aPnl >= 0 ? 'pos' : 'neg');
+
+        const gWins = gpt.filter(t => (t.pnl || 0) > 0).length;
+        const gLosses = gpt.filter(t => (t.pnl || 0) < 0).length;
+        const gWinRate = gpt.length ? Math.round(gWins / gpt.length * 100) + '%' : '0%';
+        const gPnl = gpt.reduce((s, t) => s + (t.pnl || 0), 0);
+        document.getElementById('stat-gpt-trades').textContent = gpt.length;
+        document.getElementById('stat-gpt-wins').textContent = gWins;
+        document.getElementById('stat-gpt-winrate').textContent = gWinRate;
+        document.getElementById('stat-gpt-pnl').textContent = RS + gPnl.toFixed(2);
+        document.getElementById('stat-gpt-pnl').className = 'pnl-stat-val ' + (gPnl >= 0 ? 'pos' : 'neg');
+
+        // Overall profit/loss sums
+        const totalProfit = all.filter(t => (t.pnl || 0) > 0).reduce((s, t) => s + t.pnl, 0);
+        const totalLoss = all.filter(t => (t.pnl || 0) < 0).reduce((s, t) => s + t.pnl, 0);
+        document.getElementById('stat-total-profit').textContent = RS + totalProfit.toFixed(2);
+        document.getElementById('stat-total-loss').textContent = RS + totalLoss.toFixed(2);
 
         // Update P&L card
         _realizedPnl = all.reduce((s, t) => s + (t.pnl || 0), 0);
@@ -980,7 +1087,7 @@
         document.getElementById('realized-pnl').textContent = RS + _realizedPnl.toFixed(2);
         document.getElementById('realized-pnl').className = 'pnl-card-val ' + rCls;
         document.getElementById('realized-sub').textContent = all.length + ' closed trade' + (all.length !== 1 ? 's' : '') +
-          ' (' + manual.length + ' manual, ' + auto.length + ' auto)';
+          ' (' + manual.length + ' manual, ' + auto.length + ' auto, ' + gpt.length + ' GPT)';
         recalcTotal();
       } catch (e) { console.error('history err', e); }
     }

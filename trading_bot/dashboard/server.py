@@ -31,7 +31,7 @@ from trading_bot.data.store import (
 )
 from trading_bot.indicators import sma, linear_regression
 from trading_bot.candles import detect_all, scan_signals
-from trading_bot.strategy import evaluate, evaluate_latest
+from trading_bot.strategy import evaluate, evaluate_latest, evaluate_historical
 from trading_bot.market import get_latest_tick, get_latest_sensex_tick, start_feed, stop_feed, fetch_option_ltp, fetch_live_once
 from trading_bot.options import (
     build_option_chain, get_available_expiries, get_weekly_expiries,
@@ -385,7 +385,14 @@ def api_paper_buy():
     custom_px   = float(data.get("price", 0))
     sl          = float(data.get("stop_loss", 0)) or None
     tgt         = float(data.get("target", 0)) or None
-    source      = data.get("source", "MANUAL")  # MANUAL | AUTO
+    source      = data.get("source", "MANUAL")  # MANUAL | AUTO | GPT
+
+    # Enforce lot-size multiples for options
+    if option_type in ("CE", "PE"):
+        if qty < config.LOT_SIZE:
+            qty = config.LOT_SIZE
+        elif qty % config.LOT_SIZE != 0:
+            qty = (qty // config.LOT_SIZE) * config.LOT_SIZE or config.LOT_SIZE
 
     # Determine entry price — use provided price first (avoids slow AngelOne call)
     if custom_px > 0:
@@ -460,7 +467,14 @@ def api_paper_sell():
     custom_px   = float(data.get("price", 0))
     sl          = float(data.get("stop_loss", 0)) or None
     tgt         = float(data.get("target", 0)) or None
-    source      = data.get("source", "MANUAL")  # MANUAL | AUTO
+    source      = data.get("source", "MANUAL")  # MANUAL | AUTO | GPT
+
+    # Enforce lot-size multiples for options
+    if option_type in ("CE", "PE"):
+        if qty < config.LOT_SIZE:
+            qty = config.LOT_SIZE
+        elif qty % config.LOT_SIZE != 0:
+            qty = (qty // config.LOT_SIZE) * config.LOT_SIZE or config.LOT_SIZE
 
     if custom_px > 0:
         entry_price = custom_px
@@ -585,26 +599,16 @@ def _check_sl_target(positions_out: list[dict]) -> list[dict]:
             continue
 
         triggered = None
-        if p["direction"] == "LONG":
-            if sl and ltp <= sl:
-                triggered = "SL"
-            elif tgt and ltp >= tgt:
-                triggered = "TARGET"
-        else:  # SHORT
-            if sl and ltp >= sl:
-                triggered = "SL"
-            elif tgt and ltp <= tgt:
-                triggered = "TARGET"
+        if sl and ltp <= sl:
+            triggered = "SL"
+        elif tgt and ltp >= tgt:
+            triggered = "TARGET"
 
         if triggered:
             trade_id = p["trade_id"]
             entry = p["entry_price"]
             qty = p["qty"]
-            if p["direction"] == "LONG":
-                pnl = (ltp - entry) * qty
-            else:
-                pnl = (entry - ltp) * qty
-            pnl = round(pnl, 2)
+            pnl = round((ltp - entry) * qty, 2)
             now_str = now_ist().isoformat()
             close_trade(trade_id, ltp, now_str, triggered, pnl)
             update_portfolio_after_trade(pnl, pnl >= 0)
@@ -664,7 +668,7 @@ def api_paper_positions():
         if direction == "LONG":
             unrealized = (ltp - entry) * qty
         else:
-            unrealized = (entry - ltp) * qty
+            unrealized = (ltp - entry) * qty  # all trades are LONG (buy options)
 
         positions.append({
             "trade_id":    t["trade_id"],
@@ -701,9 +705,9 @@ def api_paper_positions():
 
 @app.route("/api/paper/history")
 def api_paper_history():
-    """Return closed paper trades (most recent first). Optional ?source=MANUAL|AUTO filter."""
+    """Return closed paper trades (most recent first). Optional ?source=MANUAL|AUTO|GPT filter."""
     source_filter = request.args.get("source", "").upper()
-    if source_filter in ("MANUAL", "AUTO"):
+    if source_filter in ("MANUAL", "AUTO", "GPT"):
         sql = "SELECT * FROM trades WHERE status = 'CLOSED' AND (source = ? OR source IS NULL AND ? = 'MANUAL') ORDER BY exit_time DESC LIMIT 200"
         params = (source_filter, source_filter)
     else:
@@ -902,7 +906,7 @@ def api_historical_analysis():
                 for col in ("close", "open", "high", "low", "volume"):
                     df[col] = df[col].astype(float)
                 try:
-                    sigs = evaluate(df, backtest=True)
+                    sigs = evaluate_historical(df)
                     for s in sigs:
                         sd = _sanitize(s.to_dict())
                         sd["date"] = d_str
@@ -1003,6 +1007,12 @@ def api_options_expiries():
     so the page loads instantly. Full expiry list from instrument master is
     used only if already cached; otherwise falls back to computed dates.
     """
+    # Always try real expiries from instrument master first
+    try:
+        real_expiries = get_available_expiries()
+    except Exception:
+        real_expiries = []
+
     this_week, next_week = get_weekly_expiries()
 
     # Smart default: if today IS expiry day and market is closed → next week
@@ -1011,23 +1021,16 @@ def api_options_expiries():
     if (n.date() == this_week and n.time() > datetime.time(15, 30)) or n.date() > this_week:
         default = next_week
 
-    # Build 8-week computed expiry list (guaranteed fast, no API call)
-    computed = []
-    d = this_week
-    for _ in range(8):
-        computed.append(d.isoformat())
-        d += datetime.timedelta(days=7)
-
-    # Try to augment with instrument master expiries only if already cached
-    expiries = computed
-    try:
-        from trading_bot.options import _CACHE_FILE, _nifty_options
-        if _nifty_options:  # already loaded in memory — free to use
-            full = get_available_expiries()
-            if full:
-                expiries = full
-    except Exception:
-        pass
+    if real_expiries:
+        expiries = real_expiries
+    else:
+        # Fallback: computed weekly dates
+        computed = []
+        d = this_week
+        for _ in range(8):
+            computed.append(d.isoformat())
+            d += datetime.timedelta(days=7)
+        expiries = computed
 
     return jsonify({
         "expiries":       expiries,

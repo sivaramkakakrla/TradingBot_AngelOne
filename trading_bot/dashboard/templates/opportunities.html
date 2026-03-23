@@ -761,6 +761,43 @@
             gap: 16px;
         }
 
+        .ai-trade-actions {
+            margin-top: 12px;
+            padding-top: 10px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .gpt-trade-btn {
+            background: rgba(139, 92, 246, .12);
+            color: #8b5cf6;
+            border: 1px solid rgba(139, 92, 246, .3);
+            padding: 6px 16px;
+            border-radius: 8px;
+            font-size: .74rem;
+            font-weight: 700;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all .15s;
+        }
+
+        .gpt-trade-btn:hover {
+            background: #8b5cf6;
+            color: #fff;
+        }
+
+        .gpt-trade-btn:disabled {
+            opacity: .5;
+            cursor: not-allowed;
+        }
+
+        .gpt-trade-info {
+            font-size: .68rem;
+            color: var(--txt-mute);
+        }
+
         .ai-loading {
             display: flex;
             align-items: center;
@@ -855,9 +892,6 @@
                 <button class="ai-btn" id="ai-btn" onclick="runAIAnalysis()">
                     <span id="ai-icon">🤖</span> AI Analysis
                 </button>
-                <button class="scan-btn" id="scan-btn" onclick="runScan()">
-                    <span id="scan-icon">⟳</span> Scan Now
-                </button>
             </div>
 
             <div class="scan-status" id="scan-status">
@@ -874,6 +908,11 @@
                     <button class="ai-close" onclick="closeAI()">&times;</button>
                 </div>
                 <div class="ai-content" id="ai-content"></div>
+                <div class="ai-trade-actions" id="ai-trade-actions" style="display:none;">
+                    <button class="gpt-trade-btn" id="gpt-buy-ce" onclick="placeGPTTrade('CE')">📈 Buy CE (GPT)</button>
+                    <button class="gpt-trade-btn" id="gpt-buy-pe" onclick="placeGPTTrade('PE')">📉 Buy PE (GPT)</button>
+                    <span class="gpt-trade-info">Trade will be tagged as GPT source</span>
+                </div>
                 <div class="ai-meta" id="ai-meta"></div>
             </div>
 
@@ -1082,7 +1121,7 @@
   <div class="signal-card ${cardClass}">
     <div class="sig-header">
       <span class="sig-time">${timeStr}</span>
-      <span class="sig-badge ${sig.direction}">${sig.direction}</span>
+      <span class="sig-badge ${sig.direction}">BUY ${optType}</span>
       <span class="sig-action ${sig.action}">${sig.action}</span>
     </div>
     <div class="sig-option">
@@ -1188,14 +1227,9 @@
 
         // ── Scan ──
         async function runScan(silent) {
-            const btn = document.getElementById('scan-btn');
-            const icon = document.getElementById('scan-icon');
             const dot = document.getElementById('scan-dot');
             const statusText = document.getElementById('scan-status-text');
 
-            btn.disabled = true;
-            icon.textContent = '↻';
-            icon.className = 'spin';
             dot.className = 'scan-dot';
             statusText.textContent = 'Scanning NIFTY candles...';
 
@@ -1267,9 +1301,6 @@
                 console.error('scan err', e);
                 statusText.textContent = 'Scan failed · retrying...';
             } finally {
-                btn.disabled = false;
-                icon.textContent = '⟳';
-                icon.className = '';
                 dot.className = 'scan-dot idle';
             }
         }
@@ -1340,6 +1371,7 @@
 
                 if (d.error) {
                     content.innerHTML = '<div style="color:var(--red);font-size:.8rem;">⚠️ ' + d.error + '</div>';
+                    document.getElementById('ai-trade-actions').style.display = 'none';
                 } else {
                     content.innerHTML = formatMarkdown(d.analysis || 'No analysis returned.');
                     modelTag.textContent = d.model || 'GPT';
@@ -1347,6 +1379,7 @@
                         '<span>📊 ' + (d.candles_sent || 0) + ' candles analysed</span>' +
                         '<span>📅 ' + (d.date || '--') + '</span>' +
                         '<span>⏱ ' + (d.timeframe || '5m') + ' timeframe</span>';
+                    document.getElementById('ai-trade-actions').style.display = 'flex';
                 }
             } catch (e) {
                 content.innerHTML = '<div style="color:var(--red);font-size:.8rem;">❌ Failed to connect to AI service: ' + (e.message || 'Network error') + '</div>';
@@ -1358,6 +1391,35 @@
 
         function closeAI() {
             document.getElementById('ai-panel').classList.remove('show');
+            document.getElementById('ai-trade-actions').style.display = 'none';
+        }
+
+        async function placeGPTTrade(optionType) {
+            const btn = document.getElementById(optionType === 'CE' ? 'gpt-buy-ce' : 'gpt-buy-pe');
+            btn.disabled = true;
+            btn.textContent = '⏳ Placing...';
+            try {
+                const r = await fetch('/api/paper/buy', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        option_type: optionType,
+                        source: 'GPT',
+                    }),
+                });
+                const d = await r.json();
+                if (d.error) {
+                    alert('GPT Trade error: ' + d.error);
+                } else {
+                    const emoji = optionType === 'CE' ? '📈' : '📉';
+                    alert(emoji + ' GPT Trade placed! ' + (d.symbol || '') + ' @ ' + (d.entry_price || 0).toFixed(2));
+                }
+            } catch (e) {
+                alert('Failed to place GPT trade: ' + (e.message || 'Network error'));
+            } finally {
+                btn.disabled = false;
+                btn.textContent = optionType === 'CE' ? '📈 Buy CE (GPT)' : '📉 Buy PE (GPT)';
+            }
         }
 
         // ── Auto-Trade Controls ──
@@ -1405,8 +1467,9 @@
             if (d.last_signal) {
                 const s = d.last_signal;
                 const col = s.direction === 'BULLISH' ? 'var(--green)' : 'var(--red)';
+                const optType = s.option_type || (s.direction === 'BULLISH' ? 'CE' : 'PE');
                 sigEl.innerHTML = '<div style="font-size:.7rem;padding:6px 8px;background:var(--card);border-radius:6px;border:1px solid var(--border);">' +
-                    '<div style="font-weight:700;color:' + col + ';">' + s.direction + ' @ ' + (s.entry_price || 0).toFixed(2) + ' (' + s.time + ')</div>' +
+                    '<div style="font-weight:700;color:' + col + ';">BUY ' + optType + ' @ ' + (s.entry_price || 0).toFixed(2) + ' (' + s.time + ')</div>' +
                     '<div style="color:var(--txt-dim);margin-top:3px;">Patterns: ' + (s.patterns || []).join(', ').replace(/_/g, ' ') + '</div>' +
                     '<div style="color:var(--txt-dim);">Expected: +' + (s.expected_profit_pts || 0).toFixed(1) + ' pts | SL: -' + (s.sl_points || 0).toFixed(1) + ' pts</div>' +
                     '</div>';

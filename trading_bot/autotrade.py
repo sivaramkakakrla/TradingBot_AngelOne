@@ -112,63 +112,97 @@ def _fetch_latest_candles(session, timeframe="1m", bars=100) -> pd.DataFrame | N
 
 
 def _place_auto_trade(signal, nifty_ltp: float) -> str | None:
-    """Place a paper trade based on signal. Returns trade_id or None."""
-    direction = "LONG" if signal.direction == "BULLISH" else "SHORT"
-    entry_price = nifty_ltp if nifty_ltp > 0 else signal.entry_price
+    """
+    Place a paper trade: BUY CE for BULLISH, BUY PE for BEARISH.
+    Always LONG (buy options) — no shorting.
 
-    if entry_price <= 0:
-        _log_event(f"Skip trade: no valid entry price")
+    Resolves ATM option from instrument master, fetches option LTP,
+    and stores the actual option details (symbol, strike, expiry).
+    """
+    # Determine option type based on signal direction
+    if signal.direction == "BULLISH":
+        option_type = "CE"
+    else:
+        option_type = "PE"
+
+    # All trades are LONG (buy) — no shorting
+    direction = "LONG"
+
+    if nifty_ltp <= 0:
+        nifty_ltp = signal.entry_price
+    if nifty_ltp <= 0:
+        _log_event("Skip trade: no valid NIFTY price")
         return None
 
-    # Calculate absolute SL and target prices
-    if direction == "LONG":
-        sl_price = round(entry_price - signal.sl_points, 2)
-        tgt_price = round(entry_price + signal.target_points, 2)
-    else:
-        sl_price = round(entry_price + signal.sl_points, 2)
-        tgt_price = round(entry_price - signal.target_points, 2)
+    # Find ATM option contract
+    from trading_bot.options import find_atm_option, format_option_name, get_option_ltp
+    opt = find_atm_option(nifty_ltp, option_type)
+    if not opt:
+        _log_event(f"Skip trade: could not find ATM {option_type} option")
+        return None
+
+    opt_name = format_option_name(opt["strike"], opt["option_type"], opt["expiry"])
+
+    # Fetch option premium (LTP) for entry price
+    session = get_session()
+    entry_price = 0.0
+    if session:
+        try:
+            ltps = get_option_ltp(session, [opt["token"]])
+            entry_price = ltps.get(opt["token"], 0.0)
+        except Exception as e:
+            _log_event(f"Option LTP fetch failed: {e}")
+
+    if entry_price <= 0:
+        # Fallback: estimate premium from SL/target points
+        entry_price = signal.sl_points * 3  # rough estimate ~60-90 premium
+        _log_event(f"Using estimated premium {entry_price:.2f} for {opt_name}")
+
+    # SL and target in option premium terms
+    sl_price = round(max(entry_price - signal.sl_points, 1.0), 2)
+    tgt_price = round(entry_price + signal.target_points, 2)
 
     now_str = now_ist().isoformat()
     trade_id = f"AT-{uuid.uuid4().hex[:8].upper()}"
-    side = "BUY" if direction == "LONG" else "SELL"
+    lot_size = opt["lotsize"]
 
     insert_order({
         "order_id": trade_id,
-        "symbol": config.UNDERLYING,
-        "token": config.NIFTY_TOKEN,
-        "exchange": config.EXCHANGE,
-        "side": side,
+        "symbol": opt_name,
+        "token": opt["token"],
+        "exchange": config.NFO_EXCHANGE,
+        "side": "BUY",
         "order_type": "PAPER",
-        "quantity": config.LOT_SIZE,
+        "quantity": lot_size,
         "price": entry_price,
         "status": "COMPLETE",
         "placed_at": now_str,
         "completed_at": now_str,
-        "remarks": f"AutoTrade {signal.direction} | {', '.join(signal.patterns)}",
+        "remarks": f"AutoTrade BUY {opt_name} | {', '.join(signal.patterns)}",
     })
     insert_trade({
         "trade_id": trade_id,
-        "symbol": config.UNDERLYING,
-        "token": config.NIFTY_TOKEN,
-        "option_type": "IDX",
-        "strike": 0,
+        "symbol": opt_name,
+        "token": opt["token"],
+        "option_type": option_type,
+        "strike": opt["strike"],
         "direction": direction,
         "entry_price": entry_price,
-        "quantity": config.LOT_SIZE,
+        "quantity": lot_size,
         "entry_order_id": trade_id,
         "entry_time": now_str,
         "status": "OPEN",
         "stop_loss": sl_price,
         "target": tgt_price,
-        "expiry": "",
+        "expiry": opt["expiry_date"],
         "source": "AUTO",
         "created_at": now_str,
     })
 
     patterns_str = ", ".join(signal.patterns)
     _log_event(
-        f"TRADE {side} {config.UNDERLYING} @ {entry_price:.2f} | "
-        f"SL={sl_price:.2f} TGT={tgt_price:.2f} | "
+        f"BUY {opt_name} @ ₹{entry_price:.2f} | "
+        f"SL=₹{sl_price:.2f} TGT=₹{tgt_price:.2f} | "
         f"Patterns: {patterns_str} | Strength: {signal.strength}%"
     )
     return trade_id
@@ -177,10 +211,11 @@ def _place_auto_trade(signal, nifty_ltp: float) -> str | None:
 def _monitor_positions():
     """
     Check open AUTO positions for SL/target hit, trailing SL, and smart exit.
+    All positions are LONG options (BUY CE or PE) — exit = sell back.
 
     Smart exit logic:
-        1. If price moves 50%+ toward target → trail SL to breakeven + 5 pts
-        2. If price was profitable but reversed to within 30% of SL → exit with profit
+        1. If premium moves 50%+ toward target → trail SL to breakeven + 5
+        2. If premium was profitable but stalling at 10-30% progress → exit with profit
         3. Past FORCE_EXIT_TIME → close all positions (EOD exit)
     """
     open_trades = get_open_trades()
@@ -189,14 +224,18 @@ def _monitor_positions():
     if not auto_trades:
         return
 
-    # Get NIFTY LTP
+    # Batch-fetch option LTPs for all open positions
+    option_tokens = [t["token"] for t in auto_trades if t.get("token")]
+    option_ltps = {}
+    if option_tokens:
+        try:
+            option_ltps = fetch_option_ltp(option_tokens)
+        except Exception as e:
+            log.warning("Monitor: option LTP fetch failed: %s", e)
+
+    # Fallback: also get NIFTY LTP for any IDX trades (legacy)
     tick = get_latest_tick()
-    ltp = tick.ltp
-    if ltp <= 0:
-        tick, _ = fetch_live_once()
-        ltp = tick.ltp
-    if ltp <= 0:
-        return
+    nifty_ltp = tick.ltp
 
     force_exit = _is_past_force_exit()
 
@@ -209,22 +248,15 @@ def _monitor_positions():
         tgt = t.get("target")
         token = t["token"]
 
-        # For option trades, get option LTP
-        trade_ltp = ltp
-        if token and token != config.NIFTY_TOKEN:
-            try:
-                ltps = fetch_option_ltp([token])
-                ol = ltps.get(token, 0)
-                if ol > 0:
-                    trade_ltp = ol
-            except Exception:
-                pass
+        # Get LTP for this option
+        trade_ltp = option_ltps.get(token, 0)
+        if trade_ltp <= 0 and token == config.NIFTY_TOKEN:
+            trade_ltp = nifty_ltp  # legacy IDX fallback
+        if trade_ltp <= 0:
+            continue
 
-        # Calculate P&L
-        if direction == "LONG":
-            pnl = (trade_ltp - entry) * qty
-        else:
-            pnl = (entry - trade_ltp) * qty
+        # All trades are LONG (bought options) — P&L = (LTP - entry) * qty
+        pnl = (trade_ltp - entry) * qty
 
         exit_reason = None
         exit_price = trade_ltp
@@ -234,21 +266,15 @@ def _monitor_positions():
             exit_reason = "EOD_EXIT"
             _log_event(f"EOD EXIT {trade_id} @ {exit_price:.2f} PnL={pnl:.2f}")
 
-        # 2. SL hit
+        # 2. SL hit (option premium dropped below SL)
         elif sl:
-            if direction == "LONG" and trade_ltp <= sl:
-                exit_reason = "SL_HIT"
-                exit_price = sl
-            elif direction == "SHORT" and trade_ltp >= sl:
+            if trade_ltp <= sl:
                 exit_reason = "SL_HIT"
                 exit_price = sl
 
-        # 3. Target hit
+        # 3. Target hit (option premium rose to target)
         if not exit_reason and tgt:
-            if direction == "LONG" and trade_ltp >= tgt:
-                exit_reason = "TARGET_HIT"
-                exit_price = tgt
-            elif direction == "SHORT" and trade_ltp <= tgt:
+            if trade_ltp >= tgt:
                 exit_reason = "TARGET_HIT"
                 exit_price = tgt
 
@@ -256,38 +282,26 @@ def _monitor_positions():
         if not exit_reason and sl and tgt:
             total_move = abs(tgt - entry)
             if total_move > 0:
-                if direction == "LONG":
-                    progress = (trade_ltp - entry) / total_move
-                else:
-                    progress = (entry - trade_ltp) / total_move
+                progress = (trade_ltp - entry) / total_move
 
-                # If we've moved 50%+ toward target, trail SL to breakeven + 5pts
+                # If premium moved 50%+ toward target, trail SL to breakeven + 5
                 if progress >= 0.5:
-                    new_sl = entry + 5 if direction == "LONG" else entry - 5
-                    if direction == "LONG" and (sl is None or new_sl > sl):
+                    new_sl = entry + 5
+                    if sl is None or new_sl > sl:
                         _update_trade_sl(trade_id, new_sl)
-                        _log_event(f"TRAIL SL {trade_id} → {new_sl:.2f} (50% progress)")
-                    elif direction == "SHORT" and (sl is None or new_sl < sl):
-                        _update_trade_sl(trade_id, new_sl)
-                        _log_event(f"TRAIL SL {trade_id} → {new_sl:.2f} (50% progress)")
+                        _log_event(f"TRAIL SL {trade_id} → ₹{new_sl:.2f} (50% progress)")
 
-                # Smart exit: was profitable (>30% progress) but now reversing
-                # If PnL is positive but price reversing (progress < was), exit with profit
+                # Smart exit: premium was profitable but now stalling
                 if 0.1 < progress < 0.3 and pnl > 0:
-                    # Price moved toward target but now stalling — lock profit
                     exit_reason = "SMART_EXIT"
                     _log_event(
-                        f"SMART EXIT {trade_id} @ {exit_price:.2f} | "
-                        f"Progress={progress:.0%} PnL={pnl:.2f} (target looks unachievable)"
+                        f"SMART EXIT {trade_id} @ ₹{exit_price:.2f} | "
+                        f"Progress={progress:.0%} PnL=₹{pnl:.2f} (target looks unachievable)"
                     )
 
         if exit_reason:
-            # Recalculate PnL at exit price
-            if direction == "LONG":
-                final_pnl = (exit_price - entry) * qty
-            else:
-                final_pnl = (entry - exit_price) * qty
-            final_pnl = round(final_pnl, 2)
+            # All trades are LONG — P&L = (exit - entry) * qty
+            final_pnl = round((exit_price - entry) * qty, 2)
 
             now_str = now_ist().isoformat()
             close_trade(trade_id, exit_price, now_str, exit_reason, final_pnl)
@@ -356,9 +370,11 @@ def _scan_and_trade():
 
         trade_id = _place_auto_trade(sig, nifty_ltp)
         if trade_id:
+            opt_type = "CE" if sig.direction == "BULLISH" else "PE"
             with _lock:
                 _status["last_signal"] = {
                     "direction": sig.direction,
+                    "option_type": opt_type,
                     "patterns": sig.patterns,
                     "pattern_descriptions": sig.pattern_descriptions,
                     "strength": sig.strength,
@@ -376,6 +392,14 @@ def _auto_trade_loop():
     """Background thread: scan + monitor on a timer."""
     global _running
     _log_event("Auto-trade engine STARTED")
+
+    # Preload option instrument master
+    try:
+        from trading_bot.options import load_options
+        opts = load_options()
+        _log_event(f"Loaded {len(opts)} NIFTY option contracts")
+    except Exception as e:
+        _log_event(f"Warning: could not load options: {e}")
 
     while _running:
         try:

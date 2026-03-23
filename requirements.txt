@@ -30,6 +30,9 @@ flask-cors>=4.0.0
 # HTTP
 requests>=2.31.0
 
+# OpenAI (ChatGPT LLM Analysis)
+openai>=1.0.0
+
 # OpenAI (LLM analysis)
 openai>=1.0.0
 

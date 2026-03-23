@@ -36,7 +36,7 @@ from typing import List
 import pandas as pd
 
 from trading_bot import config
-from trading_bot.candles import detect_all, scan_signals, _PATTERN_WEIGHT, _PATTERN_DESC
+from trading_bot.candles import detect_all, scan_signals, scan_signals_all, _PATTERN_WEIGHT, _PATTERN_DESC
 from trading_bot.indicators import (
     rsi as calc_rsi,
     macd as calc_macd,
@@ -329,3 +329,113 @@ def evaluate_latest(df: pd.DataFrame) -> dict | None:
     if not signals:
         return None
     return signals[0].to_dict()
+
+
+def evaluate_historical(df: pd.DataFrame) -> list[Signal]:
+    """
+    Evaluate ALL bars in the DataFrame for signals (not just last 3).
+    Used for historical analysis / backtest where we need to find every
+    pattern that fired throughout the trading day.
+
+    Unlike evaluate(), this scans every candle in the DataFrame.
+    """
+    if len(df) < 20:
+        return []
+
+    # ── Step 1: Detect patterns across ALL bars ──────────────────────
+    raw_signals = scan_signals_all(df)
+    if not raw_signals:
+        return []
+
+    # ── Step 2: Compute indicators on the full DF (once) ────────────
+    close = df["close"]
+    rsi_s = calc_rsi(close, config.RSI_PERIOD)
+    macd_df = calc_macd(close)
+    st_df = calc_supertrend(df, config.SUPERTREND_PERIOD, config.SUPERTREND_MULTIPLIER)
+    ema_fast = calc_ema(close, config.EMA_FAST)
+    ema_slow = calc_ema(close, config.EMA_SLOW)
+    atr_s = calc_atr(df)
+
+    vol_avg = None
+    has_volume = "volume" in df.columns and df["volume"].sum() > 0
+    if has_volume:
+        vol_avg = calc_vol_sma(df, config.AVG_LOOKBACK)
+
+    # ── Step 3: Group by (direction, bar_index) to collapse co-located patterns
+    from collections import defaultdict
+    groups: dict[tuple[str, int], list[dict]] = defaultdict(list)
+    for sig in raw_signals:
+        key = (sig["direction"], sig["bar_index"])
+        groups[key].append(sig)
+
+    results: list[Signal] = []
+
+    for (direction, ref_idx), pattern_group in groups.items():
+        pattern_names = list({p["pattern"] for p in pattern_group})
+
+        # ── Step 4: Run indicator filters at the reference bar ──────
+        rsi_val = rsi_s.iloc[ref_idx]
+        macd_hist = macd_df["macd_histogram"].iloc[ref_idx]
+        st_dir = st_df["supertrend_direction"].iloc[ref_idx]
+        ef = ema_fast.iloc[ref_idx]
+        es = ema_slow.iloc[ref_idx]
+        atr_val = atr_s.iloc[ref_idx]
+
+        vol_ok = False
+        if has_volume and vol_avg is not None:
+            vol_ok = _check_volume(
+                df["volume"].iloc[ref_idx],
+                vol_avg.iloc[ref_idx],
+            )
+
+        filters = {
+            "rsi": bool(_check_rsi(rsi_val, direction)),
+            "macd": bool(_check_macd(macd_hist, direction)),
+            "supertrend": bool(_check_supertrend(st_dir, direction)),
+            "ema_trend": bool(_check_ema_trend(ef, es, direction)),
+            "volume": bool(vol_ok),
+        }
+
+        confirmations = sum(filters.values())
+        strength = _calc_strength(pattern_names, confirmations, vol_ok)
+        sl, target = _calc_sl_target(atr_val)
+
+        # ── Step 5: Decide ENTER vs SKIP (backtest mode: skip window check)
+        if confirmations >= MIN_CONFIRMATIONS:
+            action = "ENTER"
+            reason_str = (
+                f"{', '.join(pattern_names)} confirmed by "
+                f"{confirmations}/5 filters [{', '.join(k for k,v in filters.items() if v)}]"
+            )
+        else:
+            action = "SKIP"
+            reason_str = f"Skipped: only {confirmations}/{MIN_CONFIRMATIONS} confirmations"
+
+        bar_ts = ""
+        if "timestamp" in df.columns:
+            bar_ts = str(df["timestamp"].iloc[ref_idx])
+
+        entry_px = float(df["close"].iloc[ref_idx])
+        pat_descs = [_PATTERN_DESC.get(p, p) for p in pattern_names]
+
+        signal = Signal(
+            direction=direction,
+            strength=strength,
+            patterns=pattern_names,
+            filters=filters,
+            confirmations=confirmations,
+            action=action,
+            reason=reason_str,
+            sl_points=sl,
+            target_points=target,
+            bar_timestamp=bar_ts,
+            entry_price=entry_px,
+            bar_index=int(ref_idx),
+            pattern_descriptions=pat_descs,
+            expected_profit_pts=target,
+        )
+        results.append(signal)
+
+    # Sort by bar_index (chronological), then strength descending
+    results.sort(key=lambda s: (s.bar_index, -s.strength))
+    return results

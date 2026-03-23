@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -33,10 +33,6 @@
       --red-bg: rgba(220, 38, 38, 0.08);
       --red-bdr: rgba(220, 38, 38, 0.25);
       --amber: #d97706;
-      --ce-bg: rgba(22, 163, 74, 0.04);
-      --pe-bg: rgba(220, 38, 38, 0.04);
-      --itm-ce: rgba(22, 163, 74, 0.08);
-      --itm-pe: rgba(220, 38, 38, 0.08);
     }
 
     body {
@@ -50,6 +46,7 @@
       -webkit-font-smoothing: antialiased;
     }
 
+    /* Top bar */
     .topbar {
       display: flex;
       align-items: center;
@@ -157,59 +154,34 @@
       }
     }
 
+    /* Ticker */
     .ticker-strip {
       display: flex;
       align-items: center;
-      gap: 24px;
-      padding: 10px 20px;
+      gap: 20px;
+      padding: 8px 20px;
       background: var(--surface);
       border-bottom: 1px solid var(--border);
       flex-shrink: 0;
     }
 
-    .ticker-name {
-      font-size: .88rem;
-      font-weight: 700;
-      color: var(--txt);
+    .ticker-symbol {
+      font-size: .72rem;
+      color: var(--txt-dim);
+      font-weight: 600;
+      letter-spacing: .5px;
     }
 
     .ticker-ltp {
-      font-size: 1.3rem;
+      font-size: 1.5rem;
       font-weight: 800;
       letter-spacing: -1px;
       font-variant-numeric: tabular-nums;
     }
 
     .ticker-chg {
-      font-size: .78rem;
-      font-weight: 600;
-      font-variant-numeric: tabular-nums;
-    }
-
-    .ticker-meta {
-      margin-left: auto;
-      display: flex;
-      gap: 20px;
-      align-items: center;
-    }
-
-    .ticker-meta-item {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-
-    .ticker-meta-label {
-      font-size: .58rem;
-      color: var(--txt-mute);
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: .4px;
-    }
-
-    .ticker-meta-val {
       font-size: .82rem;
-      font-weight: 700;
+      font-weight: 600;
       font-variant-numeric: tabular-nums;
     }
 
@@ -221,6 +193,7 @@
       color: var(--red) !important;
     }
 
+    /* Full-width option chain */
     .chain-wrap {
       flex: 1;
       display: flex;
@@ -231,22 +204,24 @@
     .chain-header {
       display: flex;
       align-items: center;
-      gap: 10px;
-      padding: 8px 16px;
+      gap: 8px;
+      padding: 10px 16px;
       background: var(--surface);
       border-bottom: 1px solid var(--border);
       flex-shrink: 0;
     }
 
-    .chain-label {
-      font-size: .72rem;
-      font-weight: 600;
-      color: var(--txt-dim);
+    .chain-title {
+      font-size: .78rem;
+      font-weight: 700;
+      color: var(--txt);
+      letter-spacing: -.2px;
     }
 
     .expiry-tabs {
       display: flex;
       gap: 4px;
+      margin-left: 12px;
     }
 
     .expiry-tab {
@@ -273,20 +248,27 @@
       background: rgba(59, 130, 246, .08);
     }
 
-    .per-lot-badge {
-      font-size: .6rem;
-      font-weight: 600;
-      color: var(--txt-mute);
+    .chain-header .refresh-btn {
       background: var(--card);
       border: 1px solid var(--border);
-      padding: 3px 8px;
-      border-radius: 5px;
+      color: var(--txt-dim);
+      padding: 5px 10px;
+      border-radius: 6px;
+      font-size: .7rem;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all .15s;
+      margin-left: auto;
+    }
+
+    .chain-header .refresh-btn:hover {
+      color: var(--accent);
+      border-color: var(--accent);
     }
 
     #chain-status {
-      font-size: .66rem;
+      font-size: .68rem;
       color: var(--txt-mute);
-      margin-left: auto;
     }
 
     .chain-scroll {
@@ -294,10 +276,17 @@
       overflow-y: auto;
     }
 
+    .chain-loading {
+      text-align: center;
+      padding: 40px;
+      color: var(--txt-mute);
+      font-size: .82rem;
+    }
+
     .chain-table {
       width: 100%;
       border-collapse: collapse;
-      font-size: .72rem;
+      font-size: .73rem;
       font-variant-numeric: tabular-nums;
     }
 
@@ -308,137 +297,77 @@
     }
 
     .chain-table th {
-      padding: 6px 6px;
+      padding: 7px 8px;
       font-weight: 600;
-      font-size: .6rem;
+      font-size: .65rem;
       text-transform: uppercase;
       letter-spacing: .4px;
-      border-bottom: 2px solid var(--border);
+      border-bottom: 1px solid var(--border);
     }
 
     .chain-table .ce-header {
-      background: rgba(34, 197, 94, .06);
+      background: rgba(34, 197, 94, .08);
       color: var(--green);
       text-align: center;
     }
 
     .chain-table .pe-header {
-      background: rgba(239, 68, 68, .06);
+      background: rgba(239, 68, 68, .08);
       color: var(--red);
       text-align: center;
     }
 
     .chain-table .strike-header {
-      background: var(--bg);
+      background: var(--surface);
       color: var(--txt-dim);
       text-align: center;
-      border-left: 2px solid var(--border);
-      border-right: 2px solid var(--border);
     }
 
-    .chain-table .section-header {
+    .chain-table .act-header {
+      background: var(--surface);
+      color: var(--txt-dim);
       text-align: center;
-      font-size: .7rem;
-      font-weight: 700;
-      padding: 4px 0;
-      border-bottom: 2px solid var(--border);
-    }
-
-    .chain-table .section-header.calls {
-      background: rgba(34, 197, 94, .08);
-      color: var(--green);
-    }
-
-    .chain-table .section-header.puts {
-      background: rgba(239, 68, 68, .08);
-      color: var(--red);
+      width: 100px;
     }
 
     .chain-table td {
-      padding: 5px 6px;
-      border-bottom: 1px solid rgba(226, 232, 240, .6);
+      padding: 6px 8px;
+      border-bottom: 1px solid rgba(30, 42, 58, .4);
       text-align: center;
-      font-size: .72rem;
     }
 
     .chain-table .ce-cell {
-      background: var(--ce-bg);
+      background: rgba(22, 163, 74, .06);
     }
 
     .chain-table .pe-cell {
-      background: var(--pe-bg);
-    }
-
-    .chain-table .ce-itm {
-      background: var(--itm-ce);
-      font-weight: 600;
-    }
-
-    .chain-table .pe-itm {
-      background: var(--itm-pe);
-      font-weight: 600;
+      background: rgba(220, 38, 38, .06);
     }
 
     .chain-table .strike-cell {
-      background: var(--bg);
+      background: var(--surface);
       font-weight: 700;
       color: var(--txt);
-      border-left: 2px solid var(--border);
-      border-right: 2px solid var(--border);
-      font-size: .76rem;
     }
 
     .chain-table .atm-row .strike-cell {
       color: var(--accent);
-      background: rgba(59, 130, 246, .12);
-      font-size: .82rem;
+      background: rgba(59, 130, 246, .1);
+    }
+
+    .chain-table .itm {
+      font-weight: 600;
     }
 
     .chain-table tr {
-      transition: background .08s;
+      transition: background .1s;
     }
 
-    .chain-table tbody tr:hover td {
-      filter: brightness(.97);
+    .chain-table tbody tr:hover {
+      background: rgba(0, 0, 0, .03);
     }
 
-    .oi-bar {
-      height: 3px;
-      border-radius: 2px;
-      margin-top: 2px;
-      min-width: 0;
-    }
-
-    .oi-bar.ce {
-      background: rgba(22, 163, 74, .35);
-    }
-
-    .oi-bar.pe {
-      background: rgba(220, 38, 38, .35);
-    }
-
-    .ltp-val {
-      font-weight: 700;
-      cursor: pointer;
-    }
-
-    .ltp-val:hover {
-      text-decoration: underline;
-    }
-
-    .ltp-val.ce-ltp {
-      color: var(--green);
-    }
-
-    .ltp-val.pe-ltp {
-      color: var(--red);
-    }
-
-    .oi-text {
-      color: var(--txt-dim);
-      font-size: .68rem;
-    }
-
+    /* LTP flash */
     .ltp-up {
       animation: flashGreen .4s;
     }
@@ -467,16 +396,12 @@
       }
     }
 
-    .act-cell {
-      white-space: nowrap;
-    }
-
     .wl-buy,
     .wl-sell {
       border: none;
-      padding: 3px 8px;
-      border-radius: 4px;
-      font-size: .62rem;
+      padding: 3px 10px;
+      border-radius: 5px;
+      font-size: .65rem;
       font-weight: 700;
       cursor: pointer;
       font-family: inherit;
@@ -506,6 +431,7 @@
       color: #fff;
     }
 
+    /* Modal overlay */
     .modal-overlay {
       position: fixed;
       inset: 0;
@@ -718,6 +644,7 @@
       margin-top: 4px;
     }
 
+    /* Toast */
     .toast-area {
       position: fixed;
       top: 50px;
@@ -777,6 +704,7 @@
       }
     }
 
+    /* Status bar */
     .statusbar {
       padding: 3px 20px;
       font-size: .66rem;
@@ -789,6 +717,7 @@
       gap: 16px;
     }
 
+    /* Scrollbar */
     ::-webkit-scrollbar {
       width: 5px;
     }
@@ -809,6 +738,8 @@
 </head>
 
 <body>
+
+  <!-- Top bar -->
   <div class="topbar">
     <div class="logo">Project Candles</div>
     <nav>
@@ -824,48 +755,33 @@
     </div>
   </div>
 
+  <!-- Ticker -->
   <div class="ticker-strip">
-    <div class="ticker-name">NIFTY</div>
+    <div class="ticker-symbol">NIFTY 50</div>
     <div class="ticker-ltp" id="ltp-val">--,---.--</div>
     <div>
+      <span class="ticker-chg" id="chg-val"></span>
       <span class="ticker-chg" id="chg-pct"></span>
-    </div>
-    <div class="ticker-meta">
-      <div class="ticker-meta-item">
-        <span class="ticker-meta-label">Expiry</span>
-        <span class="ticker-meta-val" id="meta-expiry">--</span>
-      </div>
-      <div class="ticker-meta-item">
-        <span class="ticker-meta-label">Lot Size</span>
-        <span class="ticker-meta-val">25</span>
-      </div>
     </div>
   </div>
 
+  <!-- Full-width Option chain -->
   <div class="chain-wrap">
     <div class="chain-header">
-      <span class="chain-label">Expiry</span>
+      <span class="chain-title">NIFTY Options</span>
       <div class="expiry-tabs" id="expiry-tabs"></div>
-      <span class="per-lot-badge">Per Lot</span>
+      <button class="refresh-btn" onclick="loadChain()">Refresh</button>
       <span id="chain-status"></span>
     </div>
     <div class="chain-scroll" id="chain-scroll">
       <table class="chain-table" id="chain-table">
         <thead>
           <tr>
-            <th class="section-header calls" colspan="4">CALLS</th>
-            <th class="strike-header" rowspan="2">Strike</th>
-            <th class="section-header puts" colspan="4">PUTS</th>
-          </tr>
-          <tr>
-            <th class="ce-header">OI (L)</th>
-            <th class="ce-header">LTP</th>
-            <th class="ce-header"></th>
-            <th class="ce-header">Vol</th>
-            <th class="pe-header">Vol</th>
-            <th class="pe-header"></th>
-            <th class="pe-header">LTP</th>
-            <th class="pe-header">OI (L)</th>
+            <th class="ce-header">CE LTP</th>
+            <th class="act-header"></th>
+            <th class="strike-header">Strike</th>
+            <th class="act-header"></th>
+            <th class="pe-header">PE LTP</th>
           </tr>
         </thead>
         <tbody id="chain-body"></tbody>
@@ -873,6 +789,7 @@
     </div>
   </div>
 
+  <!-- Order modal -->
   <div class="modal-overlay" id="order-modal">
     <div class="modal">
       <div class="modal-title">
@@ -901,12 +818,8 @@
       </div>
       <div class="modal-form">
         <div class="modal-row">
-          <label>Lots</label>
-          <input type="number" id="modal-lots" value="1" min="1" step="1" />
-        </div>
-        <div class="modal-row">
           <label>Qty</label>
-          <input type="number" id="modal-qty" value="25" readonly />
+          <input type="number" id="modal-qty" value="25" min="1" step="25" />
         </div>
         <div class="modal-row">
           <label>Price</label>
@@ -936,23 +849,24 @@
   </div>
 
   <script>
-    const RS = '\u20b9';
+    // ── STATE ──
+    const RS = '\u20b9'; // Rupee sign
     let feedRunning = false, pollTimer = null, _marketOpen = false;
     let _chainData = null, _activeExpiry = '', _customModal = false;
     let _modalOption = null;
     let _chainRefreshTimer = null;
     let _prevLTPs = {};
-    let _lotSize = 65;
 
-    function toast(msg, type) {
-      type = type || 'info';
+    // ── TOAST ──
+    function toast(msg, type = 'info') {
       const el = document.createElement('div');
       el.className = 'toast ' + type; el.textContent = msg;
       document.getElementById('toast-area').appendChild(el);
-      setTimeout(function () { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; }, 2500);
-      setTimeout(function () { el.remove(); }, 2900);
+      setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; }, 2500);
+      setTimeout(() => el.remove(), 2900);
     }
 
+    // ── BADGE ──
     function updateBadge(isOpen, ok) {
       const b = document.getElementById('market-badge'), l = document.getElementById('market-label');
       if (ok && isOpen) { b.className = 'market-badge live'; l.textContent = 'LIVE'; }
@@ -960,6 +874,7 @@
       else { b.className = 'market-badge connecting'; l.textContent = 'CONNECTING'; }
     }
 
+    // ── AUTO FEED ──
     async function autoStartFeed() {
       updateBadge(false, false);
       statusMsg('Connecting to AngelOne...');
@@ -969,11 +884,13 @@
         if (d.error) { statusMsg('Feed: ' + d.error, true); }
         else { feedRunning = true; toast('Feed connected', 'success'); }
       } catch (e) { statusMsg('Connecting on-demand...', false); }
+      // Always start polling — on serverless, /api/live fetches on-demand
       pollTimer = setInterval(pollLive, 3000);
       statusMsg(feedRunning ? 'Live feed active' : 'Live (on-demand)');
       pollLive();
     }
 
+    // ── POLL LIVE ──
     async function pollLive() {
       try {
         const r = await fetch('/api/live'), d = await r.json();
@@ -983,18 +900,21 @@
         const ltp = d.ltp, prev = d.prev_close || 0, chg = prev > 0 ? ltp - prev : 0, pct = prev > 0 ? (chg / prev * 100) : 0, cls = chg >= 0 ? 'pos' : 'neg';
         document.getElementById('ltp-val').textContent = ltp.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         document.getElementById('ltp-val').className = 'ticker-ltp ' + cls;
-        document.getElementById('chg-pct').textContent = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
+        document.getElementById('chg-val').textContent = (chg >= 0 ? '+' : '') + chg.toFixed(2);
+        document.getElementById('chg-val').className = 'ticker-chg ' + cls;
+        document.getElementById('chg-pct').textContent = '(' + (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%)';
         document.getElementById('chg-pct').className = 'ticker-chg ' + cls;
-      } catch (e) { }
+      } catch (_) { }
     }
 
-    function _computedThursdays(count) {
-      count = count || 4;
+    // ── EXPIRIES & CHAIN ──
+    function _computedThursdays(count = 4) {
+      // Compute upcoming Thursday expiry dates client-side (NIFTY weekly = always Thursday)
       const today = new Date();
-      const wd = today.getDay();
+      const wd = today.getDay(); // 0=Sun … 4=Thu
       const daysToThu = wd <= 4 ? 4 - wd : 11 - wd;
       const first = new Date(today); first.setDate(today.getDate() + daysToThu);
-      const fmt = function (d) { return d.toISOString().split('T')[0]; };
+      const fmt = d => d.toISOString().split('T')[0];
       const result = [];
       const d = new Date(first);
       for (let i = 0; i < count; i++) { result.push(fmt(d)); d.setDate(d.getDate() + 7); }
@@ -1010,6 +930,7 @@
         if (d.error) { document.getElementById('chain-status').textContent = d.error; return; }
         _renderExpiries(d);
       } catch (e) {
+        // Server unreachable — derive Thursdays in the browser
         _renderExpiries(_computedThursdays());
       }
     }
@@ -1020,16 +941,18 @@
       const expiries = d.expiries || [];
       const tw = d.this_week || '', nw = d.next_week || '';
       const def_exp = d.default_expiry || tw;
-      expiries.slice(0, 4).forEach(function (e) {
+      // Show this week & next week + a few more
+      expiries.slice(0, 4).forEach((e) => {
         const btn = document.createElement('button');
         btn.className = 'expiry-tab';
         btn.dataset.expiry = e;
         if (e === tw) btn.textContent = 'This Week';
         else if (e === nw) btn.textContent = 'Next Week';
         else btn.textContent = e;
-        btn.onclick = function () { selectExpiry(e); };
+        btn.onclick = () => selectExpiry(e);
         tabs.appendChild(btn);
       });
+      // Auto-select smart default (next week if today is expiry day after market close)
       if (expiries.length > 0) {
         selectExpiry(def_exp || expiries[0]);
       }
@@ -1037,8 +960,7 @@
 
     function selectExpiry(exp) {
       _activeExpiry = exp;
-      document.getElementById('meta-expiry').textContent = exp;
-      document.querySelectorAll('.expiry-tab').forEach(function (t) {
+      document.querySelectorAll('.expiry-tab').forEach(t => {
         t.classList.toggle('active', t.dataset.expiry === exp);
       });
       loadChain();
@@ -1046,7 +968,7 @@
 
     let _chainLoading = false;
     async function loadChain() {
-      if (!_activeExpiry) return;
+      if (!_activeExpiry) { toast('Select an expiry first', 'warn'); return; }
       if (_chainLoading) return;
       _chainLoading = true;
       document.getElementById('chain-status').textContent = 'Updating...';
@@ -1062,45 +984,16 @@
       } finally { _chainLoading = false; }
     }
 
-    function fmtOI(oi) {
-      if (!oi || oi <= 0) return '0.0';
-      return (oi / 100000).toFixed(1);
-    }
-
-    function fmtVol(v) {
-      if (!v || v <= 0) return '0';
-      if (v >= 100000) return (v / 100000).toFixed(1) + 'L';
-      if (v >= 1000) return (v / 1000).toFixed(1) + 'K';
-      return v.toString();
-    }
-
     function renderChain(data) {
       const tbody = document.getElementById('chain-body');
       const atm = data.atm;
       const newLTPs = {};
-
-      let maxOI = 0;
-      data.chain.forEach(function (row) {
-        if (row.CE.oi > maxOI) maxOI = row.CE.oi;
-        if (row.PE.oi > maxOI) maxOI = row.PE.oi;
-      });
-      if (maxOI === 0) maxOI = 1;
-
-      tbody.innerHTML = data.chain.map(function (row) {
+      tbody.innerHTML = data.chain.map(row => {
         const isATM = row.strike === atm;
         const ceITM = row.strike < atm, peITM = row.strike > atm;
         const ceLtp = row.CE.ltp > 0 ? row.CE.ltp.toFixed(2) : '--';
         const peLtp = row.PE.ltp > 0 ? row.PE.ltp.toFixed(2) : '--';
-        const ceOI = fmtOI(row.CE.oi);
-        const peOI = fmtOI(row.PE.oi);
-        const ceVol = fmtVol(row.CE.volume);
-        const peVol = fmtVol(row.PE.volume);
-
-        _lotSize = row.CE.lot_size || row.PE.lot_size || 65;
-
-        const ceBarW = maxOI > 0 ? Math.round((row.CE.oi || 0) / maxOI * 100) : 0;
-        const peBarW = maxOI > 0 ? Math.round((row.PE.oi || 0) / maxOI * 100) : 0;
-
+        // Track LTPs for flash animation
         const ceKey = 'CE_' + row.strike, peKey = 'PE_' + row.strike;
         newLTPs[ceKey] = row.CE.ltp; newLTPs[peKey] = row.PE.ltp;
         let ceFlash = '', peFlash = '';
@@ -1110,41 +1003,27 @@
         if (_prevLTPs[peKey] !== undefined && row.PE.ltp !== _prevLTPs[peKey]) {
           peFlash = row.PE.ltp > _prevLTPs[peKey] ? ' ltp-up' : ' ltp-down';
         }
-
-        const ceCellCls = ceITM ? 'ce-itm' : 'ce-cell';
-        const peCellCls = peITM ? 'pe-itm' : 'pe-cell';
-
+        // CE actions
         const ceAct = row.CE.token ?
           '<button class="wl-buy" onclick="openOrder(this,\'CE\',\'LONG\')">B</button> <button class="wl-sell" onclick="openOrder(this,\'CE\',\'SHORT\')">S</button>' : '';
         const peAct = row.PE.token ?
           '<button class="wl-buy" onclick="openOrder(this,\'PE\',\'LONG\')">B</button> <button class="wl-sell" onclick="openOrder(this,\'PE\',\'SHORT\')">S</button>' : '';
 
-        const dCE = row.CE.token ? 'data-token="' + row.CE.token + '" data-symbol="' + row.CE.symbol + '" data-ltp="' + row.CE.ltp + '" data-lot="' + (row.CE.lot_size || 65) + '" data-strike="' + row.strike + '" data-expiry="' + data.expiry + '"' : '';
-        const dPE = row.PE.token ? 'data-pe-token="' + row.PE.token + '" data-pe-symbol="' + row.PE.symbol + '" data-pe-ltp="' + row.PE.ltp + '" data-pe-lot="' + (row.PE.lot_size || 65) + '"' : '';
+        const dCE = row.CE.token ? 'data-token="' + row.CE.token + '" data-symbol="' + row.CE.symbol + '" data-ltp="' + row.CE.ltp + '" data-lot="' + (row.CE.lot_size || 25) + '" data-strike="' + row.strike + '" data-expiry="' + data.expiry + '"' : '';
+        const dPE = row.PE.token ? 'data-token="' + row.PE.token + '" data-symbol="' + row.PE.symbol + '" data-ltp="' + row.PE.ltp + '" data-lot="' + (row.PE.lot_size || 25) + '" data-strike="' + row.strike + '" data-expiry="' + data.expiry + '"' : '';
 
-        return '<tr class="' + (isATM ? 'atm-row' : '') + '" ' + dCE + ' ' + dPE + '>' +
-          '<td class="' + ceCellCls + ' oi-text">' + ceOI + '<div class="oi-bar ce" style="width:' + ceBarW + '%"></div></td>' +
-          '<td class="' + ceCellCls + ceFlash + '"><span class="ltp-val ce-ltp" onclick="openOrder(this,\'CE\',\'LONG\')">' + ceLtp + '</span></td>' +
-          '<td class="' + ceCellCls + ' act-cell">' + ceAct + '</td>' +
-          '<td class="' + ceCellCls + ' oi-text">' + ceVol + '</td>' +
-          '<td class="strike-cell">' + row.strike.toFixed(0) + '</td>' +
-          '<td class="' + peCellCls + ' oi-text">' + peVol + '</td>' +
-          '<td class="' + peCellCls + ' act-cell">' + peAct + '</td>' +
-          '<td class="' + peCellCls + peFlash + '"><span class="ltp-val pe-ltp" onclick="openOrder(this,\'PE\',\'LONG\')">' + peLtp + '</span></td>' +
-          '<td class="' + peCellCls + ' oi-text">' + peOI + '<div class="oi-bar pe" style="width:' + peBarW + '%"></div></td>' +
+        return '<tr class="' + (isATM ? 'atm-row' : '') + '" ' + dCE + ' data-pe-token="' + (row.PE.token || '') + '" data-pe-symbol="' + (row.PE.symbol || '') + '" data-pe-ltp="' + (row.PE.ltp || 0) + '" data-pe-lot="' + (row.PE.lot_size || 25) + '">' +
+          '<td class="ce-cell ' + (ceITM ? 'itm' : '') + ceFlash + '">' + ceLtp + '</td>' +
+          '<td class="ce-cell" style="padding:4px 2px;">' + ceAct + '</td>' +
+          '<td class="strike-cell">' + row.strike + '</td>' +
+          '<td class="pe-cell" style="padding:4px 2px;">' + peAct + '</td>' +
+          '<td class="pe-cell ' + (peITM ? 'itm' : '') + peFlash + '">' + peLtp + '</td>' +
           '</tr>';
       }).join('');
       _prevLTPs = newLTPs;
-
-      // Auto-scroll to ATM row
-      setTimeout(function () {
-        const atmRow = document.querySelector('.atm-row');
-        if (atmRow) {
-          atmRow.scrollIntoView({ block: 'center', behavior: 'smooth' });
-        }
-      }, 100);
     }
 
+    // ── ORDER MODAL ──
     function openOrder(btn, otype, direction) {
       const row = btn.closest('tr');
       let token, symbol, ltp, lot;
@@ -1159,8 +1038,9 @@
       const strike = row.dataset.strike || '';
       const expiry = row.dataset.expiry || _activeExpiry;
 
-      _modalOption = { symbol: symbol, token: token, option_type: otype, strike: parseFloat(strike), expiry: expiry, ltp: ltp, lot_size: lot, direction: direction };
+      _modalOption = { symbol, token, option_type: otype, strike: parseFloat(strike), expiry, ltp, lot_size: lot, direction };
 
+      // Fill modal
       const isBuy = direction === 'LONG';
       document.getElementById('modal-dir').textContent = isBuy ? 'BUY' : 'SELL';
       document.getElementById('modal-dir').className = isBuy ? 'pos' : 'neg';
@@ -1171,7 +1051,6 @@
       document.getElementById('modal-strike').textContent = strike;
       document.getElementById('modal-expiry').textContent = expiry;
       document.getElementById('modal-lot').textContent = lot;
-      document.getElementById('modal-lots').value = 1;
       document.getElementById('modal-qty').value = lot;
       document.getElementById('modal-price').value = ltp > 0 ? ltp.toFixed(2) : '--';
       document.getElementById('modal-price').readOnly = true;
@@ -1187,12 +1066,6 @@
 
       document.getElementById('order-modal').classList.add('show');
     }
-
-    document.getElementById('modal-lots').addEventListener('input', function () {
-      const lots = parseInt(this.value) || 1;
-      const lotSize = _modalOption ? _modalOption.lot_size : 65;
-      document.getElementById('modal-qty').value = lots * lotSize;
-    });
 
     function closeModal() {
       document.getElementById('order-modal').classList.remove('show');
@@ -1216,17 +1089,16 @@
 
     async function submitOrder() {
       if (!_modalOption) return;
-      const lots = parseInt(document.getElementById('modal-lots').value) || 1;
-      const lotSize = _modalOption.lot_size || 65;
-      const qty = lots * lotSize;
+      const qty = parseInt(document.getElementById('modal-qty').value) || 25;
       const sl = parseFloat(document.getElementById('modal-sl').value) || 0;
       const tgt = parseFloat(document.getElementById('modal-tgt').value) || 0;
       const pxVal = parseFloat(document.getElementById('modal-price').value);
+      // Always pass visible LTP to avoid slow server-side AngelOne fetch
       const price = (_customModal && pxVal > 0) ? pxVal : (_modalOption && _modalOption.ltp > 0 ? _modalOption.ltp : 0);
       const url = _modalOption.direction === 'LONG' ? '/api/paper/buy' : '/api/paper/sell';
 
       const payload = {
-        qty: qty, stop_loss: sl, target: tgt, price: price,
+        qty, stop_loss: sl, target: tgt, price,
         symbol: _modalOption.symbol, token: _modalOption.token,
         option_type: _modalOption.option_type,
         strike: _modalOption.strike, expiry: _modalOption.expiry
@@ -1240,21 +1112,22 @@
         const label = d.symbol || _modalOption.symbol;
         const dir = _modalOption.direction === 'LONG' ? 'BUY' : 'SELL';
         const cls = _modalOption.direction === 'LONG' ? 'pos' : 'neg';
-        msg.innerHTML = '<span class="' + cls + '">' + dir + ' ' + qty + 'x ' + label + ' @ ' + RS + d.price.toFixed(2) + '</span>';
-        toast(dir + ' ' + lots + ' lot(s) ' + label + ' @ ' + RS + d.price.toFixed(2), _modalOption.direction === 'LONG' ? 'success' : 'error');
+        msg.innerHTML = '<span class="' + cls + '">' + dir + ' ' + d.qty + ' ' + label + ' @ ' + RS + d.price.toFixed(2) + '</span>';
+        toast(dir + ' ' + label + ' @ ' + RS + d.price.toFixed(2), _modalOption.direction === 'LONG' ? 'success' : 'error');
         setTimeout(closeModal, 800);
       } catch (e) { msg.innerHTML = '<span class="neg">Order failed</span>'; toast('Order failed', 'error'); }
     }
 
-    document.getElementById('order-modal').addEventListener('click', function (e) {
+    // Click outside modal to close
+    document.getElementById('order-modal').addEventListener('click', e => {
       if (e.target === e.currentTarget) closeModal();
     });
 
-    function statusMsg(m, e) {
+    // ── HELPERS ──
+    function statusMsg(m, e = false) {
       document.getElementById('status-text').textContent = m;
       document.getElementById('status-text').style.color = e ? 'var(--red)' : 'var(--txt-mute)';
     }
-
     function updateClock() {
       const n = new Date(), ist = new Date(n.getTime() + (5.5 * 60 * 60 * 1000));
       document.getElementById('status-time').textContent =
@@ -1262,15 +1135,18 @@
     }
     setInterval(updateClock, 1000);
 
+    // Auto-refresh chain every 10s for live LTP updates
     function startChainAutoRefresh() {
       if (_chainRefreshTimer) clearInterval(_chainRefreshTimer);
-      _chainRefreshTimer = setInterval(function () {
+      _chainRefreshTimer = setInterval(() => {
         if (_activeExpiry) loadChain();
       }, 10000);
     }
 
-    (async function () {
+    // ── INIT ──
+    (async () => {
       updateClock();
+      // Run feed start and expiry load in parallel — they are independent
       await Promise.allSettled([autoStartFeed(), loadExpiries()]);
       startChainAutoRefresh();
     })();
