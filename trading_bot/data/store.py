@@ -366,10 +366,10 @@ def get_pnl_between(from_date: str, to_date: str) -> dict:
     """
     sql = """
         SELECT
-            COALESCE(SUM(pnl), 0)             AS total_pnl,
-            COUNT(*)                           AS trades,
-            SUM(CASE WHEN pnl >= 0 THEN 1 ELSE 0 END) AS wins,
-            SUM(CASE WHEN pnl < 0 THEN 1 ELSE 0 END)  AS losses
+            COALESCE(SUM(pnl), 0)                                       AS total_pnl,
+            COUNT(*)                                                      AS trades,
+            COALESCE(SUM(CASE WHEN pnl >= 0 THEN 1 ELSE 0 END), 0)     AS wins,
+            COALESCE(SUM(CASE WHEN pnl < 0 THEN 1 ELSE 0 END), 0)      AS losses
         FROM trades
         WHERE status = 'CLOSED'
           AND DATE(exit_time) >= ? AND DATE(exit_time) <= ?
