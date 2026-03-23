@@ -201,7 +201,25 @@ Give a clear verdict: **STRONG ENTRY** / **CAUTIOUS** / **SHOULD HAVE SKIPPED** 
 ## 6. KEY LESSON
 One clear, actionable lesson in 1-2 sentences that the trader can apply to ALL future trades.
 
-Use actual price levels and candle times from the data. Be direct and honest — if the entry was poor quality, say so clearly."""
+Use actual price levels and candle times from the data. Be direct and honest — if the entry was poor quality, say so clearly.
+
+## 7. CONFIG PARAMETER SUGGESTIONS (JSON)
+After completing sections 1–6, output a JSON code block with parameter adjustment suggestions.
+The block MUST be between ```json and ``` markers.
+
+Only suggest changes for these exact parameter names:
+  RSI_BULL_THRESHOLD (current: 55), RSI_BEAR_THRESHOLD (current: 45),
+  DUPLICATE_SIGNAL_COOLDOWN (current: 900 sec), SL_BLOCK_DURATION (current: 1200 sec),
+  MAX_OPEN_TRADES (current: 1), MAX_DAILY_LOSS (current: 2000),
+  VOLUME_EXPANSION_MULT (current: 1.5), INITIAL_SL_POINTS (current: 20)
+
+Format (example):
+```json
+{"suggestions": [{"param": "RSI_BULL_THRESHOLD", "current": 55, "suggested": 62, "reason": "RSI was only 52 at entry; raising the threshold ensures stronger bullish momentum is confirmed before entry"}]}
+```
+
+If no parameter change is warranted, output: `{"suggestions": []}`
+Suggest at most 2 parameters. Base suggestions strictly on what the data shows for this trade."""
 
 
 def _format_trade_context(
@@ -384,11 +402,26 @@ def analyze_failed_trade(
                 {"role": "user", "content": user_message},
             ],
             temperature=0.3,
-            max_tokens=2000,
+            max_tokens=2400,
         )
         analysis = response.choices[0].message.content
         log.info("Trade analysis complete (%s, trade=%s)", model, trade.get("trade_id", "?"))
-        return {"analysis": analysis, "model": model, "error": None}
+
+        # ── Parse JSON suggestions block from the response ─────────────────
+        import re as _re
+        import json as _json_mod
+        suggestions: list = []
+        try:
+            json_match = _re.search(r'```json\s*(\{.*?\})\s*```', analysis, _re.DOTALL)
+            if json_match:
+                parsed = _json_mod.loads(json_match.group(1))
+                suggestions = parsed.get("suggestions", [])
+                # Strip the JSON block from the narrative text
+                analysis = _re.sub(r'\n*## 7\..*?```json.*?```', '', analysis, flags=_re.DOTALL).strip()
+        except Exception as _parse_exc:
+            log.debug("Suggestions JSON parse: %s", _parse_exc)
+
+        return {"analysis": analysis, "suggestions": suggestions, "model": model, "error": None}
 
     except openai.AuthenticationError:
         return {"analysis": "", "model": model, "error": "OpenAI authentication failed. Check your API key."}

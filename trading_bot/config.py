@@ -183,6 +183,12 @@ OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
 # ═══════════════════════════════════════════════════════════════════════════════
+#  GITHUB (AI AUTO-APPLY SUGGESTIONS)
+# ═══════════════════════════════════════════════════════════════════════════════
+GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "")
+GITHUB_REPO: str = os.getenv("GITHUB_REPO", "sivaramkakakrla/TradingBot_AngelOne")
+
+# ═══════════════════════════════════════════════════════════════════════════════
 #  TIMEZONE
 # ═══════════════════════════════════════════════════════════════════════════════
 TIMEZONE = "Asia/Kolkata"

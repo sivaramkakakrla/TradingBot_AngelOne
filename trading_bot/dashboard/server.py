@@ -1204,6 +1204,7 @@ def api_llm_analyze_trade():
         "candles_fetched":  len(candles_raw),
         "strategy_eval":    strategy_eval,
         "analysis":         result.get("analysis", ""),
+        "suggestions":      result.get("suggestions", []),
         "model":            result.get("model", model),
         "error":            result.get("error"),
     }
@@ -1212,6 +1213,132 @@ def api_llm_analyze_trade():
         set_cached(cache_key, response, ttl=3600)  # cache 1 hour
 
     return jsonify(response)
+
+
+# ─── LLM Apply Suggestion API ─────────────────────────────────────────────────
+
+# Safe parameters and their allowed value ranges (min, max)
+_SAFE_PARAMS: dict[str, tuple] = {
+    "RSI_BULL_THRESHOLD":        (40.0, 75.0),
+    "RSI_BEAR_THRESHOLD":        (25.0, 60.0),
+    "DUPLICATE_SIGNAL_COOLDOWN": (300.0, 3600.0),
+    "SL_BLOCK_DURATION":         (300.0, 7200.0),
+    "MAX_OPEN_TRADES":           (1.0,  5.0),
+    "MAX_DAILY_LOSS":            (500.0, 10000.0),
+    "VOLUME_EXPANSION_MULT":     (1.0,  3.0),
+    "INITIAL_SL_POINTS":         (5.0,  60.0),
+}
+
+
+@app.route("/api/llm/apply-suggestion", methods=["POST"])
+def api_llm_apply_suggestion():
+    """
+    Apply an AI config suggestion by committing a change to config.py via
+    the GitHub REST API. Vercel auto-detects the push and redeploys.
+
+    Request JSON:
+        param    – parameter name (must be in _SAFE_PARAMS allowlist)
+        value    – new numeric value
+        trade_id – trade this suggestion came from (for commit message)
+        reason   – one-sentence reason (embedded in commit message)
+    """
+    import base64
+    import re as _re
+    import json as _json_mod
+    import urllib.request
+    import urllib.error
+
+    body = request.get_json(force=True) or {}
+    param    = str(body.get("param", "")).strip()
+    value    = body.get("value")
+    trade_id = str(body.get("trade_id", "")).strip()
+    reason   = str(body.get("reason", "AI suggestion")).strip()[:120]
+
+    # ── Security: validate param is in the allowlist ───────────────────────
+    if param not in _SAFE_PARAMS:
+        return jsonify({"error": f"'{param}' is not a modifiable parameter."}), 400
+
+    lo, hi = _SAFE_PARAMS[param]
+    try:
+        num_val = float(value)
+    except (TypeError, ValueError):
+        return jsonify({"error": "value must be numeric."}), 400
+
+    if not (lo <= num_val <= hi):
+        return jsonify({"error": f"Value {num_val} out of safe range [{lo}, {hi}] for {param}."}), 400
+
+    # Format value: integer if whole number, else 1-decimal float
+    if num_val == int(num_val):
+        formatted_val = str(int(num_val))
+    else:
+        formatted_val = f"{num_val:.1f}"
+
+    # ── GitHub credentials ────────────────────────────────────────────────
+    gh_token = getattr(config, "GITHUB_TOKEN", "") or ""
+    gh_repo  = getattr(config, "GITHUB_REPO", "") or ""
+
+    if not gh_token or not gh_repo:
+        return jsonify({"error": "GITHUB_TOKEN / GITHUB_REPO not configured. Add them to Vercel environment variables."}), 503
+
+    file_path = "trading_bot/config.py"
+    api_url   = f"https://api.github.com/repos/{gh_repo}/contents/{file_path}"
+    headers   = {
+        "Authorization": f"token {gh_token}",
+        "Accept":        "application/vnd.github+json",
+        "Content-Type":  "application/json",
+        "User-Agent":    "TradingBot-AutoApply/1.0",
+    }
+
+    try:
+        # ── GET current file ──────────────────────────────────────────
+        req = urllib.request.Request(api_url, headers=headers)
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            file_data = _json_mod.loads(resp.read())
+
+        sha             = file_data["sha"]
+        current_content = base64.b64decode(file_data["content"]).decode("utf-8")
+
+        # ── Regex-replace the parameter line ─────────────────────────
+        line_pattern = _re.compile(
+            rf'^({_re.escape(param)}\s*[:=]\s*)([^\s#\n]+)',
+            _re.MULTILINE,
+        )
+        new_content, count = line_pattern.subn(rf'\g<1>{formatted_val}', current_content)
+        if count == 0:
+            return jsonify({"error": f"Could not locate '{param}' in config.py — pattern not found."}), 400
+
+        # ── PUT updated file back ─────────────────────────────────────
+        commit_msg = f"bot: AI suggests {param}={formatted_val} (trade {trade_id})"
+        put_body = _json_mod.dumps({
+            "message": commit_msg,
+            "content": base64.b64encode(new_content.encode("utf-8")).decode("utf-8"),
+            "sha":     sha,
+        }).encode("utf-8")
+        put_req = urllib.request.Request(api_url, data=put_body, headers=headers, method="PUT")
+        with urllib.request.urlopen(put_req, timeout=20) as resp:
+            resp_data = _json_mod.loads(resp.read())
+
+        commit_sha = (resp_data.get("commit") or {}).get("sha", "")[:7]
+        log.info("AI suggestion applied: %s=%s (commit %s)", param, formatted_val, commit_sha)
+        return jsonify({
+            "success": True,
+            "param":   param,
+            "value":   formatted_val,
+            "commit":  commit_sha,
+            "message": f"✓ {param} → {formatted_val} committed. Vercel will redeploy in ~30s. ({commit_sha})",
+        })
+
+    except urllib.error.HTTPError as exc:
+        err_body = exc.read().decode(errors="replace")
+        try:
+            gh_msg = _json_mod.loads(err_body).get("message", err_body[:200])
+        except Exception:
+            gh_msg = err_body[:200]
+        log.error("GitHub API %d: %s", exc.code, gh_msg)
+        return jsonify({"error": f"GitHub API {exc.code}: {gh_msg}"}), 500
+    except Exception as exc:
+        log.error("apply_suggestion error: %s", exc)
+        return jsonify({"error": str(exc)}), 500
 
 
 # ─── Options Chain APIs ───────────────────────────────────────────────────────

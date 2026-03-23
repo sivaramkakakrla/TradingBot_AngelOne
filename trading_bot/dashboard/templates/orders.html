@@ -785,6 +785,102 @@
       opacity: .5;
       cursor: not-allowed;
     }
+
+    /* ── Suggested Fixes panel ─────────────────────────────────────── */
+    .ai-suggestions {
+      background: rgba(139, 92, 246, .07);
+      border: 1px solid rgba(139, 92, 246, .22);
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-bottom: 18px;
+    }
+
+    .ai-suggestions-title {
+      font-size: .78rem;
+      font-weight: 700;
+      color: #7c3aed;
+      margin-bottom: 10px;
+      letter-spacing: .3px;
+    }
+
+    .ai-suggestion-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(139, 92, 246, .1);
+      flex-wrap: wrap;
+    }
+
+    .ai-suggestion-row:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+
+    .ai-sug-param {
+      font-family: monospace;
+      font-size: .76rem;
+      font-weight: 700;
+      color: var(--txt);
+      min-width: 185px;
+    }
+
+    .ai-sug-change {
+      font-size: .76rem;
+      white-space: nowrap;
+    }
+
+    .ai-sug-change .cur {
+      color: var(--red);
+    }
+
+    .ai-sug-change .arr {
+      color: var(--txt-mute);
+      margin: 0 4px;
+    }
+
+    .ai-sug-change .new {
+      color: var(--green);
+      font-weight: 700;
+    }
+
+    .ai-sug-reason {
+      flex: 1;
+      font-size: .7rem;
+      color: var(--txt-dim);
+      font-style: italic;
+      min-width: 120px;
+    }
+
+    .ai-apply-btn {
+      background: rgba(139, 92, 246, .14);
+      border: 1px solid rgba(139, 92, 246, .38);
+      color: #7c3aed;
+      padding: 4px 13px;
+      border-radius: 5px;
+      font-size: .7rem;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all .15s;
+      white-space: nowrap;
+    }
+
+    .ai-apply-btn:hover {
+      background: rgba(139, 92, 246, .28);
+    }
+
+    .ai-apply-btn.applying {
+      opacity: .55;
+      cursor: not-allowed;
+    }
+
+    .ai-apply-btn.applied {
+      background: rgba(16, 185, 129, .14);
+      border-color: rgba(16, 185, 129, .38);
+      color: var(--green);
+      cursor: default;
+    }
   </style>
 </head>
 
@@ -1359,10 +1455,30 @@
           _aiMetaCell('Candles', data.candles_fetched + ' bars @ 5m') +
           '</div>';
 
+        // Build suggested fixes panel
+        let suggestionsHtml = '';
+        if (data.suggestions && data.suggestions.length > 0) {
+          const rows = data.suggestions.map(s => {
+            const safeReason = (s.reason || '').replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+            return '<div class="ai-suggestion-row">' +
+              '<div class="ai-sug-param">' + s.param + '</div>' +
+              '<div class="ai-sug-change"><span class="cur">' + s.current + '</span>' +
+              '<span class="arr">→</span><span class="new">' + s.suggested + '</span></div>' +
+              '<div class="ai-sug-reason">' + (s.reason || '') + '</div>' +
+              '<button class="ai-apply-btn" id="ai-apply-' + s.param + '" ' +
+              'onclick="applyAiSuggestion(this,\'' + s.param + '\',' + s.suggested + ',\'' +
+              trade.trade_id + '\',\'' + safeReason + '\')">Apply &amp; Redeploy</button>' +
+              '</div>';
+          }).join('');
+          suggestionsHtml = '<div class="ai-suggestions">' +
+            '<div class="ai-suggestions-title">🔧 Suggested Config Fixes</div>' +
+            rows + '</div>';
+        }
+
         // Format the analysis markdown-ish
         const analysisHtml = _formatAnalysis(data.analysis || 'No analysis returned.');
 
-        body.innerHTML = metaHtml +
+        body.innerHTML = suggestionsHtml + metaHtml +
           '<div class="ai-analysis">' + analysisHtml + '</div>' +
           '<div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);' +
           'font-size:.64rem;color:var(--txt-mute);text-align:right;">Model: ' + (data.model || 'gpt-4o-mini') +
@@ -1398,6 +1514,55 @@
       if (e.target === document.getElementById('ai-modal-overlay')) {
         document.getElementById('ai-modal-overlay').classList.remove('open');
       }
+    }
+
+    async function applyAiSuggestion(btn, param, value, tradeId, reason) {
+      btn.disabled = true;
+      btn.classList.add('applying');
+      btn.textContent = 'Applying…';
+      try {
+        const r = await fetch('/api/llm/apply-suggestion', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ param, value, trade_id: tradeId, reason }),
+        });
+        const data = await r.json();
+        if (data.success) {
+          btn.classList.remove('applying');
+          btn.classList.add('applied');
+          btn.textContent = '✓ Applied';
+          _showAiToast('✓ ' + param + ' updated → ' + value + '.  Vercel redeploying (~30s)…', false);
+        } else {
+          btn.classList.remove('applying');
+          btn.disabled = false;
+          btn.textContent = 'Apply & Redeploy';
+          _showAiToast('⚠ ' + (data.error || 'Apply failed'), true);
+        }
+      } catch (e) {
+        btn.classList.remove('applying');
+        btn.disabled = false;
+        btn.textContent = 'Apply & Redeploy';
+        _showAiToast('⚠ Request failed: ' + e.message, true);
+      }
+    }
+
+    function _showAiToast(msg, isError) {
+      let toast = document.getElementById('ai-toast');
+      if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'ai-toast';
+        toast.style.cssText = 'position:fixed;bottom:28px;left:50%;transform:translateX(-50%);' +
+          'padding:11px 22px;border-radius:8px;font-size:.78rem;font-weight:600;z-index:9999;' +
+          'transition:opacity .3s;max-width:440px;text-align:center;pointer-events:none;box-shadow:0 4px 16px rgba(0,0,0,.35);';
+        document.body.appendChild(toast);
+      }
+      toast.style.background = isError ? 'var(--red-bg)' : 'rgba(16,185,129,.18)';
+      toast.style.color = isError ? 'var(--red)' : 'var(--green)';
+      toast.style.border = '1px solid ' + (isError ? 'var(--red-bdr)' : 'rgba(16,185,129,.4)');
+      toast.style.opacity = '1';
+      toast.textContent = msg;
+      clearTimeout(toast._t);
+      toast._t = setTimeout(() => { toast.style.opacity = '0'; }, 5000);
     }
 
     // Keep old name as alias for compatibility with any other callers
