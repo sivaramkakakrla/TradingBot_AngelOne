@@ -1266,6 +1266,14 @@ def api_autotrade_scan():
     import os
     from trading_bot.utils.time_utils import now_ist
 
+    # On Vercel, verify QStash signature or dashboard origin
+    if os.environ.get("VERCEL"):
+        is_qstash = request.headers.get("Upstash-Signature")
+        is_dashboard = request.referrer and "angelonetradingbot" in request.referrer
+        is_github = request.headers.get("User-Agent", "").startswith("github-actions")
+        if not (is_qstash or is_dashboard or is_github):
+            return jsonify({"error": "unauthorized"}), 403
+
     try:
         from trading_bot.autotrade import (
             _monitor_positions,

@@ -6,3 +6,5 @@ __pycache__/
 logs/
 *.db-shm
 *.db-wal
+setup_qstash.py
+seed_redis.py
