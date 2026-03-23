@@ -386,6 +386,8 @@ def analyze_failed_trade(
             "error": "OpenAI API key not configured.",
         }
 
+    model = model.strip()  # guard against \r\n from env vars
+
     context_text = _format_trade_context(trade, candles, entry_bar_index, strategy_eval, timeframe)
     user_message = (
         "Please provide a detailed post-mortem analysis of this trade:\n\n"

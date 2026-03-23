@@ -179,8 +179,8 @@ ORDER_CONFIRM_TIMEOUT = 3          # seconds to confirm COMPLETE status
 # ═══════════════════════════════════════════════════════════════════════════════
 #  OPENAI (LLM ANALYSIS)
 # ═══════════════════════════════════════════════════════════════════════════════
-OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
-OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "").strip()
+OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip()
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  GITHUB (AI AUTO-APPLY SUGGESTIONS)
