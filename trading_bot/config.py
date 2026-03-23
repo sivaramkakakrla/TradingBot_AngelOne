@@ -120,8 +120,11 @@ TRADE_WINDOWS = [
 ]
 FORCE_EXIT_TIME = "15:00"
 
-# Duplicate signal cooldown (seconds)
-DUPLICATE_SIGNAL_COOLDOWN = 300
+# Duplicate signal cooldown (seconds) — also enforced via Redis on Vercel
+DUPLICATE_SIGNAL_COOLDOWN = 900   # 15 minutes (was 300)
+
+# Post-SL block: block same direction for this many seconds after a SL hit
+SL_BLOCK_DURATION = 1200          # 20 minutes
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  EXIT / RISK MANAGEMENT
@@ -133,8 +136,8 @@ PARTIAL_EXIT_POINTS = 40
 PARTIAL_EXIT_PCT = 0.50  # sell 50% at partial target
 
 MAX_LOTS_PER_TRADE = 2
-MAX_OPEN_TRADES = 3
-MAX_DAILY_LOSS = 3000  # ₹3000
+MAX_OPEN_TRADES = 1       # 1 auto-trade open at a time (was 3)
+MAX_DAILY_LOSS = 2000     # ₹2000 daily loss limit (was 3000)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  PAPER TRADING PORTFOLIO

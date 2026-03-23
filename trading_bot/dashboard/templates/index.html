@@ -328,7 +328,7 @@
     </div>
   </div>
 
-  <div class="main">
+  <div class="main" style="flex-direction:column;gap:24px;">
     <div class="cards">
 
       <!-- NIFTY 50 -->
@@ -372,6 +372,51 @@
       </div>
 
     </div>
+
+    <!-- P&L Summary strip -->
+    <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;width:100%;max-width:900px;">
+      <div class="price-card"
+        style="min-width:initial;width:100%;padding:20px 28px;display:flex;align-items:center;gap:32px;flex-wrap:wrap;">
+        <div>
+          <div
+            style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--txt-mute);margin-bottom:4px;">
+            Today P&amp;L</div>
+          <div style="font-size:1.5rem;font-weight:800;font-variant-numeric:tabular-nums;" id="idx-pnl-today">₹0</div>
+        </div>
+        <div style="width:1px;height:40px;background:var(--border);"></div>
+        <div>
+          <div
+            style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--txt-mute);margin-bottom:4px;">
+            This Month</div>
+          <div style="font-size:1.5rem;font-weight:800;font-variant-numeric:tabular-nums;" id="idx-pnl-month">₹0</div>
+        </div>
+        <div style="width:1px;height:40px;background:var(--border);"></div>
+        <div>
+          <div
+            style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--txt-mute);margin-bottom:4px;">
+            This Week</div>
+          <div style="font-size:1.5rem;font-weight:800;font-variant-numeric:tabular-nums;" id="idx-pnl-week">₹0</div>
+        </div>
+        <div style="width:1px;height:40px;background:var(--border);"></div>
+        <div>
+          <div
+            style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--txt-mute);margin-bottom:4px;">
+            Month Trades</div>
+          <div style="font-size:1.5rem;font-weight:800;font-variant-numeric:tabular-nums;" id="idx-pnl-trades">0</div>
+        </div>
+        <div style="width:1px;height:40px;background:var(--border);"></div>
+        <div>
+          <div
+            style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--txt-mute);margin-bottom:4px;">
+            Win Rate</div>
+          <div style="font-size:1.5rem;font-weight:800;font-variant-numeric:tabular-nums;" id="idx-pnl-wr">0%</div>
+        </div>
+        <a href="/opportunities"
+          style="margin-left:auto;display:flex;align-items:center;gap:6px;font-size:.72rem;font-weight:700;color:var(--accent);text-decoration:none;padding:7px 16px;border:1px solid rgba(59,130,246,.3);border-radius:8px;background:rgba(59,130,246,.06);white-space:nowrap;">View
+          Details →</a>
+      </div>
+    </div>
+
   </div>
 
   <div class="status-bar">
@@ -454,12 +499,45 @@
         String(ist.getUTCSeconds()).padStart(2, '0');
     }
 
+    async function pollPnlSummary() {
+      try {
+        const RS = '\u20b9';
+        const r = await fetch('/api/pnl/summary');
+        const d = await r.json();
+        const todayPnl = d.today?.pnl || 0;
+        const el = document.getElementById('idx-pnl-today');
+        el.textContent = (todayPnl >= 0 ? '+' : '') + RS + todayPnl.toFixed(2);
+        el.style.color = todayPnl >= 0 ? 'var(--green)' : 'var(--red)';
+
+        const mPnl = d.this_month?.total_pnl || 0;
+        const mel = document.getElementById('idx-pnl-month');
+        mel.textContent = (mPnl >= 0 ? '+' : '') + RS + mPnl.toFixed(2);
+        mel.style.color = mPnl >= 0 ? 'var(--green)' : 'var(--red)';
+
+        const mTrades = d.this_month?.trades || 0;
+        const mWins = d.this_month?.wins || 0;
+        document.getElementById('idx-pnl-trades').textContent = mTrades;
+        const wr = mTrades > 0 ? (mWins / mTrades * 100).toFixed(0) : 0;
+        const wrEl = document.getElementById('idx-pnl-wr');
+        wrEl.textContent = wr + '%';
+        wrEl.style.color = wr >= 50 ? 'var(--green)' : 'var(--red)';
+
+        // This week
+        const week = (d.weekly && d.weekly[0]) ? d.weekly[0].total_pnl : 0;
+        const wEl = document.getElementById('idx-pnl-week');
+        wEl.textContent = (week >= 0 ? '+' : '') + RS + week.toFixed(2);
+        wEl.style.color = week >= 0 ? 'var(--green)' : 'var(--red)';
+      } catch (e) { }
+    }
+
     (async () => {
       updateClock();
       setInterval(updateClock, 1000);
       await startFeed();
       await pollLive();
+      await pollPnlSummary();
       setInterval(pollLive, 2000);
+      setInterval(pollPnlSummary, 60000);
     })();
   </script>
 </body>

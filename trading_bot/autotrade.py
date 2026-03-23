@@ -107,13 +107,67 @@ def _daily_loss_reached() -> bool:
 
 
 def _is_duplicate_signal(direction: str) -> bool:
-    """Prevent same-direction signal within cooldown period."""
+    """Prevent same-direction signal within cooldown period.
+
+    On Vercel, in-memory _recent_signals resets on every cold start, so we
+    also check/set a Redis key with a TTL equal to the cooldown period.
+    """
     now_ts = time.time()
     last = _recent_signals.get(direction, 0)
+
+    # Redis check — survives Vercel cold starts
+    try:
+        from trading_bot.cache import _get_client
+        r = _get_client()
+        if r:
+            redis_val = r.get(f"autotrade:signal:{direction}")
+            if redis_val:
+                if isinstance(redis_val, (bytes, bytearray)):
+                    redis_val = redis_val.decode()
+                last = max(last, float(redis_val))
+    except Exception:
+        pass
+
     if now_ts - last < config.DUPLICATE_SIGNAL_COOLDOWN:
         return True
+
+    # Record in both memory and Redis
     _recent_signals[direction] = now_ts
+    try:
+        from trading_bot.cache import _get_client
+        r = _get_client()
+        if r:
+            r.set(f"autotrade:signal:{direction}", str(now_ts),
+                  ex=config.DUPLICATE_SIGNAL_COOLDOWN)
+    except Exception:
+        pass
     return False
+
+
+def _is_sl_blocked(direction: str) -> bool:
+    """Return True if this direction is blocked after a recent SL hit."""
+    try:
+        from trading_bot.cache import _get_client
+        r = _get_client()
+        if r:
+            return r.get(f"autotrade:sl_block:{direction}") is not None
+    except Exception:
+        pass
+    return False
+
+
+def _set_sl_block(direction: str):
+    """Block entries in `direction` for SL_BLOCK_DURATION seconds after SL hit."""
+    try:
+        from trading_bot.cache import _get_client
+        r = _get_client()
+        if r:
+            r.set(f"autotrade:sl_block:{direction}", "1",
+                  ex=config.SL_BLOCK_DURATION)
+            mins = config.SL_BLOCK_DURATION // 60
+            _log_event(f"SL BLOCK: {direction} blocked for {mins} min after SL hit")
+    except Exception:
+        pass
 
 
 def _fetch_latest_candles(session, timeframe="1m", bars=100) -> pd.DataFrame | None:
@@ -322,6 +376,12 @@ def _monitor_positions():
             if exit_reason != "EOD_EXIT":
                 _log_event(f"{exit_reason} {trade_id} @ {exit_price:.2f} PnL={final_pnl:.2f}")
 
+            # After SL hit, block same direction to prevent immediate re-entry
+            if exit_reason == "SL_HIT":
+                opt_type = t.get("option_type", "CE")
+                block_dir = "BULLISH" if opt_type == "CE" else "BEARISH"
+                _set_sl_block(block_dir)
+
 
 def _update_trade_sl(trade_id: str, new_sl: float):
     """Update the stop loss of a trade in the database."""
@@ -382,7 +442,13 @@ def _scan_and_trade():
         if sig.action != "ENTER":
             continue
 
+        # Block re-entry in same direction after a recent SL hit
+        if _is_sl_blocked(sig.direction):
+            _log_event(f"SKIP {sig.direction}: SL-blocked (recent SL hit, cooling off)", console=False)
+            continue
+
         if _is_duplicate_signal(sig.direction):
+            _log_event(f"SKIP {sig.direction}: duplicate signal within cooldown period", console=False)
             continue
 
         # Get live NIFTY price for entry

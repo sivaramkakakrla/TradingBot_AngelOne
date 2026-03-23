@@ -928,6 +928,34 @@
         <!-- Right: Market context -->
         <div class="context-panel">
             <div class="context-section">
+                <div class="ctx-title">P&amp;L Summary</div>
+                <div class="ctx-card" id="pnl-summary-card">
+                    <div class="ctx-row">
+                        <span class="ctx-key">Today's P&amp;L</span>
+                        <span class="ctx-val" id="pnl-today">₹0</span>
+                    </div>
+                    <div class="ctx-row">
+                        <span class="ctx-key">This Month</span>
+                        <span class="ctx-val" id="pnl-month">₹0</span>
+                    </div>
+                    <div class="ctx-row">
+                        <span class="ctx-key">Month Trades</span>
+                        <span class="ctx-val" id="pnl-month-trades">0</span>
+                    </div>
+                    <div class="ctx-row">
+                        <span class="ctx-key">Month Win Rate</span>
+                        <span class="ctx-val" id="pnl-month-wr">0%</span>
+                    </div>
+                </div>
+                <div style="font-size:.68rem;font-weight:600;color:var(--txt-dim);margin-bottom:6px;margin-top:8px;">
+                    Last 4 Weeks</div>
+                <div class="ctx-card" id="pnl-weekly-card">
+                    <div style="color:var(--txt-mute);font-size:.72rem;text-align:center;padding:6px 0;">Loading...
+                    </div>
+                </div>
+            </div>
+
+            <div class="context-section">
                 <div class="ctx-title">Market Snapshot</div>
                 <div class="ctx-card">
                     <div class="ctx-row"><span class="ctx-key">NIFTY LTP</span><span class="ctx-val"
@@ -984,34 +1012,6 @@
                         <span class="level-label"><span class="level-dot" style="background:var(--red)"></span>Stop
                             Loss</span>
                         <span class="level-val neg" id="lvl-sl">--</span>
-                    </div>
-                </div>
-            </div>
-
-            <div class="context-section">
-                <div class="ctx-title">P&amp;L Summary</div>
-                <div class="ctx-card" id="pnl-summary-card">
-                    <div class="ctx-row">
-                        <span class="ctx-key">Today's P&amp;L</span>
-                        <span class="ctx-val" id="pnl-today">₹0</span>
-                    </div>
-                    <div class="ctx-row">
-                        <span class="ctx-key">This Month</span>
-                        <span class="ctx-val" id="pnl-month">₹0</span>
-                    </div>
-                    <div class="ctx-row">
-                        <span class="ctx-key">Month Trades</span>
-                        <span class="ctx-val" id="pnl-month-trades">0</span>
-                    </div>
-                    <div class="ctx-row">
-                        <span class="ctx-key">Month Win Rate</span>
-                        <span class="ctx-val" id="pnl-month-wr">0%</span>
-                    </div>
-                </div>
-                <div style="font-size:.68rem;font-weight:600;color:var(--txt-dim);margin-bottom:6px;margin-top:8px;">
-                    Last 4 Weeks</div>
-                <div class="ctx-card" id="pnl-weekly-card">
-                    <div style="color:var(--txt-mute);font-size:.72rem;text-align:center;padding:6px 0;">Loading...
                     </div>
                 </div>
             </div>
