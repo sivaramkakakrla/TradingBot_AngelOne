@@ -12,6 +12,7 @@ import datetime
 import json
 import os
 import threading
+import csv
 from zoneinfo import ZoneInfo
 
 from flask import Flask, jsonify, render_template, request
@@ -1677,6 +1678,87 @@ def api_rule180_recommendation():
         "message": message,
         "recommendation": recommendation,
         "top_candidates": sorted(candidates, key=lambda x: x["distance_to_180"])[:8],
+    })
+
+
+def _rule180_trade_csv_paths() -> list[str]:
+    """Possible locations for reversal180 trade sheet."""
+    proj_root = os.path.abspath(os.path.join(_HERE, "..", ".."))
+    return [
+        os.path.join(proj_root, "logs", "reversal180_trades.csv"),
+        os.path.join(proj_root, "trading_bot", "logs", "reversal180_trades.csv"),
+        "/tmp/reversal180_trades.csv",
+    ]
+
+
+def _load_rule180_trades() -> list[dict]:
+    for p in _rule180_trade_csv_paths():
+        if not os.path.exists(p):
+            continue
+        try:
+            with open(p, "r", encoding="utf-8", newline="") as f:
+                return list(csv.DictReader(f))
+        except Exception:
+            continue
+    return []
+
+
+@app.route("/api/rule180/pnl")
+def api_rule180_pnl():
+    """Return Rule180 strategy-only PnL summary and recent trades."""
+    trades = _load_rule180_trades()
+    today = now_ist().strftime("%Y-%m-%d")
+
+    total_pnl = 0.0
+    today_pnl = 0.0
+    wins = 0
+    losses = 0
+    recent: list[dict] = []
+
+    for row in trades:
+        try:
+            pnl = float(row.get("pnl") or 0.0)
+        except Exception:
+            pnl = 0.0
+        total_pnl += pnl
+
+        ts = str(row.get("timestamp") or "")
+        if ts.startswith(today):
+            today_pnl += pnl
+        elif len(ts) == 5 and ":" in ts:
+            # Backward compatibility: older rows had HH:MM only
+            today_pnl += pnl
+
+        if pnl > 0:
+            wins += 1
+        elif pnl < 0:
+            losses += 1
+
+        recent.append({
+            "timestamp": ts,
+            "instrument": row.get("instrument", ""),
+            "side": row.get("side", ""),
+            "entry": float(row.get("entry") or 0.0),
+            "exit": float(row.get("exit") or 0.0),
+            "pnl": pnl,
+            "reason": row.get("reason", ""),
+        })
+
+    total = len(trades)
+    win_rate = (wins / total * 100.0) if total else 0.0
+
+    recent = list(reversed(recent))[:20]
+
+    return jsonify({
+        "date": today,
+        "total_trades": total,
+        "wins": wins,
+        "losses": losses,
+        "win_rate": round(win_rate, 2),
+        "total_pnl": round(total_pnl, 2),
+        "today_pnl": round(today_pnl, 2),
+        "recent": recent,
+        "source": "rule180_trades_csv",
     })
 
 @app.route("/api/options/expiries")

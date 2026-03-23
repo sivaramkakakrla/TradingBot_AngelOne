@@ -106,10 +106,15 @@
             grid-template-columns: repeat(2, 1fr);
         }
 
+        .row.grid-4 {
+            grid-template-columns: repeat(4, 1fr);
+        }
+
         @media (max-width: 980px) {
 
             .row.grid-3,
-            .row.grid-2 {
+            .row.grid-2,
+            .row.grid-4 {
                 grid-template-columns: 1fr;
             }
 
@@ -334,6 +339,29 @@
             <div id="timeState" class="hint" style="margin-top:8px;">--</div>
         </div>
 
+        <div class="card">
+            <div class="title">Live Auto-Trade P&L (180 Rule Only)</div>
+            <div class="row grid-4">
+                <div class="pill">
+                    <div class="k">Today's P&L</div>
+                    <div class="v" id="pnlToday">₹0.00</div>
+                </div>
+                <div class="pill">
+                    <div class="k">Total P&L</div>
+                    <div class="v" id="pnlTotal">₹0.00</div>
+                </div>
+                <div class="pill">
+                    <div class="k">Total Trades</div>
+                    <div class="v" id="pnlTrades">0</div>
+                </div>
+                <div class="pill">
+                    <div class="k">Win Rate</div>
+                    <div class="v" id="pnlWinRate">0.00%</div>
+                </div>
+            </div>
+            <div class="sub" id="pnlSource" style="margin-top:6px;">Source: --</div>
+        </div>
+
         <div class="row grid-2">
             <div class="card">
                 <div class="title">Recommended Contract</div>
@@ -381,6 +409,28 @@
                 3. Fixed risk: stoploss 160, target 220, and force exit by 10:00 at current market price.<br />
                 4. If Trend Bias is NEUTRAL, skip to avoid wrong CE/PE side.
             </div>
+        </div>
+
+        <div class="card">
+            <div class="title">Recent 180 Rule Trades</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Instrument</th>
+                        <th>Side</th>
+                        <th>Entry</th>
+                        <th>Exit</th>
+                        <th>P&L</th>
+                        <th>Reason</th>
+                    </tr>
+                </thead>
+                <tbody id="r180TradesBody">
+                    <tr>
+                        <td colspan="7" class="sub">Loading...</td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
     </div>
 
@@ -474,6 +524,53 @@
             render(d);
         }
 
+        function _fmtPnl(v) {
+            const n = Number(v || 0);
+            return (n >= 0 ? '+' : '-') + RS + Math.abs(n).toFixed(2);
+        }
+
+        async function refreshPnl() {
+            try {
+                const r = await fetch('/api/rule180/pnl');
+                const d = await r.json();
+
+                const tEl = document.getElementById('pnlToday');
+                tEl.textContent = _fmtPnl(d.today_pnl || 0);
+                tEl.style.color = (Number(d.today_pnl || 0) >= 0) ? 'var(--green)' : 'var(--red)';
+
+                const aEl = document.getElementById('pnlTotal');
+                aEl.textContent = _fmtPnl(d.total_pnl || 0);
+                aEl.style.color = (Number(d.total_pnl || 0) >= 0) ? 'var(--green)' : 'var(--red)';
+
+                document.getElementById('pnlTrades').textContent = String(d.total_trades || 0);
+                document.getElementById('pnlWinRate').textContent = Number(d.win_rate || 0).toFixed(2) + '%';
+                document.getElementById('pnlSource').textContent = 'Source: ' + (d.source || '--') + ' | Date: ' + (d.date || '--');
+
+                const body = document.getElementById('r180TradesBody');
+                const rows = d.recent || [];
+                if (!rows.length) {
+                    body.innerHTML = '<tr><td colspan="7" class="sub">No trades logged yet</td></tr>';
+                } else {
+                    body.innerHTML = rows.map(x => {
+                        const pnl = Number(x.pnl || 0);
+                        const col = pnl >= 0 ? 'var(--green)' : 'var(--red)';
+                        return '<tr>' +
+                            '<td>' + (x.timestamp || '--') + '</td>' +
+                            '<td>' + (x.instrument || '--') + '</td>' +
+                            '<td>' + (x.side || '--') + '</td>' +
+                            '<td>' + RS + Number(x.entry || 0).toFixed(2) + '</td>' +
+                            '<td>' + RS + Number(x.exit || 0).toFixed(2) + '</td>' +
+                            '<td style="color:' + col + ';font-weight:700;">' + _fmtPnl(pnl) + '</td>' +
+                            '<td>' + (x.reason || '--') + '</td>' +
+                            '</tr>';
+                    }).join('');
+                }
+            } catch (e) {
+                const body = document.getElementById('r180TradesBody');
+                if (body) body.innerHTML = '<tr><td colspan="7" class="sub">P&L API unavailable</td></tr>';
+            }
+        }
+
         function toggleAuto() {
             autoOn = !autoOn;
             document.getElementById('autoBtn').textContent = 'Auto Refresh: ' + (autoOn ? 'ON' : 'OFF');
@@ -482,7 +579,13 @@
         (async () => {
             await loadExpiries();
             await refreshNow();
-            timer = setInterval(() => { if (autoOn) refreshNow(); }, 20000);
+            await refreshPnl();
+            timer = setInterval(() => {
+                if (autoOn) {
+                    refreshNow();
+                    refreshPnl();
+                }
+            }, 20000);
         })();
     </script>
 </body>
