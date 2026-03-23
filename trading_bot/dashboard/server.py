@@ -126,6 +126,11 @@ def rule180_page():
     return render_template("rule180.html")
 
 
+@app.route("/orb-strategy")
+def orb_strategy_page():
+    return render_template("orb_strategy.html")
+
+
 @app.route("/api/candles")
 def api_candles():
     """
@@ -1759,6 +1764,124 @@ def api_rule180_pnl():
         "today_pnl": round(today_pnl, 2),
         "recent": recent,
         "source": "rule180_trades_csv",
+    })
+
+
+def _orb_trade_csv_paths() -> list[str]:
+    """Possible locations for ORB strategy trade sheet."""
+    proj_root = os.path.abspath(os.path.join(_HERE, "..", ".."))
+    return [
+        os.path.join(proj_root, "logs", "orb_strategy_trades.csv"),
+        os.path.join(proj_root, "trading_bot", "logs", "orb_strategy_trades.csv"),
+        "/tmp/orb_strategy_trades.csv",
+    ]
+
+
+def _load_orb_trades() -> list[dict]:
+    for p in _orb_trade_csv_paths():
+        if not os.path.exists(p):
+            continue
+        try:
+            with open(p, "r", encoding="utf-8", newline="") as f:
+                return list(csv.DictReader(f))
+        except Exception:
+            continue
+    return []
+
+
+def _get_orb_runtime_snapshot() -> dict:
+    """Best-effort ORB levels + spot snapshot for dashboard display."""
+    try:
+        from trading_bot.orb_strategy.config import ORBConfig
+        from trading_bot.orb_strategy.data_handler import ORBDataHandler
+        from trading_bot.orb_strategy.strategy_orb import ORBStrategy
+
+        cfg = ORBConfig.from_env()
+        dh = ORBDataHandler(cfg)
+        st = ORBStrategy(cfg)
+        df = dh.get_1m_candles_today()
+        if df is None or len(df) < 5:
+            return {
+                "orb_high": None,
+                "orb_low": None,
+                "spot_ltp": None,
+                "note": "Waiting for 1m candles",
+            }
+
+        orb = st.compute_orb(df)
+        spot = dh.get_spot_ltp()
+        return {
+            "orb_high": float(orb.high),
+            "orb_low": float(orb.low),
+            "spot_ltp": float(spot) if spot > 0 else None,
+            "note": f"ORB window {cfg.orb_start}-{cfg.orb_end} | entry till {cfg.last_entry_time}",
+        }
+    except Exception as exc:
+        return {
+            "orb_high": None,
+            "orb_low": None,
+            "spot_ltp": None,
+            "note": f"Runtime snapshot unavailable: {exc}",
+        }
+
+
+@app.route("/api/orb/pnl")
+def api_orb_pnl():
+    """Return ORB strategy-only PnL summary and recent trades."""
+    trades = _load_orb_trades()
+    today = now_ist().strftime("%Y-%m-%d")
+
+    total_pnl = 0.0
+    today_pnl = 0.0
+    wins = 0
+    losses = 0
+    recent: list[dict] = []
+
+    for row in trades:
+        try:
+            pnl = float(row.get("pnl") or 0.0)
+        except Exception:
+            pnl = 0.0
+        total_pnl += pnl
+
+        ts = str(row.get("timestamp") or "")
+        if ts.startswith(today):
+            today_pnl += pnl
+        elif len(ts) == 5 and ":" in ts:
+            today_pnl += pnl
+
+        if pnl > 0:
+            wins += 1
+        elif pnl < 0:
+            losses += 1
+
+        recent.append({
+            "timestamp": ts,
+            "instrument": row.get("instrument", ""),
+            "side": row.get("side", ""),
+            "entry": float(row.get("entry") or 0.0),
+            "exit": float(row.get("exit") or 0.0),
+            "pnl": pnl,
+            "reason": row.get("reason", ""),
+        })
+
+    total = len(trades)
+    win_rate = (wins / total * 100.0) if total else 0.0
+
+    recent = list(reversed(recent))[:20]
+
+    return jsonify({
+        "date": today,
+        "total_trades": total,
+        "wins": wins,
+        "losses": losses,
+        "win_rate": round(win_rate, 2),
+        "total_pnl": round(total_pnl, 2),
+        "today_pnl": round(today_pnl, 2),
+        "recent": recent,
+        "runtime": _get_orb_runtime_snapshot(),
+        "source": "orb_strategy_trades_csv",
+        "time": now_ist().strftime("%Y-%m-%d %H:%M:%S"),
     })
 
 @app.route("/api/options/expiries")

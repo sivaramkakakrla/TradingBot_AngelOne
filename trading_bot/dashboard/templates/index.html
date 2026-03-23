@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -321,6 +321,7 @@
       <a href="/history">History</a>
       <a href="/chat">AI Chat</a>
       <a href="/180-rule">180 Rule</a>
+      <a href="/orb-strategy">ORB Strategy</a>
     </nav>
     <div class="badge-area">
       <div class="market-badge connecting" id="market-badge">
@@ -484,7 +485,7 @@
         if (s.ltp > 0) {
           renderIndex('sensex', s.ltp, s.prev_close || 0, s.open || 0, s.high || 0, s.low || 0);
         } else if (s.prev_close > 0) {
-          // Market closed or feed not yet active — show prev close
+          // Market closed or feed not yet active - show prev close
           document.getElementById('sensex-ltp').textContent = fmt(s.prev_close);
           document.getElementById('sensex-ltp').className = 'pc-ltp neu';
           document.getElementById('sensex-prev').textContent = fmt(s.prev_close);

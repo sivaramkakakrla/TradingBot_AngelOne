@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Project Candles - ORB Strategy</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg: #f8fafc;
+            --surface: #ffffff;
+            --card: #f1f5f9;
+            --border: #e2e8f0;
+            --txt: #0f172a;
+            --txt-dim: #64748b;
+            --green: #16a34a;
+            --red: #dc2626;
+            --amber: #d97706;
+            --accent: #2563eb;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--txt);
+            min-height: 100vh;
+        }
+
+        .topbar {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            height: 48px;
+            padding: 0 24px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .logo {
+            font-size: .95rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .topbar nav {
+            display: flex;
+            gap: 4px;
+            margin-left: 16px;
+        }
+
+        .topbar nav a {
+            color: var(--txt-dim);
+            text-decoration: none;
+            font-size: .8rem;
+            font-weight: 500;
+            padding: 6px 14px;
+            border-radius: 8px;
+        }
+
+        .topbar nav a.active {
+            color: var(--accent);
+            background: rgba(37, 99, 235, .1);
+        }
+
+        .badge {
+            margin-left: auto;
+            font-size: .72rem;
+            font-weight: 700;
+            color: var(--amber);
+            background: rgba(217, 119, 6, .12);
+            border: 1px solid rgba(217, 119, 6, .26);
+            border-radius: 999px;
+            padding: 5px 12px;
+        }
+
+        .wrap {
+            max-width: 1180px;
+            margin: 20px auto;
+            padding: 0 16px 30px;
+            display: grid;
+            gap: 14px;
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 14px;
+        }
+
+        .title {
+            font-size: .84rem;
+            font-weight: 700;
+            color: var(--txt-dim);
+            margin-bottom: 8px;
+        }
+
+        .row {
+            display: grid;
+            gap: 12px;
+        }
+
+        .row.grid-4 {
+            grid-template-columns: repeat(4, 1fr);
+        }
+
+        .row.grid-3 {
+            grid-template-columns: repeat(3, 1fr);
+        }
+
+        @media (max-width: 980px) {
+
+            .row.grid-4,
+            .row.grid-3 {
+                grid-template-columns: 1fr;
+            }
+
+            .topbar nav {
+                overflow-x: auto;
+                white-space: nowrap;
+            }
+        }
+
+        .pill {
+            border: 1px solid var(--border);
+            background: var(--card);
+            border-radius: 10px;
+            padding: 9px 10px;
+        }
+
+        .pill .k {
+            font-size: .66rem;
+            color: var(--txt-dim);
+            text-transform: uppercase;
+        }
+
+        .pill .v {
+            font-size: 1rem;
+            font-weight: 800;
+            margin-top: 4px;
+        }
+
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: .8rem;
+            padding: 8px 10px;
+            background: var(--surface);
+            color: var(--txt);
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        button.primary {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #fff;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: .78rem;
+        }
+
+        th,
+        td {
+            padding: 8px 6px;
+            border-bottom: 1px solid var(--border);
+            text-align: left;
+        }
+
+        th {
+            color: var(--txt-dim);
+            font-size: .7rem;
+            text-transform: uppercase;
+        }
+
+        .hint {
+            font-size: .74rem;
+            color: var(--txt-dim);
+            line-height: 1.5;
+        }
+
+        .good {
+            color: var(--green);
+        }
+
+        .bad {
+            color: var(--red);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="topbar">
+        <div class="logo">Project Candles</div>
+        <nav>
+            <a href="/">Dashboard</a>
+            <a href="/trade">Paper Trade</a>
+            <a href="/orders">Orders</a>
+            <a href="/opportunities">Opportunities</a>
+            <a href="/history">History</a>
+            <a href="/chat">AI Chat</a>
+            <a href="/180-rule">180 Rule</a>
+            <a href="/orb-strategy" class="active">ORB Strategy</a>
+        </nav>
+        <div class="badge">09:15-09:30 ORB</div>
+    </div>
+
+    <div class="wrap">
+        <div class="card">
+            <div class="controls">
+                <button class="primary" onclick="refreshAll()">Refresh</button>
+                <button onclick="toggleAuto()" id="autoBtn">Auto Refresh: ON</button>
+                <span id="lastTs" style="font-size:.74rem;color:var(--txt-dim)">--</span>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="title">ORB Live Auto-Trade P&L (ORB only)</div>
+            <div class="row grid-4">
+                <div class="pill">
+                    <div class="k">Today's P&L</div>
+                    <div class="v" id="pnlToday">₹0.00</div>
+                </div>
+                <div class="pill">
+                    <div class="k">Total P&L</div>
+                    <div class="v" id="pnlTotal">₹0.00</div>
+                </div>
+                <div class="pill">
+                    <div class="k">Trades</div>
+                    <div class="v" id="totalTrades">0</div>
+                </div>
+                <div class="pill">
+                    <div class="k">Win Rate</div>
+                    <div class="v" id="winRate">0.00%</div>
+                </div>
+            </div>
+            <div id="pnlMeta" class="hint" style="margin-top:8px;">Source: --</div>
+        </div>
+
+        <div class="card">
+            <div class="title">ORB Runtime Snapshot</div>
+            <div class="row grid-3">
+                <div class="pill">
+                    <div class="k">ORB High</div>
+                    <div class="v" id="orbHigh">--</div>
+                </div>
+                <div class="pill">
+                    <div class="k">ORB Low</div>
+                    <div class="v" id="orbLow">--</div>
+                </div>
+                <div class="pill">
+                    <div class="k">Spot</div>
+                    <div class="v" id="spotLtp">--</div>
+                </div>
+            </div>
+            <div class="hint" id="runtimeNote" style="margin-top:8px;">--</div>
+        </div>
+
+        <div class="card">
+            <div class="title">Recent ORB Trades</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Instrument</th>
+                        <th>Side</th>
+                        <th>Entry</th>
+                        <th>Exit</th>
+                        <th>P&L</th>
+                        <th>Reason</th>
+                    </tr>
+                </thead>
+                <tbody id="tradeBody">
+                    <tr>
+                        <td colspan="7" class="hint">Loading...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <div class="title">ORB Rules</div>
+            <div class="hint">
+                1. ORB window: 09:15-09:30, breakout entries after 09:30 only.<br />
+                2. BUY CE on close-confirmed breakout above ORB high, BUY PE below ORB low.<br />
+                3. Skip wick-only breakout, low volume, inside-range candles, and large-gap days.<br />
+                4. Max 2 trades/day, limited re-entry, cooldown to prevent revenge trading.<br />
+                5. Trail stop uses ORB midpoint or previous candle mode (based on config).
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const RS = '₹';
+        let autoOn = true;
+
+        function asMoney(v) {
+            const n = Number(v || 0);
+            return (n >= 0 ? '+' : '-') + RS + Math.abs(n).toFixed(2);
+        }
+
+        async function refreshPnl() {
+            const r = await fetch('/api/orb/pnl');
+            const d = await r.json();
+
+            const todayEl = document.getElementById('pnlToday');
+            todayEl.textContent = asMoney(d.today_pnl || 0);
+            todayEl.className = 'v ' + ((Number(d.today_pnl || 0) >= 0) ? 'good' : 'bad');
+
+            const totalEl = document.getElementById('pnlTotal');
+            totalEl.textContent = asMoney(d.total_pnl || 0);
+            totalEl.className = 'v ' + ((Number(d.total_pnl || 0) >= 0) ? 'good' : 'bad');
+
+            document.getElementById('totalTrades').textContent = String(d.total_trades || 0);
+            document.getElementById('winRate').textContent = Number(d.win_rate || 0).toFixed(2) + '%';
+            document.getElementById('pnlMeta').textContent = 'Source: ' + (d.source || '--') + ' | Updated: ' + (d.time || '--');
+
+            document.getElementById('orbHigh').textContent = d.runtime && d.runtime.orb_high != null ? Number(d.runtime.orb_high).toFixed(2) : '--';
+            document.getElementById('orbLow').textContent = d.runtime && d.runtime.orb_low != null ? Number(d.runtime.orb_low).toFixed(2) : '--';
+            document.getElementById('spotLtp').textContent = d.runtime && d.runtime.spot_ltp != null ? (RS + Number(d.runtime.spot_ltp).toFixed(2)) : '--';
+            document.getElementById('runtimeNote').textContent = (d.runtime && d.runtime.note) || '--';
+
+            const rows = d.recent || [];
+            const body = document.getElementById('tradeBody');
+            if (!rows.length) {
+                body.innerHTML = '<tr><td colspan="7" class="hint">No ORB trades logged yet</td></tr>';
+            } else {
+                body.innerHTML = rows.map(t => {
+                    const pnl = Number(t.pnl || 0);
+                    const cls = pnl >= 0 ? 'good' : 'bad';
+                    return '<tr>' +
+                        '<td>' + (t.timestamp || '--') + '</td>' +
+                        '<td>' + (t.instrument || '--') + '</td>' +
+                        '<td>' + (t.side || '--') + '</td>' +
+                        '<td>' + RS + Number(t.entry || 0).toFixed(2) + '</td>' +
+                        '<td>' + RS + Number(t.exit || 0).toFixed(2) + '</td>' +
+                        '<td class="' + cls + '" style="font-weight:700;">' + asMoney(pnl) + '</td>' +
+                        '<td>' + (t.reason || '--') + '</td>' +
+                        '</tr>';
+                }).join('');
+            }
+
+            document.getElementById('lastTs').textContent = 'Last refresh: ' + (d.time || '--');
+        }
+
+        async function refreshAll() {
+            try { await refreshPnl(); } catch (e) { console.error(e); }
+        }
+
+        function toggleAuto() {
+            autoOn = !autoOn;
+            document.getElementById('autoBtn').textContent = 'Auto Refresh: ' + (autoOn ? 'ON' : 'OFF');
+        }
+
+        (async () => {
+            await refreshAll();
+            setInterval(() => { if (autoOn) refreshAll(); }, 10000);
+        })();
+    </script>
+</body>
+
+</html>
