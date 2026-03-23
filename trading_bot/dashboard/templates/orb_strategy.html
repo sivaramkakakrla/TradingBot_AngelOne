@@ -115,6 +115,10 @@
             grid-template-columns: repeat(4, 1fr);
         }
 
+        .row.grid-5 {
+            grid-template-columns: repeat(5, 1fr);
+        }
+
         .row.grid-3 {
             grid-template-columns: repeat(3, 1fr);
         }
@@ -122,7 +126,8 @@
         @media (max-width: 980px) {
 
             .row.grid-4,
-            .row.grid-3 {
+            .row.grid-3,
+            .row.grid-5 {
                 grid-template-columns: 1fr;
             }
 
@@ -238,7 +243,11 @@
 
         <div class="card">
             <div class="title">ORB Live Auto-Trade P&L (ORB only)</div>
-            <div class="row grid-4">
+            <div class="row grid-5">
+                <div class="pill">
+                    <div class="k">Investment Budget</div>
+                    <div class="v" id="orbBudgetCard">₹30,000.00</div>
+                </div>
                 <div class="pill">
                     <div class="k">Today's P&L</div>
                     <div class="v" id="pnlToday">₹0.00</div>
@@ -334,6 +343,7 @@
             totalEl.textContent = asMoney(d.total_pnl || 0);
             totalEl.className = 'v ' + ((Number(d.total_pnl || 0) >= 0) ? 'good' : 'bad');
 
+            document.getElementById('orbBudgetCard').textContent = RS + Number(d.budget_per_trade || 0).toFixed(2);
             document.getElementById('totalTrades').textContent = String(d.total_trades || 0);
             document.getElementById('winRate').textContent = Number(d.win_rate || 0).toFixed(2) + '%';
             document.getElementById('orbBudget').textContent =
