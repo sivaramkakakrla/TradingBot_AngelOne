@@ -224,6 +224,42 @@ def evaluate(df: pd.DataFrame, backtest: bool = False) -> list[Signal]:
         ref_idx = max(p["bar_index"] for p in pattern_group)
         pattern_names = list({p["pattern"] for p in pattern_group})
 
+        # ── Step 3b: Confirmation candle quality check ───────────────
+        # The pattern fires at ref_idx with built-in shift(-1) confirmation,
+        # meaning ref_idx+1 is the confirmation candle. Verify it's a
+        # quality candle moving in the expected direction — not a doji or
+        # weak candle that barely confirms.
+        confirm_idx = ref_idx + 1
+        confirmation_ok = True
+        confirmation_reason = ""
+        if confirm_idx < len(df):
+            c_open = float(df["open"].iloc[confirm_idx])
+            c_close = float(df["close"].iloc[confirm_idx])
+            c_high = float(df["high"].iloc[confirm_idx])
+            c_low = float(df["low"].iloc[confirm_idx])
+            c_body = abs(c_close - c_open)
+            c_range = c_high - c_low if c_high != c_low else 1e-9
+            body_ratio = c_body / c_range
+
+            if direction == "BULLISH":
+                if c_close <= c_open:
+                    confirmation_ok = False
+                    confirmation_reason = "confirmation candle is red (bearish)"
+                elif body_ratio < 0.25:
+                    confirmation_ok = False
+                    confirmation_reason = "confirmation candle is a doji/weak body"
+            else:  # BEARISH
+                if c_close >= c_open:
+                    confirmation_ok = False
+                    confirmation_reason = "confirmation candle is green (bullish)"
+                elif body_ratio < 0.25:
+                    confirmation_ok = False
+                    confirmation_reason = "confirmation candle is a doji/weak body"
+        else:
+            # No next candle yet — cannot confirm
+            confirmation_ok = False
+            confirmation_reason = "no confirmation candle yet"
+
         # ── Step 4: Run indicator filters at the reference bar ───────
         rsi_val = rsi_s.iloc[ref_idx]
         macd_hist = macd_df["macd_histogram"].iloc[ref_idx]
@@ -258,8 +294,10 @@ def evaluate(df: pd.DataFrame, backtest: bool = False) -> list[Signal]:
             reasons.append(f"only {confirmations}/{MIN_CONFIRMATIONS} confirmations")
         if not in_window:
             reasons.append("outside trade window")
+        if not confirmation_ok:
+            reasons.append(confirmation_reason)
 
-        if confirmations >= MIN_CONFIRMATIONS and in_window:
+        if confirmations >= MIN_CONFIRMATIONS and in_window and confirmation_ok:
             action = "ENTER"
             reason_str = (
                 f"{', '.join(pattern_names)} confirmed by "

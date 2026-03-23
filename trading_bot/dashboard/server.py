@@ -28,6 +28,7 @@ from trading_bot.data.store import (
     get_cursor, get_open_trades, get_today_pnl, init_db,
     insert_order, insert_trade,
     get_portfolio, init_portfolio, update_portfolio_after_trade, reset_portfolio,
+    get_pnl_between, get_weekly_pnl_breakdown,
 )
 from trading_bot.indicators import sma, linear_regression
 from trading_bot.candles import detect_all, scan_signals
@@ -213,6 +214,34 @@ def api_pnl():
         "total_pnl":   round(pnl, 2),
         "open_trades": open_trades,
         "mode":        config.TRADING_MODE.upper(),
+    })
+
+
+@app.route("/api/pnl/summary")
+def api_pnl_summary():
+    """Return P&L summary: today, this month, and last 4 weeks breakdown."""
+    import datetime as _dt
+    today = now_ist().date()
+    today_str = today.isoformat()
+
+    # Today's P&L
+    today_pnl = get_today_pnl(today_str)
+
+    # This month P&L (1st of month to today)
+    month_start = today.replace(day=1).isoformat()
+    month_summary = get_pnl_between(month_start, today_str)
+
+    # Last 4 weeks breakdown
+    weekly = get_weekly_pnl_breakdown(4)
+
+    return jsonify({
+        "today": {"date": today_str, "pnl": round(today_pnl, 2)},
+        "this_month": {
+            "from": month_start,
+            "to": today_str,
+            **month_summary,
+        },
+        "weekly": weekly,
     })
 
 

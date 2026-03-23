@@ -989,6 +989,34 @@
             </div>
 
             <div class="context-section">
+                <div class="ctx-title">P&amp;L Summary</div>
+                <div class="ctx-card" id="pnl-summary-card">
+                    <div class="ctx-row">
+                        <span class="ctx-key">Today's P&amp;L</span>
+                        <span class="ctx-val" id="pnl-today">₹0</span>
+                    </div>
+                    <div class="ctx-row">
+                        <span class="ctx-key">This Month</span>
+                        <span class="ctx-val" id="pnl-month">₹0</span>
+                    </div>
+                    <div class="ctx-row">
+                        <span class="ctx-key">Month Trades</span>
+                        <span class="ctx-val" id="pnl-month-trades">0</span>
+                    </div>
+                    <div class="ctx-row">
+                        <span class="ctx-key">Month Win Rate</span>
+                        <span class="ctx-val" id="pnl-month-wr">0%</span>
+                    </div>
+                </div>
+                <div style="font-size:.68rem;font-weight:600;color:var(--txt-dim);margin-bottom:6px;margin-top:8px;">
+                    Last 4 Weeks</div>
+                <div class="ctx-card" id="pnl-weekly-card">
+                    <div style="color:var(--txt-mute);font-size:.72rem;text-align:center;padding:6px 0;">Loading...
+                    </div>
+                </div>
+            </div>
+
+            <div class="context-section">
                 <div class="ctx-title">Auto-Trade Engine</div>
                 <div class="ctx-card">
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
@@ -1423,6 +1451,51 @@
             }
         }
 
+        // ── P&L Summary ──
+        async function pollPnlSummary() {
+            try {
+                const r = await fetch('/api/pnl/summary');
+                const d = await r.json();
+
+                // Today
+                const todayPnl = d.today?.pnl || 0;
+                const todayEl = document.getElementById('pnl-today');
+                todayEl.textContent = (todayPnl >= 0 ? '+' : '') + RS + todayPnl.toFixed(2);
+                todayEl.className = 'ctx-val ' + (todayPnl >= 0 ? 'pos' : 'neg');
+
+                // This month
+                const monthPnl = d.this_month?.total_pnl || 0;
+                const monthEl = document.getElementById('pnl-month');
+                monthEl.textContent = (monthPnl >= 0 ? '+' : '') + RS + monthPnl.toFixed(2);
+                monthEl.className = 'ctx-val ' + (monthPnl >= 0 ? 'pos' : 'neg');
+
+                const mTrades = d.this_month?.trades || 0;
+                const mWins = d.this_month?.wins || 0;
+                document.getElementById('pnl-month-trades').textContent = mTrades;
+                const wr = mTrades > 0 ? (mWins / mTrades * 100).toFixed(0) : 0;
+                document.getElementById('pnl-month-wr').textContent = wr + '%';
+
+                // Weekly breakdown
+                const weeklyEl = document.getElementById('pnl-weekly-card');
+                const weeks = d.weekly || [];
+                if (weeks.length === 0) {
+                    weeklyEl.innerHTML = '<div style="color:var(--txt-mute);font-size:.72rem;text-align:center;padding:6px 0;">No data</div>';
+                } else {
+                    weeklyEl.innerHTML = weeks.map(w => {
+                        const pnl = w.total_pnl || 0;
+                        const cls = pnl >= 0 ? 'pos' : 'neg';
+                        const ws = w.week_start ? w.week_start.slice(5) : '';
+                        const we = w.week_end ? w.week_end.slice(5) : '';
+                        const winLoss = w.trades > 0 ? w.wins + 'W / ' + w.losses + 'L' : '--';
+                        return '<div class="ctx-row"><span class="ctx-key" style="font-size:.68rem;">' + ws + ' → ' + we + '</span>' +
+                            '<span class="ctx-val ' + cls + '" style="font-size:.72rem;">' + (pnl >= 0 ? '+' : '') + RS + pnl.toFixed(2) + ' <span style="font-weight:500;color:var(--txt-mute);font-size:.6rem;">(' + winLoss + ')</span></span></div>';
+                    }).join('');
+                }
+            } catch (e) {
+                console.error('P&L summary error', e);
+            }
+        }
+
         // ── Auto-Trade Controls ──
         let _atEnabled = false;
 
@@ -1601,8 +1674,10 @@
             await pollLive();
             await runScan(false);
             startAutoScan();
+            await pollPnlSummary();
             setInterval(pollLive, 5000);
             setInterval(pollAutoTradeStatus, 5000);
+            setInterval(pollPnlSummary, 60000);
             await autoStartEngine();
             await pollAutoTradeStatus();
             // Update top status bar for Vercel

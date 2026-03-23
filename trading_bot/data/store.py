@@ -358,6 +358,58 @@ def get_today_pnl(date_str: str) -> float:
         return float(row[0]) if row else 0.0
 
 
+def get_pnl_between(from_date: str, to_date: str) -> dict:
+    """Return PnL summary for trades closed between two dates (inclusive).
+
+    Parameters: from_date, to_date — 'YYYY-MM-DD'
+    Returns dict with total_pnl, trades, wins, losses.
+    """
+    sql = """
+        SELECT
+            COALESCE(SUM(pnl), 0)             AS total_pnl,
+            COUNT(*)                           AS trades,
+            SUM(CASE WHEN pnl >= 0 THEN 1 ELSE 0 END) AS wins,
+            SUM(CASE WHEN pnl < 0 THEN 1 ELSE 0 END)  AS losses
+        FROM trades
+        WHERE status = 'CLOSED'
+          AND DATE(exit_time) >= ? AND DATE(exit_time) <= ?
+    """
+    with get_cursor() as cur:
+        cur.execute(sql, (from_date, to_date))
+        row = cur.fetchone()
+        if row:
+            return {
+                "total_pnl": round(float(row[0]), 2),
+                "trades": int(row[1]),
+                "wins": int(row[2]),
+                "losses": int(row[3]),
+            }
+        return {"total_pnl": 0.0, "trades": 0, "wins": 0, "losses": 0}
+
+
+def get_weekly_pnl_breakdown(weeks: int = 4) -> list[dict]:
+    """Return P&L breakdown for the last N weeks (Mon-Sun).
+
+    Returns a list of dicts sorted newest week first:
+        [{"week_start": "YYYY-MM-DD", "week_end": "YYYY-MM-DD",
+          "total_pnl": float, "trades": int, "wins": int, "losses": int}, ...]
+    """
+    import datetime
+    today = datetime.date.today()
+    # Start of this week (Monday)
+    week_start = today - datetime.timedelta(days=today.weekday())
+
+    result = []
+    for i in range(weeks):
+        ws = week_start - datetime.timedelta(weeks=i)
+        we = ws + datetime.timedelta(days=6)
+        summary = get_pnl_between(ws.isoformat(), we.isoformat())
+        summary["week_start"] = ws.isoformat()
+        summary["week_end"] = we.isoformat()
+        result.append(summary)
+    return result
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 #  SIGNAL HELPERS
 # ═══════════════════════════════════════════════════════════════════════════════
