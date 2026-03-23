@@ -1446,7 +1446,11 @@
         const data = await r.json();
 
         if (data.error) {
-          body.innerHTML = '<div class="ai-error">⚠ ' + data.error + '</div>';
+          if (data.error === 'RATE_LIMIT') {
+            _showRateLimitCountdown(body, trade);
+          } else {
+            body.innerHTML = '<div class="ai-error">⚠ ' + data.error + '</div>';
+          }
           return;
         }
 
@@ -1492,6 +1496,30 @@
       } catch (e) {
         body.innerHTML = '<div class="ai-error">⚠ Request failed: ' + e.message + '</div>';
       }
+    }
+
+    function _showRateLimitCountdown(body, trade) {
+      let secs = 32;
+      const render = () => {
+        body.innerHTML =
+          '<div class="ai-error" style="text-align:center;padding:32px 20px;">' +
+          '<div style="font-size:1.1rem;margin-bottom:10px;">⏳ OpenAI rate limit</div>' +
+          '<div style="font-size:.8rem;margin-bottom:18px;color:var(--txt-dim)">Too many requests — auto-retrying in <strong id="ai-rl-secs">' + secs + '</strong>s</div>' +
+          '<button onclick="clearInterval(window._aiRlTimer);openAiAnalysis(\'' + trade.trade_id + '\')" ' +
+          'style="background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.4);color:#7c3aed;' +
+          'padding:7px 20px;border-radius:6px;font-size:.78rem;font-weight:700;cursor:pointer;font-family:inherit;">Retry Now</button>' +
+          '</div>';
+      };
+      render();
+      window._aiRlTimer = setInterval(() => {
+        secs--;
+        const el = document.getElementById('ai-rl-secs');
+        if (el) el.textContent = secs;
+        if (secs <= 0) {
+          clearInterval(window._aiRlTimer);
+          openAiAnalysis(trade.trade_id);
+        }
+      }, 1000);
     }
 
     function _aiMetaCell(label, val, color) {

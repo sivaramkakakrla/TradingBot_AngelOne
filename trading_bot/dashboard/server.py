@@ -1211,6 +1211,10 @@ def api_llm_analyze_trade():
 
     if not result.get("error"):
         set_cached(cache_key, response, ttl=3600)  # cache 1 hour
+    elif result.get("error") == "RATE_LIMIT":
+        # Cache rate-limit result for 30s so rapid re-clicks don't hammer OpenAI
+        response["error"] = "RATE_LIMIT"
+        set_cached(cache_key, response, ttl=30)
 
     return jsonify(response)
 

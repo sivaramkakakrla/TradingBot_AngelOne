@@ -395,46 +395,40 @@ def analyze_failed_trade(
         + "\nAnalyse this trade thoroughly using the six sections in your instructions."
     )
 
-    import time as _time
+    try:
+        client = openai.OpenAI(api_key=config.OPENAI_API_KEY)
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": TRADE_ANALYSIS_SYSTEM_PROMPT},
+                {"role": "user", "content": user_message},
+            ],
+            temperature=0.3,
+            max_tokens=2400,
+        )
+        analysis = response.choices[0].message.content
+        log.info("Trade analysis complete (%s, trade=%s)", model, trade.get("trade_id", "?"))
 
-    for _attempt in range(3):
+        # ── Parse JSON suggestions block from the response ─────────────────
+        import re as _re
+        import json as _json_mod
+        suggestions: list = []
         try:
-            client = openai.OpenAI(api_key=config.OPENAI_API_KEY)
-            response = client.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": TRADE_ANALYSIS_SYSTEM_PROMPT},
-                    {"role": "user", "content": user_message},
-                ],
-                temperature=0.3,
-                max_tokens=2400,
-            )
-            analysis = response.choices[0].message.content
-            log.info("Trade analysis complete (%s, trade=%s)", model, trade.get("trade_id", "?"))
+            json_match = _re.search(r'```json\s*(\{.*?\})\s*```', analysis, _re.DOTALL)
+            if json_match:
+                parsed = _json_mod.loads(json_match.group(1))
+                suggestions = parsed.get("suggestions", [])
+                # Strip the JSON block from the narrative text
+                analysis = _re.sub(r'\n*## 7\..*?```json.*?```', '', analysis, flags=_re.DOTALL).strip()
+        except Exception as _parse_exc:
+            log.debug("Suggestions JSON parse: %s", _parse_exc)
 
-            # ── Parse JSON suggestions block from the response ─────────────────
-            import re as _re
-            import json as _json_mod
-            suggestions: list = []
-            try:
-                json_match = _re.search(r'```json\s*(\{.*?\})\s*```', analysis, _re.DOTALL)
-                if json_match:
-                    parsed = _json_mod.loads(json_match.group(1))
-                    suggestions = parsed.get("suggestions", [])
-                    # Strip the JSON block from the narrative text
-                    analysis = _re.sub(r'\n*## 7\..*?```json.*?```', '', analysis, flags=_re.DOTALL).strip()
-            except Exception as _parse_exc:
-                log.debug("Suggestions JSON parse: %s", _parse_exc)
+        return {"analysis": analysis, "suggestions": suggestions, "model": model, "error": None}
 
-            return {"analysis": analysis, "suggestions": suggestions, "model": model, "error": None}
-
-        except openai.AuthenticationError:
-            return {"analysis": "", "model": model, "error": "OpenAI authentication failed. Check your API key."}
-        except openai.RateLimitError:
-            if _attempt < 2:
-                _time.sleep(5 * (_attempt + 1))   # 5s, then 10s
-                continue
-            return {"analysis": "", "model": model, "error": "OpenAI rate limit reached. Please try again in ~30 seconds."}
-        except Exception as exc:
-            log.error("Trade analysis LLM error: %s", exc)
-            return {"analysis": "", "model": model, "error": str(exc)}
+    except openai.AuthenticationError:
+        return {"analysis": "", "model": model, "error": "OpenAI authentication failed. Check your API key."}
+    except openai.RateLimitError:
+        return {"analysis": "", "model": model, "error": "RATE_LIMIT"}
+    except Exception as exc:
+        log.error("Trade analysis LLM error: %s", exc)
+        return {"analysis": "", "model": model, "error": str(exc)}
