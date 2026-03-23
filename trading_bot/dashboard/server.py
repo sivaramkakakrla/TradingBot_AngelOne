@@ -360,6 +360,38 @@ def api_portfolio_reset():
     return jsonify({"status": "ok", "balance": p["current_balance"]})
 
 
+@app.route("/api/debug/db")
+def api_debug_db():
+    """Temporary debug: show DB state on Vercel."""
+    import os
+    from trading_bot.data.store import get_cursor
+    info = {"db_path": config.DB_PATH, "is_vercel": bool(os.getenv("VERCEL"))}
+    try:
+        with get_cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM trades")
+            info["total_trades"] = cur.fetchone()[0]
+            cur.execute("SELECT COUNT(*) FROM trades WHERE status='OPEN'")
+            info["open_trades"] = cur.fetchone()[0]
+            cur.execute("SELECT COUNT(*) FROM trades WHERE status='CLOSED'")
+            info["closed_trades"] = cur.fetchone()[0]
+            cur.execute("SELECT COUNT(*) FROM orders")
+            info["total_orders"] = cur.fetchone()[0]
+            cur.execute("SELECT trade_id, status, source, symbol FROM trades ORDER BY entry_time DESC LIMIT 5")
+            info["latest_trades"] = [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        info["error"] = str(e)
+    # Redis check
+    try:
+        from trading_bot.redis_sync import get_all_trades_from_redis, get_scan_log
+        redis_trades = get_all_trades_from_redis()
+        info["redis_total"] = len(redis_trades)
+        info["redis_open"] = len([t for t in redis_trades if t.get("status") == "OPEN"])
+        info["redis_scan_log"] = get_scan_log(5)
+    except Exception as e:
+        info["redis_error"] = str(e)
+    return jsonify(info)
+
+
 # ─── Paper Trading APIs ───────────────────────────────────────────────────────
 
 @app.route("/api/paper/buy", methods=["POST"])
