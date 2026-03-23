@@ -137,6 +137,14 @@ SL_BLOCK_DURATION = 1200          # 20 minutes
 # Per-period overtrading cap (max new auto-trades in a rolling window)
 MAX_TRADES_PER_15MIN = 1          # at most 1 new trade every 15 minutes
 
+# Hard safety brakes
+MAX_CONSECUTIVE_SL = 2            # pause trading after this many SL hits in a row
+MAX_INTRADAY_DRAWDOWN = 1200      # stop new entries if peak-to-trough drawdown exceeds this
+
+# Option premium quality band (avoid deep OTM junk and over-expensive contracts)
+MIN_ENTRY_PREMIUM = 120.0
+MAX_ENTRY_PREMIUM = 280.0
+
 # ═══════════════════════════════════════════════════════════════════════════════
 #  EXIT / RISK MANAGEMENT
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -166,6 +174,14 @@ HTF_EMA_SLOW = 21                # 15m slow EMA
 
 # Entry signal quality floor
 MIN_SIGNAL_STRENGTH = 50         # discard signals below this composite score
+
+# Opening range breakout quality filter (avoid random midday micro-breaks)
+OPENING_RANGE_FILTER_ENABLED = True
+OPENING_RANGE_END = "09:30"      # build OR from 09:15 to 09:30 on 1m bars
+OPENING_RANGE_BUFFER = 8.0        # points beyond OR high/low required to validate breakout
+
+# Candle quality: reject stretched bars that often mean late entry/chasing
+MAX_ENTRY_BAR_ATR_MULT = 2.2      # if (bar range / ATR) > this, skip as over-extended
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  AI CONFIDENCE FILTER

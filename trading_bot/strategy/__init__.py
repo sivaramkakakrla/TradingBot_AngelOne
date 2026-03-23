@@ -117,6 +117,27 @@ def is_sideways_market(df: pd.DataFrame) -> bool:
         return False  # fail open — don't block on errors
 
 
+def trend_detection(df_15m: pd.DataFrame) -> dict:
+    """Return higher-timeframe trend metrics used for directional bias."""
+    if df_15m is None or len(df_15m) < config.HTF_EMA_SLOW + 5:
+        return {"bias": None, "ema_fast": None, "ema_slow": None}
+    try:
+        fast = calc_ema(df_15m["close"], config.HTF_EMA_FAST)
+        slow = calc_ema(df_15m["close"], config.HTF_EMA_SLOW)
+        f_val = float(fast.iloc[-1])
+        s_val = float(slow.iloc[-1])
+        if pd.isna(f_val) or pd.isna(s_val):
+            return {"bias": None, "ema_fast": None, "ema_slow": None}
+        return {
+            "bias": "BULLISH" if f_val > s_val else "BEARISH",
+            "ema_fast": round(f_val, 2),
+            "ema_slow": round(s_val, 2),
+        }
+    except Exception as exc:
+        log.warning("trend_detection error: %s", exc)
+        return {"bias": None, "ema_fast": None, "ema_slow": None}
+
+
 def get_htf_bias(df_15m: pd.DataFrame) -> str | None:
     """
     Compute higher-timeframe (15m) trend bias using EMA9 vs EMA21 cross.
@@ -126,22 +147,18 @@ def get_htf_bias(df_15m: pd.DataFrame) -> str | None:
         "BEARISH"  — EMA9 < EMA21
         None       — insufficient data or indeterminate
     """
-    if df_15m is None or len(df_15m) < config.HTF_EMA_SLOW + 5:
-        return None
-    try:
-        fast = calc_ema(df_15m["close"], config.HTF_EMA_FAST)
-        slow = calc_ema(df_15m["close"], config.HTF_EMA_SLOW)
-        f_val = float(fast.iloc[-1])
-        s_val = float(slow.iloc[-1])
-        if pd.isna(f_val) or pd.isna(s_val):
-            return None
-        bias = "BULLISH" if f_val > s_val else "BEARISH"
-        log.debug("get_htf_bias: EMA%d=%.2f EMA%d=%.2f → %s",
-                  config.HTF_EMA_FAST, f_val, config.HTF_EMA_SLOW, s_val, bias)
-        return bias
-    except Exception as exc:
-        log.warning("get_htf_bias error: %s", exc)
-        return None   # fail open — don't block on errors
+    t = trend_detection(df_15m)
+    bias = t.get("bias")
+    if bias:
+        log.debug(
+            "get_htf_bias: EMA%d=%s EMA%d=%s -> %s",
+            config.HTF_EMA_FAST,
+            t.get("ema_fast"),
+            config.HTF_EMA_SLOW,
+            t.get("ema_slow"),
+            bias,
+        )
+    return bias
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -230,6 +247,67 @@ def _calc_sl_target(atr_val: float) -> tuple[float, float]:
         sl = round(max(atr_val * 1.5, config.INITIAL_SL_POINTS), 2)
     target = round(sl * 2, 2)
     return sl, target
+
+
+def _extract_hhmm(ts: str) -> str:
+    """Return HH:MM from timestamp-like strings (ISO or broker format)."""
+    s = str(ts or "")
+    if not s:
+        return ""
+    s = s.replace("T", " ")
+    if " " in s:
+        t = s.split(" ")[-1]
+    else:
+        t = s
+    return t[:5]
+
+
+def _opening_range_breakout_ok(df: pd.DataFrame, ref_idx: int, direction: str) -> bool:
+    """
+    Require valid breakout beyond opening range for morning trades.
+
+    OR definition: 09:15 to OPENING_RANGE_END.
+    Applied only for entries up to 11:30.
+    """
+    if not config.OPENING_RANGE_FILTER_ENABLED:
+        return True
+    if "timestamp" not in df.columns or ref_idx < 0 or ref_idx >= len(df):
+        return True
+
+    hhmm = _extract_hhmm(df["timestamp"].iloc[ref_idx])
+    if not hhmm:
+        return True
+    if hhmm <= config.OPENING_RANGE_END:
+        return False  # wait until OR is formed
+    if hhmm > "11:30":
+        return True   # filter is for morning breakouts only
+
+    or_rows = []
+    for i, ts in enumerate(df["timestamp"]):
+        t = _extract_hhmm(ts)
+        if "09:15" <= t <= config.OPENING_RANGE_END:
+            or_rows.append(i)
+    if len(or_rows) < 5:
+        return True
+
+    or_high = float(df["high"].iloc[or_rows].max())
+    or_low = float(df["low"].iloc[or_rows].min())
+    close = float(df["close"].iloc[ref_idx])
+    buf = float(config.OPENING_RANGE_BUFFER)
+
+    if direction == "BULLISH":
+        return close >= (or_high + buf)
+    return close <= (or_low - buf)
+
+
+def _bar_not_overextended(df: pd.DataFrame, ref_idx: int, atr_val: float) -> bool:
+    """Reject entry bars that are too stretched versus ATR (late/chasing entries)."""
+    if ref_idx < 0 or ref_idx >= len(df):
+        return True
+    if pd.isna(atr_val) or atr_val <= 0:
+        return True
+    bar_range = float(df["high"].iloc[ref_idx]) - float(df["low"].iloc[ref_idx])
+    return (bar_range / float(atr_val)) <= float(config.MAX_ENTRY_BAR_ATR_MULT)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -392,12 +470,24 @@ def evaluate(df: pd.DataFrame, backtest: bool = False,
         if not strength_ok:
             reasons.append(f"strength {strength} < floor {config.MIN_SIGNAL_STRENGTH}")
 
+        # Morning opening-range breakout quality gate
+        or_ok = backtest or _opening_range_breakout_ok(df, ref_idx, direction)
+        if not or_ok:
+            reasons.append("opening-range breakout not validated")
+
+        # Avoid chasing over-extended bars
+        bar_shape_ok = backtest or _bar_not_overextended(df, ref_idx, atr_val)
+        if not bar_shape_ok:
+            reasons.append("entry candle over-extended vs ATR")
+
         all_gates = (
             confirmations >= MIN_CONFIRMATIONS
             and in_window
             and confirmation_ok
             and htf_aligned
             and strength_ok
+            and or_ok
+            and bar_shape_ok
         )
 
         if all_gates:

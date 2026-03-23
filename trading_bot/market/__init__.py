@@ -37,6 +37,34 @@ _latest: MarketTick = MarketTick()
 _latest_sensex: MarketTick = MarketTick()
 _running = False
 _thread: threading.Thread | None = None
+_last_reauth_attempt = 0.0
+
+
+def _is_invalid_token_response(resp) -> bool:
+    """Detect expired/invalid-token responses from SmartAPI payloads."""
+    if not isinstance(resp, dict):
+        return False
+    msg = str(resp.get("message", "")).lower()
+    code = str(resp.get("errorCode") or resp.get("errorcode") or "").upper()
+    return ("invalid token" in msg) or (code == "AG8001")
+
+
+def _refresh_session_after_token_error(current_session):
+    """Re-authenticate once when token becomes invalid (throttled)."""
+    global _session_ref, _last_reauth_attempt
+    now = _time.time()
+    if now - _last_reauth_attempt < 60:
+        return current_session
+    _last_reauth_attempt = now
+    try:
+        from trading_bot.auth.login import logout, authenticate
+        logout()
+        _session_ref = authenticate()
+        log.warning("Refreshed AngelOne session after token error")
+        return _session_ref
+    except Exception as exc:
+        log.error("Session refresh failed after token error: %s", exc)
+        return current_session
 
 
 def get_latest_tick() -> MarketTick:
@@ -59,11 +87,28 @@ def _poll_once(session) -> MarketTick | None:
             tradingsymbol=config.UNDERLYING,
             symboltoken=config.NIFTY_TOKEN,
         )
+
+        # Token expired/invalid — refresh session and retry once.
+        if _is_invalid_token_response(resp):
+            session = _refresh_session_after_token_error(session)
+            resp = session.ltpData(
+                exchange=config.EXCHANGE,
+                tradingsymbol=config.UNDERLYING,
+                symboltoken=config.NIFTY_TOKEN,
+            )
+
+        if not isinstance(resp, dict):
+            log.warning("LTP poll returned non-dict payload: %r", type(resp).__name__)
+            return None
+
         if not resp or resp.get("status") is False:
             log.debug("LTP call returned: %s", resp)
             return None
 
-        d = resp.get("data", {})
+        d = resp.get("data", {}) or {}
+        if not isinstance(d, dict):
+            log.warning("LTP payload malformed: data is %r", type(d).__name__)
+            return None
         now_str = datetime.now(tz=IST).isoformat()
 
         return MarketTick(
@@ -95,8 +140,19 @@ def _poll_sensex_once(session) -> MarketTick | None:
                     tradingsymbol=sym,
                     symboltoken=tok,
                 )
+                if _is_invalid_token_response(resp):
+                    session = _refresh_session_after_token_error(session)
+                    resp = session.ltpData(
+                        exchange=exch,
+                        tradingsymbol=sym,
+                        symboltoken=tok,
+                    )
+                if not isinstance(resp, dict):
+                    continue
                 if resp and resp.get("status") is not False:
-                    d = resp.get("data", {})
+                    d = resp.get("data", {}) or {}
+                    if not isinstance(d, dict):
+                        continue
                     ltp = float(d.get("ltp", 0))
                     if ltp > 0:
                         now_str = datetime.now(tz=IST).isoformat()

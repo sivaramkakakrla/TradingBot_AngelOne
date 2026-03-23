@@ -197,17 +197,110 @@ def _count_today_auto_trades() -> int:
 def _count_trades_last_n_minutes(minutes: int = 15) -> int:
     """Count auto-trades placed in the last N minutes (overtrading guard)."""
     try:
+        cutoff = now_ist().timestamp() - (minutes * 60)
         from trading_bot.data.store import get_cursor
         with get_cursor() as cur:
             cur.execute(
-                "SELECT COUNT(*) FROM trades "
-                "WHERE source='AUTO' AND entry_time >= datetime('now', ?)",
-                (f"-{minutes} minutes",),
+                "SELECT entry_time FROM trades WHERE source='AUTO' AND entry_time IS NOT NULL",
             )
-            row = cur.fetchone()
-            return int(row[0]) if row else 0
+            rows = cur.fetchall()
+        cnt = 0
+        for r in rows:
+            ts_raw = r[0]
+            if not ts_raw:
+                continue
+            try:
+                ts = datetime.fromisoformat(str(ts_raw)).timestamp()
+            except Exception:
+                continue
+            if ts >= cutoff:
+                cnt += 1
+        return cnt
     except Exception:
         return 0
+
+
+def _consecutive_sl_losses() -> int:
+    """Count consecutive SL losses from latest closed AUTO trades (today)."""
+    today = now_ist().strftime("%Y-%m-%d")
+    sl_tags = {"SL", "SL_HIT", "SL HIT", "STOPLOSS", "STOP_LOSS"}
+    try:
+        from trading_bot.data.store import get_cursor
+        with get_cursor() as cur:
+            cur.execute(
+                "SELECT pnl, COALESCE(exit_reason,'') FROM trades "
+                "WHERE source='AUTO' AND status='CLOSED' AND DATE(exit_time)=? "
+                "ORDER BY exit_time DESC LIMIT 10",
+                (today,),
+            )
+            rows = cur.fetchall()
+        streak = 0
+        for row in rows:
+            pnl = float(row[0] or 0.0)
+            reason = str(row[1] or "").upper().strip()
+            if pnl < 0 and reason in sl_tags:
+                streak += 1
+            else:
+                break
+        return streak
+    except Exception:
+        return 0
+
+
+def _intraday_drawdown() -> float:
+    """Return max closed-trade drawdown for today's AUTO trades in rupees."""
+    today = now_ist().strftime("%Y-%m-%d")
+    try:
+        from trading_bot.data.store import get_cursor
+        with get_cursor() as cur:
+            cur.execute(
+                "SELECT pnl FROM trades "
+                "WHERE source='AUTO' AND status='CLOSED' AND DATE(exit_time)=? "
+                "ORDER BY exit_time ASC",
+                (today,),
+            )
+            rows = cur.fetchall()
+        equity = 0.0
+        peak = 0.0
+        dd = 0.0
+        for row in rows:
+            equity += float(row[0] or 0.0)
+            if equity > peak:
+                peak = equity
+            dd = max(dd, peak - equity)
+        return round(dd, 2)
+    except Exception:
+        return 0.0
+
+
+def risk_manager() -> tuple[bool, str]:
+    """
+    Global risk gate for new entries.
+
+    Returns:
+        (True, "") if safe to trade
+        (False, reason) when any risk brake is active
+    """
+    if _daily_loss_reached():
+        return False, "daily loss limit reached"
+
+    today_count = _count_today_auto_trades()
+    if today_count >= config.MAX_DAILY_TRADES:
+        return False, f"daily trade cap reached ({today_count}/{config.MAX_DAILY_TRADES})"
+
+    recent_count = _count_trades_last_n_minutes(15)
+    if recent_count >= config.MAX_TRADES_PER_15MIN:
+        return False, f"per-15min cap hit ({recent_count}/{config.MAX_TRADES_PER_15MIN})"
+
+    sl_streak = _consecutive_sl_losses()
+    if sl_streak >= config.MAX_CONSECUTIVE_SL:
+        return False, f"consecutive SL streak {sl_streak} >= {config.MAX_CONSECUTIVE_SL}"
+
+    dd = _intraday_drawdown()
+    if dd >= config.MAX_INTRADAY_DRAWDOWN:
+        return False, f"intraday drawdown {dd:.0f} >= {config.MAX_INTRADAY_DRAWDOWN}"
+
+    return True, ""
 
 
 def _place_auto_trade(signal, nifty_ltp: float) -> str | None:
@@ -256,6 +349,14 @@ def _place_auto_trade(signal, nifty_ltp: float) -> str | None:
         # Fallback: estimate premium from SL/target points
         entry_price = signal.sl_points * 3  # rough estimate ~60-90 premium
         _log_event(f"Using estimated premium {entry_price:.2f} for {opt_name}")
+
+    # Premium quality gate: avoid very cheap theta-burners and over-expensive entries
+    if not (config.MIN_ENTRY_PREMIUM <= entry_price <= config.MAX_ENTRY_PREMIUM):
+        _log_event(
+            f"Skip trade: premium ₹{entry_price:.2f} outside allowed band "
+            f"₹{config.MIN_ENTRY_PREMIUM:.0f}-₹{config.MAX_ENTRY_PREMIUM:.0f}"
+        )
+        return None
 
     # SL and target in option premium terms
     sl_price = round(max(entry_price - signal.sl_points, 1.0), 2)
@@ -440,27 +541,10 @@ def _scan_and_trade():
         _log_event(f"Outside trade window — next scan in {_SCAN_INTERVAL}s", console=False)
         return
 
-    # ── Gate 2: Daily loss limit ─────────────────────────────────────────
-    if _daily_loss_reached():
-        _log_event("Daily loss limit reached — skipping new trades")
-        return
-
-    # ── Gate 3: Daily trade cap (anti-overtrading hard stop) ─────────────
-    today_count = _count_today_auto_trades()
-    if today_count >= config.MAX_DAILY_TRADES:
-        _log_event(
-            f"Daily trade cap ({config.MAX_DAILY_TRADES}) reached ({today_count} trades today) — done",
-            console=False,
-        )
-        return
-
-    # ── Gate 4: Per-15min overtrading cap ────────────────────────────────
-    recent_count = _count_trades_last_n_minutes(15)
-    if recent_count >= config.MAX_TRADES_PER_15MIN:
-        _log_event(
-            f"Per-15min cap: {recent_count} trade(s) in last 15 min — cooling off",
-            console=False,
-        )
+    # ── Gate 2: Global risk manager ──────────────────────────────────────
+    ok, reason = risk_manager()
+    if not ok:
+        _log_event(f"Risk manager blocked new entry: {reason}", console=False)
         return
 
     # ── Gate 5: Max open trades ──────────────────────────────────────────
@@ -488,7 +572,8 @@ def _scan_and_trade():
         except Exception as e:
             log.warning("15m candle fetch failed (HTF bias unavailable): %s", e)
 
-    _log_event(f"Scanning {len(df)} 1m candles | HTF={"15m/" + str(len(df_15m)) + "bars" if df_15m is not None else "N/A"}...")
+    htf_label = f"15m/{len(df_15m)} bars" if df_15m is not None else "N/A"
+    _log_event(f"Scanning {len(df)} 1m candles | HTF={htf_label}...")
 
     # ── Evaluate strategy (with all gates wired in) ──────────────────────
     signals = evaluate(df, df_15m=df_15m)
@@ -569,9 +654,6 @@ def _get_ai_confidence(sig, df: pd.DataFrame) -> int | None:
 
     On any error or timeout → return None (fail open).
     """
-    import signal as _signal_mod
-    import json as _json
-
     try:
         from trading_bot.llm.analyzer import get_ai_confidence_score
         last5 = df.tail(5)[["open", "high", "low", "close"]].round(2).to_dict("records")
