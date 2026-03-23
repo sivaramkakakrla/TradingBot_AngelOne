@@ -28,7 +28,7 @@ from trading_bot.data.store import (
     insert_order, insert_trade, update_portfolio_after_trade,
 )
 from trading_bot.market import fetch_option_ltp, get_latest_tick, fetch_live_once
-from trading_bot.strategy import evaluate
+from trading_bot.strategy import evaluate, is_sideways_market, get_htf_bias
 from trading_bot.utils.logger import get_logger
 from trading_bot.utils.time_utils import now_ist
 
@@ -175,6 +175,39 @@ def _fetch_latest_candles(session, timeframe="1m", bars=100) -> pd.DataFrame | N
     from trading_bot.candle_cache import get_candles
     df, _, _ = get_candles(timeframe, bars)
     return df
+
+
+def _count_today_auto_trades() -> int:
+    """Count auto-trades already placed today (to enforce MAX_DAILY_TRADES)."""
+    today_str = now_ist().strftime("%Y-%m-%d")
+    try:
+        from trading_bot.data.store import get_cursor
+        with get_cursor() as cur:
+            cur.execute(
+                "SELECT COUNT(*) FROM trades "
+                "WHERE source='AUTO' AND DATE(entry_time)=? AND status!='CANCELLED'",
+                (today_str,),
+            )
+            row = cur.fetchone()
+            return int(row[0]) if row else 0
+    except Exception:
+        return 0
+
+
+def _count_trades_last_n_minutes(minutes: int = 15) -> int:
+    """Count auto-trades placed in the last N minutes (overtrading guard)."""
+    try:
+        from trading_bot.data.store import get_cursor
+        with get_cursor() as cur:
+            cur.execute(
+                "SELECT COUNT(*) FROM trades "
+                "WHERE source='AUTO' AND entry_time >= datetime('now', ?)",
+                (f"-{minutes} minutes",),
+            )
+            row = cur.fetchone()
+            return int(row[0]) if row else 0
+    except Exception:
+        return 0
 
 
 def _place_auto_trade(signal, nifty_ltp: float) -> str | None:
@@ -392,7 +425,7 @@ def _update_trade_sl(trade_id: str, new_sl: float):
 
 
 def _scan_and_trade():
-    """One cycle: fetch candles → evaluate → place trade if signal."""
+    """One cycle: fetch candles → regime check → evaluate → AI filter → place trade."""
     scan_time = now_ist().strftime("%H:%M:%S")
     with _lock:
         _status["last_scan"] = scan_time
@@ -402,16 +435,35 @@ def _scan_and_trade():
         _log_event("No session — skip scan")
         return
 
-    # Check market conditions
+    # ── Gate 1: Trade window ─────────────────────────────────────────────
     if not _is_in_trade_window():
         _log_event(f"Outside trade window — next scan in {_SCAN_INTERVAL}s", console=False)
         return
 
+    # ── Gate 2: Daily loss limit ─────────────────────────────────────────
     if _daily_loss_reached():
         _log_event("Daily loss limit reached — skipping new trades")
         return
 
-    # Check open trade count
+    # ── Gate 3: Daily trade cap (anti-overtrading hard stop) ─────────────
+    today_count = _count_today_auto_trades()
+    if today_count >= config.MAX_DAILY_TRADES:
+        _log_event(
+            f"Daily trade cap ({config.MAX_DAILY_TRADES}) reached ({today_count} trades today) — done",
+            console=False,
+        )
+        return
+
+    # ── Gate 4: Per-15min overtrading cap ────────────────────────────────
+    recent_count = _count_trades_last_n_minutes(15)
+    if recent_count >= config.MAX_TRADES_PER_15MIN:
+        _log_event(
+            f"Per-15min cap: {recent_count} trade(s) in last 15 min — cooling off",
+            console=False,
+        )
+        return
+
+    # ── Gate 5: Max open trades ──────────────────────────────────────────
     open_trades = get_open_trades()
     auto_count = sum(
         1 for t in open_trades
@@ -421,37 +473,60 @@ def _scan_and_trade():
         _log_event(f"Max open trades ({config.MAX_OPEN_TRADES}) reached — skip", console=False)
         return
 
-    # Fetch latest candles
+    # ── Fetch 1m candles ─────────────────────────────────────────────────
     df = _fetch_latest_candles(session, timeframe="1m")
     if df is None or len(df) < 20:
         bar_count = 0 if df is None else len(df)
         _log_event(f"Insufficient candles ({bar_count} bars, need 20) — skip")
         return
 
-    _log_event(f"Scanning {len(df)} candles for signals...")
+    # ── Fetch 15m candles for HTF bias ───────────────────────────────────
+    df_15m: pd.DataFrame | None = None
+    if config.HTF_ENABLED:
+        try:
+            df_15m = _fetch_latest_candles(session, timeframe="15m", bars=50)
+        except Exception as e:
+            log.warning("15m candle fetch failed (HTF bias unavailable): %s", e)
 
-    # Evaluate strategy
-    signals = evaluate(df)
+    _log_event(f"Scanning {len(df)} 1m candles | HTF={"15m/" + str(len(df_15m)) + "bars" if df_15m is not None else "N/A"}...")
+
+    # ── Evaluate strategy (with all gates wired in) ──────────────────────
+    signals = evaluate(df, df_15m=df_15m)
     if not signals:
         _log_event("No signals found this cycle", console=False)
         return
 
-    _log_event(f"Found {len(signals)} signal(s)")
+    _log_event(f"Found {len(signals)} signal(s) after all rule-based gates")
 
     for sig in signals:
         if sig.action != "ENTER":
             continue
 
-        # Block re-entry in same direction after a recent SL hit
+        # ── Gate 6: Post-SL block ────────────────────────────────────────
         if _is_sl_blocked(sig.direction):
-            _log_event(f"SKIP {sig.direction}: SL-blocked (recent SL hit, cooling off)", console=False)
+            _log_event(f"SKIP {sig.direction}: SL-blocked (cooling off after recent SL hit)", console=False)
             continue
 
+        # ── Gate 7: Duplicate signal cooldown ───────────────────────────
         if _is_duplicate_signal(sig.direction):
-            _log_event(f"SKIP {sig.direction}: duplicate signal within cooldown period", console=False)
+            _log_event(f"SKIP {sig.direction}: duplicate within cooldown window", console=False)
             continue
 
-        # Get live NIFTY price for entry
+        # ── Gate 8: AI Confidence Filter ────────────────────────────────
+        # AI is used as a FILTER after rule-based approval — not as a trigger.
+        # If AI is unavailable or rate-limited → fall through (do not block).
+        if config.AI_FILTER_ENABLED:
+            ai_confidence = _get_ai_confidence(sig, df)
+            if ai_confidence is not None and ai_confidence < config.AI_MIN_CONFIDENCE:
+                _log_event(
+                    f"SKIP {sig.direction}: AI confidence {ai_confidence}/100 < "
+                    f"threshold {config.AI_MIN_CONFIDENCE}"
+                )
+                continue
+            elif ai_confidence is not None:
+                _log_event(f"AI filter PASS: confidence={ai_confidence}/100")
+
+        # ── All gates passed → place trade ──────────────────────────────
         tick = get_latest_tick()
         nifty_ltp = tick.ltp
         if nifty_ltp <= 0:
@@ -476,6 +551,47 @@ def _scan_and_trade():
                     "time": now_ist().strftime("%H:%M:%S"),
                 }
             break  # one trade per scan cycle
+
+
+def _get_ai_confidence(sig, df: pd.DataFrame) -> int | None:
+    """
+    Use LLM as a FILTER: ask for a 0-100 confidence score on the signal.
+
+    Returns:
+        int  — confidence score (0–100)
+        None — AI unavailable/rate-limited → caller falls through
+
+    The AI receives a structured prompt with:
+      - market regime (ADX, EMA trend)
+      - recent candle data (last 5 bars OHLCV summary)
+      - signal details (pattern, direction, strength, filters)
+    It must ONLY reply with a JSON {"confidence": <int 0-100>, "reason": "..."}
+
+    On any error or timeout → return None (fail open).
+    """
+    import signal as _signal_mod
+    import json as _json
+
+    try:
+        from trading_bot.llm.analyzer import get_ai_confidence_score
+        last5 = df.tail(5)[["open", "high", "low", "close"]].round(2).to_dict("records")
+        prompt_data = {
+            "direction": sig.direction,
+            "patterns": sig.patterns,
+            "strength": sig.strength,
+            "confirmations": sig.confirmations,
+            "filters": sig.filters,
+            "last_5_candles": last5,
+            "sl_points": sig.sl_points,
+            "target_points": sig.target_points,
+        }
+        score = get_ai_confidence_score(prompt_data, timeout=config.AI_FILTER_TIMEOUT)
+        return score
+    except ImportError:
+        return None   # analyzer not available
+    except Exception as exc:
+        log.warning("AI confidence filter error: %s", exc)
+        return None   # fail open — don't block trade on AI failure
 
 
 def _auto_trade_loop():

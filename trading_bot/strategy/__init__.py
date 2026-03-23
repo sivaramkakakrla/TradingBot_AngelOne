@@ -6,8 +6,11 @@ to produce high-conviction ("sure shot") trade signals.
 
 A signal is CONFIRMED only when:
     1. A candlestick pattern fires  (candles module)
-    2. At least 2 of 5 indicator filters agree (confluence)
+    2. At least 3 of 5 indicator filters agree (raised from 2 — reduces noise)
     3. The candle is within an allowed trade window
+    4. Market is NOT sideways (ADX ≥ ADX_SIDEWAYS_THRESHOLD)
+    5. Signal direction aligns with 15m HTF bias (when HTF_ENABLED)
+    6. Composite strength score ≥ MIN_SIGNAL_STRENGTH
 
 Indicator Filters
 -----------------
@@ -23,8 +26,10 @@ Strength Score (0–100)
 
 Public API
 ----------
-    evaluate(df)           -> list[Signal]
-    Signal dataclass       — direction, strength, patterns, filters, action, reason
+    is_sideways_market(df)   -> bool   (ADX-based chop detection)
+    get_htf_bias(df_15m)     -> str | None  ("BULLISH" | "BEARISH" | None)
+    evaluate(df, df_15m)     -> list[Signal]
+    Signal dataclass         — direction, strength, patterns, filters, action, reason
 """
 
 from __future__ import annotations
@@ -44,6 +49,7 @@ from trading_bot.indicators import (
     ema as calc_ema,
     volume_sma as calc_vol_sma,
     atr as calc_atr,
+    adx as calc_adx,
 )
 from trading_bot.data.store import insert_signal
 from trading_bot.utils.logger import get_logger
@@ -51,7 +57,7 @@ from trading_bot.utils.time_utils import now_ist
 
 log = get_logger(__name__)
 
-MIN_CONFIRMATIONS = 2          # need ≥2 filters to call it "confirmed"
+MIN_CONFIRMATIONS = 3          # need ≥3 filters (raised from 2 — eliminates weak signals)
 MAX_STRENGTH = 100
 
 
@@ -78,6 +84,64 @@ class Signal:
 
     def to_dict(self) -> dict:
         return asdict(self)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  MARKET REGIME DETECTION
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def is_sideways_market(df: pd.DataFrame) -> bool:
+    """
+    Return True when the 1m candles show a choppy/sideways regime.
+
+    Method:
+        • ADX(14) on the last bar < ADX_SIDEWAYS_THRESHOLD (default 20)
+        • ALSO checks the 20-bar price range as a fraction of ATR:
+          if range/ATR < 3 the market is too compressed for clean signals.
+
+    When sideways → caller should skip ALL entry signals.
+    """
+    if len(df) < 20:
+        return False  # not enough data → assume trending (don't block)
+
+    try:
+        adx_series = calc_adx(df, config.ADX_PERIOD)
+        adx_val = float(adx_series.iloc[-1])
+        if pd.isna(adx_val):
+            return False
+        sideways = adx_val < config.ADX_SIDEWAYS_THRESHOLD
+        log.debug("is_sideways_market: ADX=%.1f → %s", adx_val, "SIDEWAYS" if sideways else "TRENDING")
+        return sideways
+    except Exception as exc:
+        log.warning("is_sideways_market error: %s", exc)
+        return False  # fail open — don't block on errors
+
+
+def get_htf_bias(df_15m: pd.DataFrame) -> str | None:
+    """
+    Compute higher-timeframe (15m) trend bias using EMA9 vs EMA21 cross.
+
+    Returns:
+        "BULLISH"  — EMA9 > EMA21 on last bar of df_15m
+        "BEARISH"  — EMA9 < EMA21
+        None       — insufficient data or indeterminate
+    """
+    if df_15m is None or len(df_15m) < config.HTF_EMA_SLOW + 5:
+        return None
+    try:
+        fast = calc_ema(df_15m["close"], config.HTF_EMA_FAST)
+        slow = calc_ema(df_15m["close"], config.HTF_EMA_SLOW)
+        f_val = float(fast.iloc[-1])
+        s_val = float(slow.iloc[-1])
+        if pd.isna(f_val) or pd.isna(s_val):
+            return None
+        bias = "BULLISH" if f_val > s_val else "BEARISH"
+        log.debug("get_htf_bias: EMA%d=%.2f EMA%d=%.2f → %s",
+                  config.HTF_EMA_FAST, f_val, config.HTF_EMA_SLOW, s_val, bias)
+        return bias
+    except Exception as exc:
+        log.warning("get_htf_bias error: %s", exc)
+        return None   # fail open — don't block on errors
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -172,24 +236,43 @@ def _calc_sl_target(atr_val: float) -> tuple[float, float]:
 #  MAIN EVALUATION
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def evaluate(df: pd.DataFrame, backtest: bool = False) -> list[Signal]:
+def evaluate(df: pd.DataFrame, backtest: bool = False,
+             df_15m: pd.DataFrame | None = None) -> list[Signal]:
     """
     Evaluate the most recent candle data for confirmed signals.
 
     Parameters
     ----------
-    df : DataFrame with OHLCV columns (timestamp, open, high, low, close, volume)
-         Must have at least 20 rows for meaningful indicator computation.
-    backtest : if True, skip trade-window check (all signals get ENTER/SKIP
-               based on confirmations only).
+    df      : 1m DataFrame with OHLCV columns. Must have ≥20 rows.
+    backtest: if True, skip time-window check and regime gates.
+    df_15m  : optional 15m DataFrame for higher-timeframe bias check.
+
+    Gate sequence (any failure → action = SKIP):
+        G1  Time window (09:20–11:30 or 13:30–14:45)
+        G2  Sideways filter (ADX < 20 → skip)
+        G3  HTF bias (15m EMA9 vs EMA21 — signal must align)
+        G4  Indicator confluences ≥ MIN_CONFIRMATIONS (3)
+        G5  Confirmation candle quality (body ratio, direction)
+        G6  Composite strength ≥ MIN_SIGNAL_STRENGTH (50)
 
     Returns
     -------
-    List of Signal objects (usually 0 or 1 per evaluation, but can be multiple
-    if several patterns fire simultaneously).
+    List of Signal objects (usually 0 or 1 per evaluation cycle).
     """
     if len(df) < 20:
         return []
+
+    # ── Gate G2: Sideways / chop filter ───────────────────────────────────
+    if not backtest and is_sideways_market(df):
+        log.info("evaluate: SIDEWAYS market (ADX < %d) — skipping all signals",
+                 config.ADX_SIDEWAYS_THRESHOLD)
+        return []
+
+    # ── Gate G3: Higher-timeframe bias ────────────────────────────────────
+    htf_bias: str | None = None
+    if not backtest and config.HTF_ENABLED and df_15m is not None:
+        htf_bias = get_htf_bias(df_15m)
+        log.debug("evaluate: HTF bias = %s", htf_bias)
 
     # ── Step 1: Detect candle patterns ────────────────────────────────────
     raw_signals = scan_signals(df)
@@ -297,11 +380,33 @@ def evaluate(df: pd.DataFrame, backtest: bool = False) -> list[Signal]:
         if not confirmation_ok:
             reasons.append(confirmation_reason)
 
-        if confirmations >= MIN_CONFIRMATIONS and in_window and confirmation_ok:
+        # Gate G3: HTF bias alignment (1m signal must agree with 15m trend)
+        htf_aligned = True
+        if not backtest and config.HTF_ENABLED and htf_bias is not None:
+            htf_aligned = (htf_bias == direction)
+            if not htf_aligned:
+                reasons.append(f"HTF bias is {htf_bias} but signal is {direction}")
+
+        # Gate G6: Composite strength floor
+        strength_ok = backtest or (strength >= config.MIN_SIGNAL_STRENGTH)
+        if not strength_ok:
+            reasons.append(f"strength {strength} < floor {config.MIN_SIGNAL_STRENGTH}")
+
+        all_gates = (
+            confirmations >= MIN_CONFIRMATIONS
+            and in_window
+            and confirmation_ok
+            and htf_aligned
+            and strength_ok
+        )
+
+        if all_gates:
             action = "ENTER"
+            htf_note = f" | HTF:{htf_bias}" if htf_bias else ""
             reason_str = (
                 f"{', '.join(pattern_names)} confirmed by "
                 f"{confirmations}/5 filters [{', '.join(k for k,v in filters.items() if v)}]"
+                f"{htf_note} | strength={strength}"
             )
         else:
             action = "SKIP"

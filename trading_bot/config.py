@@ -115,10 +115,18 @@ PCR_BULLISH = 1.2
 PCR_BEARISH = 0.8
 
 # Time windows (IST, 24h format)
+# Excludes choppy midday zone (11:30–13:30) and pre-close noise (14:45+)
 TRADE_WINDOWS = [
-    ("09:20", "15:00"),
+    ("09:20", "11:30"),   # morning momentum — strong directional moves
+    ("13:30", "14:45"),   # afternoon trend resumption
 ]
 FORCE_EXIT_TIME = "15:00"
+
+# ─── No-trade zone description (informational — enforced by TRADE_WINDOWS) ────
+# 11:30–13:30: midday chop, low liquidity, fake breakouts, theta burns options
+# 14:45–15:00: close-of-day noise and position squaring
+NO_TRADE_ZONE_START = "11:30"
+NO_TRADE_ZONE_END   = "13:30"
 
 # Duplicate signal cooldown (seconds) — also enforced via Redis on Vercel
 DUPLICATE_SIGNAL_COOLDOWN = 900   # 15 minutes (was 300)
@@ -126,18 +134,47 @@ DUPLICATE_SIGNAL_COOLDOWN = 900   # 15 minutes (was 300)
 # Post-SL block: block same direction for this many seconds after a SL hit
 SL_BLOCK_DURATION = 1200          # 20 minutes
 
+# Per-period overtrading cap (max new auto-trades in a rolling window)
+MAX_TRADES_PER_15MIN = 1          # at most 1 new trade every 15 minutes
+
 # ═══════════════════════════════════════════════════════════════════════════════
 #  EXIT / RISK MANAGEMENT
 # ═══════════════════════════════════════════════════════════════════════════════
-INITIAL_SL_POINTS = 20
-TRAIL_START_POINTS = 30
-TRAILING_SL_POINTS = 15
-PARTIAL_EXIT_POINTS = 40
-PARTIAL_EXIT_PCT = 0.50  # sell 50% at partial target
+INITIAL_SL_POINTS = 25        # wider SL: avoid shakeouts on 1m noise
+TRAIL_START_POINTS = 35       # start trailing after this profit
+TRAILING_SL_POINTS = 20       # trail SL distance once trailing activates
+PARTIAL_EXIT_POINTS = 45      # take 50% off at this profit
+PARTIAL_EXIT_PCT = 0.50       # sell 50% at partial target
 
 MAX_LOTS_PER_TRADE = 2
-MAX_OPEN_TRADES = 1       # 1 auto-trade open at a time (was 3)
-MAX_DAILY_LOSS = 2000     # ₹2000 daily loss limit (was 3000)
+MAX_OPEN_TRADES = 1           # 1 auto-trade open at a time
+MAX_DAILY_LOSS = 2000         # ₹2000 daily loss limit
+MAX_DAILY_TRADES = 3          # hard cap: no more than 3 auto-trades per day
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  MARKET REGIME FILTERS  (sideways / trend detection)
+# ═══════════════════════════════════════════════════════════════════════════════
+# ADX-based chop filter — skip all signals when market is sideways
+ADX_PERIOD = 14
+ADX_SIDEWAYS_THRESHOLD = 20      # ADX < 20 → choppy/sideways → NO TRADE
+ADX_STRONG_TREND = 25            # ADX ≥ 25 → confirmed trend → prefer trading
+
+# Higher-timeframe bias (15m EMA cross) — 1m signal must align
+HTF_ENABLED = True               # enable 15m bias gate
+HTF_EMA_FAST = 9                 # 15m fast EMA
+HTF_EMA_SLOW = 21                # 15m slow EMA
+
+# Entry signal quality floor
+MIN_SIGNAL_STRENGTH = 50         # discard signals below this composite score
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  AI CONFIDENCE FILTER
+# ═══════════════════════════════════════════════════════════════════════════════
+# AI is used as a FILTER after rule-based ENTER is confirmed, not as a trigger
+# If AI confidence score (0–100) is below this threshold, the trade is skipped
+AI_FILTER_ENABLED = True
+AI_MIN_CONFIDENCE = 55           # skip trade if AI rates it below 55/100
+AI_FILTER_TIMEOUT = 8            # seconds — if AI takes longer, fall through
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  PAPER TRADING PORTFOLIO

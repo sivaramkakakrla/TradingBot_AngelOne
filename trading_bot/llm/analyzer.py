@@ -432,3 +432,91 @@ def analyze_failed_trade(
     except Exception as exc:
         log.error("Trade analysis LLM error: %s", exc)
         return {"analysis": "", "model": model, "error": str(exc)}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  AI CONFIDENCE FILTER  (used by autotrade as a post-rule gate, not a trigger)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_CONFIDENCE_SYSTEM = """You are a disciplined NIFTY options risk filter. A rule-based trading system has already confirmed a trade signal — your sole job is to score your confidence (0–100) that this particular entry will be profitable given market microstructure.
+
+Rules you MUST enforce:
+- Score < 50 for ANY sideways / choppy condition (no clear momentum)
+- Score < 50 if the signal direction opposes the last 3 candle sequence
+- Score < 50 for very small candle bodies (doji cluster = no conviction)
+- Score ≥ 70 only when: momentum is clear, volume is elevated, direction confirmed by recent candles
+- Score 50–69: uncertain — marginal setup, risk is elevated
+
+You MUST reply with ONLY this JSON (no extra text):
+{"confidence": <0-100>, "reason": "<1 sentence>"}"""
+
+
+def get_ai_confidence_score(signal_data: dict, timeout: int = 8) -> int | None:
+    """
+    Ask the LLM to score confidence (0–100) on an already-confirmed rule-based signal.
+
+    Parameters
+    ----------
+    signal_data : dict containing:
+        direction, patterns, strength, confirmations, filters,
+        last_5_candles (list of {open,high,low,close}),
+        sl_points, target_points
+    timeout : seconds before giving up (returns None → fall through)
+
+    Returns
+    -------
+    int  — confidence score 0–100
+    None — AI unavailable / rate-limited / timeout → caller falls through (don't block)
+    """
+    if not config.OPENAI_API_KEY:
+        return None
+
+    model = config.OPENAI_MODEL.strip() if hasattr(config, "OPENAI_MODEL") else "gpt-4o-mini"
+
+    # Build a compact prompt — minimal tokens, fast response
+    filters_pass = [k for k, v in signal_data.get("filters", {}).items() if v]
+    filters_fail = [k for k, v in signal_data.get("filters", {}).items() if not v]
+    candles = signal_data.get("last_5_candles", [])
+    candle_lines = "\n".join(
+        f"  O={c['open']} H={c['high']} L={c['low']} C={c['close']}" for c in candles
+    )
+
+    user_msg = (
+        f"Signal: {signal_data.get('direction')} | "
+        f"Patterns: {', '.join(signal_data.get('patterns', []))} | "
+        f"Strength: {signal_data.get('strength')}/100 | "
+        f"Confirmations: {signal_data.get('confirmations')}/5\n"
+        f"Indicators PASS: {', '.join(filters_pass) or 'none'}\n"
+        f"Indicators FAIL: {', '.join(filters_fail) or 'none'}\n"
+        f"SL={signal_data.get('sl_points')} pts | Target={signal_data.get('target_points')} pts\n"
+        f"Last 5 NIFTY candles (chronological):\n{candle_lines}\n\n"
+        "Score confidence of this entry (0-100). Reply ONLY with JSON."
+    )
+
+    try:
+        client = openai.OpenAI(api_key=config.OPENAI_API_KEY, timeout=timeout)
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": _CONFIDENCE_SYSTEM},
+                {"role": "user", "content": user_msg},
+            ],
+            temperature=0.1,
+            max_tokens=60,
+        )
+        raw = response.choices[0].message.content.strip()
+        parsed = json.loads(raw)
+        score = int(parsed.get("confidence", 50))
+        reason = parsed.get("reason", "")
+        log.info("AI confidence filter: score=%d reason=%s", score, reason)
+        return max(0, min(100, score))
+
+    except openai.RateLimitError:
+        log.warning("AI confidence filter: rate limited → fall through")
+        return None
+    except openai.AuthenticationError:
+        log.warning("AI confidence filter: auth error → fall through")
+        return None
+    except Exception as exc:
+        log.warning("AI confidence filter error (%s) → fall through", exc)
+        return None
