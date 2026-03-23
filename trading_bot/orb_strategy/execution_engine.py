@@ -98,7 +98,16 @@ class ORBExecutionEngine:
 
         tg = entry_ltp + (entry_ltp - sl) * self.cfg.rr_ratio
 
-        qty = int(opt["lotsize"]) * self.cfg.lots
+        lot_size = int(opt["lotsize"])
+        max_lots_by_budget = int(self.cfg.capital_per_trade // max(entry_ltp * lot_size, 1.0))
+        tradable_lots = min(max_lots_by_budget, max(1, self.cfg.lots))
+        if tradable_lots <= 0:
+            self._log(
+                f"[WARN] Budget too low for entry: capital={self.cfg.capital_per_trade:.0f}, "
+                f"entry={entry_ltp:.2f}, lot_size={lot_size}"
+            )
+            return
+        qty = lot_size * tradable_lots
         trade_id = f"ORB-{uuid.uuid4().hex[:8].upper()}"
         symbol = format_option_name(opt["strike"], option_type, opt["expiry"])
 
@@ -133,7 +142,11 @@ class ORBExecutionEngine:
             "reason": reason,
         }
 
-        msg = f"[{ts}] {side} executed at Rs.{entry_ltp:.2f} | {symbol} | SL={sl:.2f} TG={tg:.2f}"
+        msg = (
+            f"[{ts}] {side} executed at Rs.{entry_ltp:.2f} | {symbol} | "
+            f"lots={tradable_lots} qty={qty} cap={self.cfg.capital_per_trade:.0f} | "
+            f"SL={sl:.2f} TG={tg:.2f}"
+        )
         self._log(msg)
         self._notify(msg)
 

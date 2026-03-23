@@ -40,6 +40,7 @@ class ORBConfig:
     # Execution
     paper_mode: bool = True
     live_mode: bool = False
+    capital_per_trade: float = 30000.0
     lots: int = 1
     poll_seconds: int = 3
     retry_attempts: int = 3
@@ -70,6 +71,7 @@ class ORBConfig:
             news_event_block=os.getenv("ORB_NEWS_EVENT_BLOCK", "0") == "1",
             paper_mode=os.getenv("ORB_PAPER_MODE", "1") == "1",
             live_mode=os.getenv("ORB_LIVE_MODE", "0") == "1",
+            capital_per_trade=float(os.getenv("ORB_CAPITAL_PER_TRADE", "30000")),
             lots=int(os.getenv("ORB_LOTS", "1")),
             poll_seconds=int(os.getenv("ORB_POLL_SECONDS", "3")),
             retry_attempts=int(os.getenv("ORB_RETRY_ATTEMPTS", "3")),
