@@ -1218,8 +1218,10 @@ def api_autotrade_stop():
 @app.route("/api/autotrade/status")
 def api_autotrade_status():
     """Return current auto-trade status, log, and last signal."""
-    from trading_bot.autotrade import get_status
-    return jsonify(get_status())
+    from trading_bot.autotrade import get_status, ensure_running, is_alive
+    status = get_status()
+    status["thread_alive"] = is_alive()
+    return jsonify(status)
 
 
 # ─── Start helper ─────────────────────────────────────────────────────────────

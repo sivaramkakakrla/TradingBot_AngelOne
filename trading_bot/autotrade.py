@@ -61,14 +61,20 @@ _recent_signals: dict[str, float] = {}  # "DIRECTION" -> timestamp
 
 def get_status() -> dict:
     with _lock:
+        # Sync enabled flag with actual thread state
+        thread_alive = _thread is not None and _thread.is_alive()
+        if _status["enabled"] and not thread_alive:
+            _status["enabled"] = False
         return dict(_status)
 
 
-def _log_event(msg: str):
-    """Append to the in-memory log ring."""
+def _log_event(msg: str, *, console: bool = True):
+    """Append to the in-memory log ring and print to console."""
     ts = now_ist().strftime("%H:%M:%S")
     entry = f"[{ts}] {msg}"
     log.info("AutoTrade: %s", msg)
+    if console:
+        print(f"[AutoTrade {ts}] {msg}", flush=True)
     with _lock:
         _status["log"].append(entry)
         if len(_status["log"]) > _MAX_LOG:
@@ -321,6 +327,10 @@ def _update_trade_sl(trade_id: str, new_sl: float):
 
 def _scan_and_trade():
     """One cycle: fetch candles → evaluate → place trade if signal."""
+    scan_time = now_ist().strftime("%H:%M:%S")
+    with _lock:
+        _status["last_scan"] = scan_time
+
     session = get_session()
     if not session:
         _log_event("No session — skip scan")
@@ -328,8 +338,7 @@ def _scan_and_trade():
 
     # Check market conditions
     if not _is_in_trade_window():
-        with _lock:
-            _status["last_scan"] = now_ist().strftime("%H:%M:%S")
+        _log_event(f"Outside trade window — next scan in {_SCAN_INTERVAL}s", console=False)
         return
 
     if _daily_loss_reached():
@@ -338,21 +347,30 @@ def _scan_and_trade():
 
     # Check open trade count
     open_trades = get_open_trades()
-    if len(open_trades) >= config.MAX_OPEN_TRADES:
+    auto_count = sum(
+        1 for t in open_trades
+        if (t.get("source") or t["trade_id"][:2]) in ("AUTO", "AT")
+    )
+    if auto_count >= config.MAX_OPEN_TRADES:
+        _log_event(f"Max open trades ({config.MAX_OPEN_TRADES}) reached — skip", console=False)
         return
 
     # Fetch latest candles
     df = _fetch_latest_candles(session, timeframe="1m")
     if df is None or len(df) < 20:
+        bar_count = 0 if df is None else len(df)
+        _log_event(f"Insufficient candles ({bar_count} bars, need 20) — skip")
         return
+
+    _log_event(f"Scanning {len(df)} candles for signals...")
 
     # Evaluate strategy
     signals = evaluate(df)
     if not signals:
+        _log_event("No signals found this cycle", console=False)
         return
 
-    with _lock:
-        _status["last_scan"] = now_ist().strftime("%H:%M:%S")
+    _log_event(f"Found {len(signals)} signal(s)")
 
     for sig in signals:
         if sig.action != "ENTER":
@@ -392,6 +410,7 @@ def _auto_trade_loop():
     """Background thread: scan + monitor on a timer."""
     global _running
     _log_event("Auto-trade engine STARTED")
+    _consecutive_errors = 0
 
     # Preload option instrument master
     try:
@@ -401,48 +420,62 @@ def _auto_trade_loop():
     except Exception as e:
         _log_event(f"Warning: could not load options: {e}")
 
-    while _running:
-        try:
-            # Monitor existing positions (every cycle)
-            _monitor_positions()
+    try:
+        while _running:
+            try:
+                # Monitor existing positions (every cycle)
+                _monitor_positions()
 
-            # Scan for new signals
-            _scan_and_trade()
+                # Scan for new signals
+                _scan_and_trade()
 
-            # Update dashboard status
-            open_trades = get_open_trades()
-            auto_count = sum(
-                1 for t in open_trades
-                if (t.get("source") or t["trade_id"][:2]) in ("AUTO", "AT")
-            )
-            today_str = now_ist().strftime("%Y-%m-%d")
-            pnl = get_today_pnl(today_str)
+                # Update dashboard status
+                open_trades = get_open_trades()
+                auto_count = sum(
+                    1 for t in open_trades
+                    if (t.get("source") or t["trade_id"][:2]) in ("AUTO", "AT")
+                )
+                today_str = now_ist().strftime("%Y-%m-%d")
+                pnl = get_today_pnl(today_str)
 
-            with _lock:
-                _status["open_positions"] = auto_count
-                _status["pnl_today"] = round(pnl, 2)
-                _status["last_scan"] = now_ist().strftime("%H:%M:%S")
+                with _lock:
+                    _status["open_positions"] = auto_count
+                    _status["pnl_today"] = round(pnl, 2)
 
-        except Exception as exc:
-            log.error("AutoTrade loop error: %s", exc)
-            _log_event(f"Error: {exc}")
+                _consecutive_errors = 0  # reset on success
 
-        time.sleep(_SCAN_INTERVAL)
+            except Exception as exc:
+                _consecutive_errors += 1
+                log.error("AutoTrade loop error (#%d): %s", _consecutive_errors, exc, exc_info=True)
+                _log_event(f"Error (#{_consecutive_errors}): {exc}")
+                # Back off on repeated errors to prevent tight loop
+                if _consecutive_errors >= 5:
+                    backoff = min(_consecutive_errors * 10, 120)
+                    _log_event(f"Too many errors — backing off {backoff}s")
+                    time.sleep(backoff)
 
-    _log_event("Auto-trade engine STOPPED")
+            time.sleep(_SCAN_INTERVAL)
+    finally:
+        # Always reset status when thread exits (crash or normal stop)
+        with _lock:
+            _status["enabled"] = False
+        _log_event("Auto-trade engine STOPPED")
 
 
 def start(scan_interval: int = 60):
     """Start the auto-trade background thread."""
     global _running, _thread, _SCAN_INTERVAL
     if _running and _thread and _thread.is_alive():
+        _log_event("Auto-trade engine already running — skipping start")
         return
-    _SCAN_INTERVAL = max(scan_interval, 60)  # minimum 60s to avoid rate limiting
+    # Reset state in case of previous crash
     _running = True
+    _SCAN_INTERVAL = max(scan_interval, 30)  # minimum 30s
     with _lock:
         _status["enabled"] = True
     _thread = threading.Thread(target=_auto_trade_loop, name="autotrade", daemon=True)
     _thread.start()
+    _log_event(f"Engine thread started (scan every {_SCAN_INTERVAL}s)")
 
 
 def stop():
@@ -452,3 +485,17 @@ def stop():
     with _lock:
         _status["enabled"] = False
     _log_event("Auto-trade engine STOPPING")
+
+
+def is_alive() -> bool:
+    """Check if the auto-trade thread is actually running."""
+    return _running and _thread is not None and _thread.is_alive()
+
+
+def ensure_running(scan_interval: int = 60):
+    """Restart the engine if it died unexpectedly."""
+    if _running and _thread and not _thread.is_alive():
+        _log_event("Engine thread died — restarting...")
+        start(scan_interval)
+    elif not _running:
+        start(scan_interval)

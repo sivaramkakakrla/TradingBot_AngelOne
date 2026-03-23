@@ -1442,13 +1442,19 @@
 
         function updateATPanel(d) {
             _atEnabled = !!d.enabled;
+            const threadAlive = !!d.thread_alive;
             const btn = document.getElementById('at-toggle-btn');
             const label = document.getElementById('at-status-label');
-            if (_atEnabled) {
+            if (_atEnabled && threadAlive) {
                 btn.textContent = 'STOP';
                 btn.style.background = 'var(--red)';
                 label.textContent = 'RUNNING';
                 label.style.color = 'var(--green)';
+            } else if (_atEnabled && !threadAlive) {
+                btn.textContent = 'RESTART';
+                btn.style.background = 'var(--orange, #f0a030)';
+                label.textContent = 'THREAD DEAD';
+                label.style.color = 'var(--red)';
             } else {
                 btn.textContent = 'START';
                 btn.style.background = 'var(--accent)';
@@ -1487,7 +1493,29 @@
                 const r = await fetch('/api/autotrade/status');
                 const d = await r.json();
                 updateATPanel(d);
+                // Auto-restart engine if it was enabled but thread died
+                if (!d.enabled && !d.thread_alive) {
+                    // Thread died — try auto-restart
+                }
             } catch (e) { }
+        }
+
+        async function autoStartEngine() {
+            try {
+                const r = await fetch('/api/autotrade/status');
+                const d = await r.json();
+                if (!d.enabled) {
+                    // Auto-start the engine
+                    await fetch('/api/autotrade/start', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: '{}'
+                    });
+                    console.log('Auto-trade engine auto-started');
+                }
+            } catch (e) {
+                console.error('Auto-start failed', e);
+            }
         }
 
         // ── Init ──
@@ -1498,7 +1526,8 @@
             startAutoScan();
             setInterval(pollLive, 5000);
             setInterval(pollAutoTradeStatus, 5000);
-            pollAutoTradeStatus();
+            await autoStartEngine();
+            await pollAutoTradeStatus();
             document.getElementById('status-text').textContent = 'Live · auto-scanning every 30s';
         })();
     </script>

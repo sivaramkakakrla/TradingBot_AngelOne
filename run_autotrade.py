@@ -66,9 +66,9 @@ def main():
     print("[OK] Dashboard running at http://%s:%d" % (config.DASHBOARD_HOST, config.DASHBOARD_PORT))
 
     # 5. Start auto-trade engine
-    from trading_bot.autotrade import start as at_start, get_status, stop as at_stop
+    from trading_bot.autotrade import start as at_start, get_status, stop as at_stop, is_alive
     at_start(scan_interval=60)
-    print("[OK] Auto-trade engine STARTED (scanning every 30s)")
+    print("[OK] Auto-trade engine STARTED (scanning every 60s)")
     print()
     print("Trade Windows: %s" % config.TRADE_WINDOWS)
     print("Max Open Trades: %d" % config.MAX_OPEN_TRADES)
@@ -82,21 +82,30 @@ def main():
     try:
         while not _shutdown:
             now = time.time()
-            # Print status every 60 seconds
-            if now - last_print >= 60:
+
+            # Check engine health every cycle and restart if dead
+            if not is_alive():
+                print("[WARN] Auto-trade thread died — restarting...")
+                at_start(scan_interval=60)
+
+            # Print status every 30 seconds
+            if now - last_print >= 30:
                 status = get_status()
                 ist = now_ist()
-                print("[%s] Open: %d | PnL today: Rs.%.2f | Last scan: %s | Enabled: %s" % (
+                alive_str = "ALIVE" if is_alive() else "DEAD"
+                enabled_str = "YES" if status.get("enabled") else "NO"
+                print("[%s] Engine=%s | Open: %d | PnL: Rs.%.2f | Scan: %s | Enabled: %s" % (
                     ist.strftime("%H:%M:%S"),
+                    alive_str,
                     status.get("open_positions", 0),
                     status.get("pnl_today", 0),
                     status.get("last_scan", "--"),
-                    "YES" if status.get("enabled") else "NO",
+                    enabled_str,
                 ))
                 # Print recent log entries
                 log_entries = status.get("log", [])
                 if log_entries:
-                    recent = log_entries[-3:]  # last 3 entries
+                    recent = log_entries[-5:]  # last 5 entries
                     for entry in recent:
                         print("       %s" % entry)
                 last_print = now
