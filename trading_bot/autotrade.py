@@ -69,7 +69,7 @@ def get_status() -> dict:
 
 
 def _log_event(msg: str, *, console: bool = True):
-    """Append to the in-memory log ring and print to console."""
+    """Append to the in-memory log ring, print to console, and push to Redis."""
     ts = now_ist().strftime("%H:%M:%S")
     entry = f"[{ts}] {msg}"
     log.info("AutoTrade: %s", msg)
@@ -79,6 +79,12 @@ def _log_event(msg: str, *, console: bool = True):
         _status["log"].append(entry)
         if len(_status["log"]) > _MAX_LOG:
             _status["log"] = _status["log"][-_MAX_LOG:]
+    # Persist to Redis for Vercel dashboard visibility
+    try:
+        from trading_bot.redis_sync import push_scan_log
+        push_scan_log(entry)
+    except Exception:
+        pass
 
 
 def _is_in_trade_window() -> bool:

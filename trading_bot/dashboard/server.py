@@ -1231,7 +1231,7 @@ def api_autotrade_status():
     import os
     is_vercel = bool(os.getenv("VERCEL"))
     if is_vercel:
-        # On Vercel, report status from DB and optionally trigger a scan
+        # On Vercel, report status from DB and scan log from Redis
         from trading_bot.data.store import get_open_trades, get_today_pnl
         from trading_bot.utils.time_utils import now_ist
         open_trades = get_open_trades()
@@ -1241,6 +1241,17 @@ def api_autotrade_status():
         )
         today_str = now_ist().strftime("%Y-%m-%d")
         pnl = get_today_pnl(today_str)
+
+        # Get scan log from Redis
+        scan_log = ["Auto-scanning active — every 30s while dashboard is open"]
+        try:
+            from trading_bot.redis_sync import get_scan_log
+            redis_log = get_scan_log(20)
+            if redis_log:
+                scan_log = redis_log
+        except Exception:
+            pass
+
         return jsonify({
             "enabled": True,
             "mode": "vercel",
@@ -1250,7 +1261,7 @@ def api_autotrade_status():
             "pnl_today": round(pnl, 2),
             "last_scan": now_ist().strftime("%H:%M:%S"),
             "last_signal": None,
-            "log": [f"Auto-scanning active — every 30s while dashboard is open"],
+            "log": scan_log,
         })
     from trading_bot.autotrade import get_status, is_alive
     status = get_status()
@@ -1305,6 +1316,16 @@ def api_autotrade_scan():
         result["open_positions"] = auto_count
         result["pnl_today"] = round(today_pnl, 2)
         result["status"] = "ok"
+
+        # Log scan to Redis so dashboard shows history
+        try:
+            from trading_bot.redis_sync import push_scan_log
+            ts = now_ist().strftime("%H:%M:%S")
+            scanned_text = "scanned" if result.get("scanned") else "market closed"
+            log_entry = f"[{ts}] pos={auto_count} pnl=₹{today_pnl:.2f} ({scanned_text})"
+            push_scan_log(log_entry)
+        except Exception:
+            pass
 
         return jsonify(result)
     except Exception as e:

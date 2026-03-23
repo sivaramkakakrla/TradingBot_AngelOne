@@ -248,3 +248,40 @@ def restore_from_redis() -> int:
 
     log.info("Redis restore: %d trades, %d orders restored", restored, len(orders))
     return restored
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  SCAN LOG — persists auto-scan activity across cold starts
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_SCAN_LOG_KEY = "autotrade:scan_log"   # Redis List (newest first)
+_MAX_SCAN_LOG = 50                      # keep last 50 entries
+
+
+def push_scan_log(entry: str) -> bool:
+    """Append a scan log entry to Redis."""
+    r = _redis()
+    if not r:
+        return False
+    try:
+        r.lpush(_SCAN_LOG_KEY, entry)
+        r.ltrim(_SCAN_LOG_KEY, 0, _MAX_SCAN_LOG - 1)
+        return True
+    except Exception as e:
+        log.warning("Redis push_scan_log error: %s", e)
+        return False
+
+
+def get_scan_log(count: int = 20) -> list[str]:
+    """Return the last `count` scan log entries."""
+    r = _redis()
+    if not r:
+        return []
+    try:
+        raw = r.lrange(_SCAN_LOG_KEY, 0, count - 1)
+        if not raw:
+            return []
+        return [v.decode() if isinstance(v, (bytes, bytearray)) else str(v) for v in raw]
+    except Exception as e:
+        log.warning("Redis get_scan_log error: %s", e)
+        return []

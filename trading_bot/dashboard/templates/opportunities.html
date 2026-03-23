@@ -1005,8 +1005,9 @@
                     <div class="ctx-row"><span class="ctx-key">Last Scan</span><span class="ctx-val"
                             id="at-last-scan">--</span></div>
                     <div id="at-last-signal" style="margin-top:8px;"></div>
+                    <div style="margin-top:8px;font-size:.68rem;font-weight:600;color:var(--txt-dim);">Scan Log</div>
                     <div id="at-log"
-                        style="margin-top:8px;max-height:120px;overflow-y:auto;font-size:.65rem;color:var(--txt-mute);line-height:1.6;font-family:monospace;">
+                        style="margin-top:4px;max-height:200px;overflow-y:auto;font-size:.65rem;color:var(--txt-dim);line-height:1.7;font-family:monospace;background:var(--card);padding:8px;border-radius:6px;border:1px solid var(--border);">
                     </div>
                 </div>
             </div>
@@ -1509,10 +1510,10 @@
                     '</div>';
             }
 
-            // Log
+            // Log — d.log comes from Redis (newest first), show as-is
             const logEl = document.getElementById('at-log');
             if (d.log && d.log.length > 0) {
-                logEl.innerHTML = d.log.slice(-15).reverse().map(l => '<div>' + l + '</div>').join('');
+                logEl.innerHTML = d.log.slice(0, 20).map(l => '<div>' + l + '</div>').join('');
             }
         }
 
