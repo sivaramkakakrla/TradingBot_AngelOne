@@ -226,6 +226,8 @@ API_RATE_LIMIT = 3  # requests per second
 #  SAFETY
 # ═══════════════════════════════════════════════════════════════════════════════
 AUTO_LOGIN_TIME = "08:30"          # IST
+MARKET_OPEN_TIME = "09:15"         # IST cash market open
+MARKET_CLOSE_TIME = "15:30"        # IST cash market close
 WS_NO_TICK_PAUSE_SECONDS = 15     # pause trading if no tick for this long
 ORDER_CONFIRM_TIMEOUT = 3          # seconds to confirm COMPLETE status
 

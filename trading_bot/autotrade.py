@@ -95,6 +95,15 @@ def _is_in_trade_window() -> bool:
     return False
 
 
+def _is_live_market_hours() -> bool:
+    """Return True only during live NSE session (Mon-Fri, 09:15-15:30 IST)."""
+    now = now_ist()
+    if now.weekday() >= 5:  # 5=Sat, 6=Sun
+        return False
+    hhmm = now.strftime("%H:%M")
+    return config.MARKET_OPEN_TIME <= hhmm <= config.MARKET_CLOSE_TIME
+
+
 def _is_past_force_exit() -> bool:
     now = now_ist().strftime("%H:%M")
     return now >= config.FORCE_EXIT_TIME
@@ -534,6 +543,14 @@ def _scan_and_trade():
     session = get_session()
     if not session:
         _log_event("No session — skip scan")
+        return
+
+    # Strict live-market-hours gate: do not scan outside real session time.
+    if not _is_live_market_hours():
+        _log_event(
+            f"Market closed ({config.MARKET_OPEN_TIME}-{config.MARKET_CLOSE_TIME} IST only) — scan paused",
+            console=False,
+        )
         return
 
     # ── Gate 1: Trade window ─────────────────────────────────────────────
