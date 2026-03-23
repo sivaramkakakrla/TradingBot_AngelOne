@@ -1026,6 +1026,194 @@ def api_historical_analysis():
         return jsonify({"error": str(e)}), 500
 
 
+# ─── LLM Trade Analysis API ────────────────────────────────────────────────────
+
+@app.route("/api/llm/analyze-trade")
+def api_llm_analyze_trade():
+    """
+    POST-MORTEM LLM analysis of a completed paper trade.
+
+    Fetches NIFTY candles for the trade date, re-runs the strategy engine
+    at the entry bar, then asks GPT to explain why the trade succeeded or
+    failed and what could have been done differently.
+
+    Query params:
+        trade_id – e.g. PT-ABCD1234
+        timeframe – 1m | 5m | 15m (default: 5m)
+    """
+    import datetime as _dt
+    from trading_bot.auth.login import get_session
+    from trading_bot.llm.analyzer import analyze_failed_trade
+
+    trade_id = request.args.get("trade_id", "").strip()
+    tf = request.args.get("timeframe", "5m")
+
+    if not trade_id:
+        return jsonify({"error": "Missing trade_id query param"}), 400
+
+    # ── Redis cache (1 hour) — LLM calls are expensive ──
+    cache_key = f"llm:trade:{trade_id}:{tf}"
+    cached = get_cached(cache_key)
+    if cached:
+        return jsonify(cached)
+
+    # ── Step 1: Look up the trade ──────────────────────────────────────────
+    trade = None
+    with get_cursor() as cur:
+        cur.execute("SELECT * FROM trades WHERE trade_id = ?", (trade_id,))
+        row = cur.fetchone()
+        if row:
+            trade = dict(row)
+
+    # Fallback to Redis if not in local DB (Vercel cold start)
+    if not trade:
+        try:
+            from trading_bot.redis_sync import get_all_trades_from_redis
+            all_trades = get_all_trades_from_redis()
+            for t in all_trades:
+                if t.get("trade_id") == trade_id:
+                    trade = t
+                    break
+        except Exception:
+            pass
+
+    if not trade:
+        return jsonify({"error": f"Trade {trade_id} not found"}), 404
+
+    # ── Step 2: Determine trade date ──────────────────────────────────────
+    entry_time_str = str(trade.get("entry_time", ""))
+    if not entry_time_str:
+        return jsonify({"error": "Trade has no entry_time"}), 400
+
+    try:
+        entry_dt = _dt.datetime.fromisoformat(entry_time_str)
+    except ValueError:
+        return jsonify({"error": f"Cannot parse entry_time: {entry_time_str}"}), 400
+
+    trade_date = entry_dt.date()
+    d_str = trade_date.strftime("%Y-%m-%d")
+
+    # ── Step 3: Fetch NIFTY candles for that date ─────────────────────────
+    # Try store (locally run bot) first; fall back to AngelOne API
+    candle_rows = fetch_candles_by_date(config.UNDERLYING, tf, d_str)
+    candles_raw = []
+
+    if candle_rows:
+        # From stored DB rows
+        for r in candle_rows:
+            parts = _ts_to_ist_parts(r["timestamp"])
+            candles_raw.append({
+                "timestamp": r["timestamp"],
+                "ist":   parts["ist"],
+                "open":  float(r["open"]),
+                "high":  float(r["high"]),
+                "low":   float(r["low"]),
+                "close": float(r["close"]),
+                "volume": int(r["volume"]),
+            })
+    else:
+        # Live fetch from AngelOne
+        tf_map = {"1m": "ONE_MINUTE", "5m": "FIVE_MINUTE", "15m": "FIFTEEN_MINUTE"}
+        interval = tf_map.get(tf, "FIVE_MINUTE")
+        try:
+            session = get_session()
+            if session:
+                params = {
+                    "exchange":    config.EXCHANGE,
+                    "symboltoken": config.NIFTY_TOKEN,
+                    "interval":    interval,
+                    "fromdate":    f"{d_str} 09:15",
+                    "todate":      f"{d_str} 15:30",
+                }
+                resp = session.getCandleData(params)
+                if resp and resp.get("status") is not False:
+                    for bar in (resp.get("data") or []):
+                        if len(bar) >= 6:
+                            parts = _ts_to_ist_parts(str(bar[0]))
+                            candles_raw.append({
+                                "timestamp": str(bar[0]),
+                                "ist":   parts["ist"],
+                                "open":  float(bar[1]),
+                                "high":  float(bar[2]),
+                                "low":   float(bar[3]),
+                                "close": float(bar[4]),
+                                "volume": int(bar[5]),
+                            })
+        except Exception as exc:
+            log.warning("LLM analyze-trade candle fetch: %s", exc)
+
+    if len(candles_raw) < 10:
+        return jsonify({
+            "error": f"Insufficient candle data for {d_str} ({len(candles_raw)} bars found). "
+                     "The data may not be stored for this date."
+        }), 400
+
+    # ── Step 4: Find entry bar index ──────────────────────────────────────
+    # Find the candle bar whose timestamp is closest to (and not after) entry_time
+    entry_epoch = entry_dt.timestamp()
+
+    def _bar_epoch(c):
+        try:
+            return _dt.datetime.fromisoformat(c["timestamp"]).timestamp()
+        except Exception:
+            return 0.0
+
+    entry_bar_index = 0
+    min_diff = float("inf")
+    for i, c in enumerate(candles_raw):
+        be = _bar_epoch(c)
+        diff = abs(be - entry_epoch)
+        # prefer the bar just before or at entry
+        if be <= entry_epoch and diff < min_diff:
+            min_diff = diff
+            entry_bar_index = i
+
+    # ── Step 5: Run strategy evaluation up to entry bar ──────────────────
+    strategy_eval = None
+    if entry_bar_index >= 5:
+        try:
+            eval_candles = candles_raw[: entry_bar_index + 2]  # +2 for confirmation bar
+            df_eval = pd.DataFrame(eval_candles)
+            for col in ("open", "high", "low", "close", "volume"):
+                df_eval[col] = pd.to_numeric(df_eval[col], errors="coerce")
+            from trading_bot.strategy import evaluate_historical
+            sigs = evaluate_historical(df_eval)
+            if sigs:
+                # Take the signal closest to the entry bar
+                best = min(sigs, key=lambda s: abs(s.bar_index - entry_bar_index))
+                strategy_eval = _sanitize(best.to_dict())
+        except Exception as exc:
+            log.warning("strategy eval for trade analysis: %s", exc)
+
+    # ── Step 6: Call LLM ──────────────────────────────────────────────────
+    model = config.OPENAI_MODEL if hasattr(config, "OPENAI_MODEL") else "gpt-4o-mini"
+    result = analyze_failed_trade(
+        trade=trade,
+        candles=candles_raw,
+        entry_bar_index=entry_bar_index,
+        strategy_eval=strategy_eval,
+        timeframe=tf,
+        model=model,
+    )
+
+    response = {
+        "trade_id":         trade_id,
+        "trade_date":       d_str,
+        "entry_time":       entry_time_str,
+        "entry_bar_index":  entry_bar_index,
+        "candles_fetched":  len(candles_raw),
+        "strategy_eval":    strategy_eval,
+        "analysis":         result.get("analysis", ""),
+        "model":            result.get("model", model),
+        "error":            result.get("error"),
+    }
+
+    if not result.get("error"):
+        set_cached(cache_key, response, ttl=3600)  # cache 1 hour
+
+    return jsonify(response)
+
+
 # ─── Options Chain APIs ───────────────────────────────────────────────────────
 
 @app.route("/api/options/expiries")

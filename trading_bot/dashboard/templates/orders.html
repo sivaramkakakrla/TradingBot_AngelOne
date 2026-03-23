@@ -588,6 +588,203 @@
     ::-webkit-scrollbar-thumb:hover {
       background: var(--border-lt);
     }
+
+    /* ── AI Analysis Modal ── */
+    .ai-modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, .55);
+      z-index: 2000;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .ai-modal-overlay.open {
+      display: flex;
+    }
+
+    .ai-modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      width: min(720px, 94vw);
+      max-height: 88vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, .35);
+    }
+
+    .ai-modal-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    .ai-modal-title {
+      font-size: .92rem;
+      font-weight: 700;
+      flex: 1;
+    }
+
+    .ai-modal-sub {
+      font-size: .7rem;
+      color: var(--txt-mute);
+    }
+
+    .ai-modal-close {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 5px 12px;
+      font-size: .75rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      color: var(--txt-dim);
+    }
+
+    .ai-modal-close:hover {
+      background: var(--border);
+    }
+
+    .ai-modal-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+    }
+
+    .ai-loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 60px 20px;
+      gap: 14px;
+      color: var(--txt-mute);
+    }
+
+    .ai-loading .spin {
+      font-size: 1.8rem;
+      animation: spin .8s linear infinite;
+    }
+
+    @keyframes spin {
+      from {
+        transform: rotate(0deg)
+      }
+
+      to {
+        transform: rotate(360deg)
+      }
+    }
+
+    .ai-loading-txt {
+      font-size: .85rem;
+      font-weight: 500;
+    }
+
+    .ai-loading-sub {
+      font-size: .74rem;
+    }
+
+    .ai-error {
+      background: var(--red-bg);
+      border: 1px solid var(--red-bdr);
+      border-radius: 10px;
+      padding: 16px 18px;
+      color: var(--red);
+      font-size: .8rem;
+    }
+
+    /* Markdown-like styling for the analysis text */
+    .ai-analysis {
+      font-size: .82rem;
+      line-height: 1.65;
+      color: var(--txt);
+    }
+
+    .ai-analysis h2 {
+      font-size: .88rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin: 18px 0 8px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .ai-analysis h2:first-child {
+      margin-top: 0;
+    }
+
+    .ai-analysis strong {
+      font-weight: 700;
+      color: var(--txt);
+    }
+
+    .ai-analysis li {
+      margin-left: 18px;
+      margin-bottom: 3px;
+    }
+
+    .ai-analysis p {
+      margin-bottom: 8px;
+    }
+
+    .ai-trade-meta {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 16px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .ai-meta-cell {
+      background: var(--card);
+      border-radius: 8px;
+      padding: 8px 12px;
+    }
+
+    .ai-meta-label {
+      font-size: .6rem;
+      color: var(--txt-mute);
+      text-transform: uppercase;
+      letter-spacing: .4px;
+      margin-bottom: 3px;
+    }
+
+    .ai-meta-val {
+      font-size: .85rem;
+      font-weight: 700;
+    }
+
+    .ai-btn {
+      background: rgba(139, 92, 246, .12);
+      border: 1px solid rgba(139, 92, 246, .3);
+      color: #7c3aed;
+      padding: 3px 9px;
+      border-radius: 5px;
+      font-size: .64rem;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all .15s;
+      white-space: nowrap;
+    }
+
+    .ai-btn:hover {
+      background: rgba(139, 92, 246, .22);
+    }
+
+    .ai-btn:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
   </style>
 </head>
 
@@ -680,6 +877,7 @@
             <th>P&amp;L</th>
             <th>Reason</th>
             <th>Time</th>
+            <th>AI</th>
           </tr>
         </thead>
         <tbody id="manual-body"></tbody>
@@ -699,6 +897,7 @@
             <th>P&amp;L</th>
             <th>Reason</th>
             <th>Time</th>
+            <th>AI</th>
           </tr>
         </thead>
         <tbody id="auto-body"></tbody>
@@ -718,6 +917,7 @@
             <th>P&amp;L</th>
             <th>Reason</th>
             <th>Time</th>
+            <th>AI</th>
           </tr>
         </thead>
         <tbody id="gpt-body"></tbody>
@@ -837,6 +1037,28 @@
       </div>
     </div>
 
+  </div>
+
+  <!-- AI Analysis Modal -->
+  <div class="ai-modal-overlay" id="ai-modal-overlay" onclick="closeAiModal(event)">
+    <div class="ai-modal" id="ai-modal">
+      <div class="ai-modal-header">
+        <span style="font-size:1.2rem;">🤖</span>
+        <div style="flex:1">
+          <div class="ai-modal-title" id="ai-modal-title">AI Trade Analysis</div>
+          <div class="ai-modal-sub" id="ai-modal-sub">Post-mortem powered by GPT</div>
+        </div>
+        <button class="ai-modal-close" onclick="document.getElementById('ai-modal-overlay').classList.remove('open')">✕
+          Close</button>
+      </div>
+      <div class="ai-modal-body" id="ai-modal-body">
+        <div class="ai-loading">
+          <span class="spin">⚙</span>
+          <div class="ai-loading-txt">Analysing trade with AI…</div>
+          <div class="ai-loading-sub">Fetching candles · Running strategy engine · Asking GPT</div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="toast-area" id="toast-area"></div>
@@ -1004,6 +1226,7 @@
         '<td class="' + cls + '" style="font-weight:700;">' + RS + t.pnl.toFixed(2) + '</td>' +
         '<td>' + (t.exit_reason ? '<span class="reason-tag">' + t.exit_reason + '</span>' : '') + '</td>' +
         '<td style="color:var(--txt-dim);font-size:.7rem;">' + exitTime + '</td>' +
+        '<td><button class="ai-btn" title="AI Post-Mortem Analysis" onclick="openAiAnalysis(' + JSON.stringify(t) + ')">🤖 AI</button></td>' +
         '</tr>';
     }
 
@@ -1090,6 +1313,91 @@
           ' (' + manual.length + ' manual, ' + auto.length + ' auto, ' + gpt.length + ' GPT)';
         recalcTotal();
       } catch (e) { console.error('history err', e); }
+    }
+
+    // ── AI ANALYSIS ────────────────────────────────────────────────────────────
+    async function openAiAnalysis(trade) {
+      const overlay = document.getElementById('ai-modal-overlay');
+      const body = document.getElementById('ai-modal-body');
+      const titleEl = document.getElementById('ai-modal-title');
+      const subEl = document.getElementById('ai-modal-sub');
+
+      // Format trade meta for header
+      const inst = _fmtSym(trade.symbol, trade.strike, trade.option_type);
+      const pnlSign = trade.pnl >= 0 ? '+' : '';
+      titleEl.textContent = 'AI Analysis — ' + inst;
+      subEl.textContent = 'Entry: ' + (trade.entry_time || '').slice(11, 16) +
+        ' → Exit: ' + (trade.exit_time || '').slice(11, 16) +
+        '  |  P&L: ' + pnlSign + RS + (trade.pnl || 0).toFixed(2) +
+        '  |  ' + (trade.exit_reason || '?');
+
+      // Show loading state
+      body.innerHTML = '<div class="ai-loading">' +
+        '<span class="spin">⚙</span>' +
+        '<div class="ai-loading-txt">Analysing trade with AI…</div>' +
+        '<div class="ai-loading-sub">Fetching NIFTY candles · Re-running strategy engine · Asking GPT</div>' +
+        '</div>';
+      overlay.classList.add('open');
+
+      try {
+        const url = '/api/llm/analyze-trade?trade_id=' + encodeURIComponent(trade.trade_id) + '&timeframe=5m';
+        const r = await fetch(url);
+        const data = await r.json();
+
+        if (data.error) {
+          body.innerHTML = '<div class="ai-error">⚠ ' + data.error + '</div>';
+          return;
+        }
+
+        // Build meta strip
+        const metaHtml = '<div class="ai-trade-meta">' +
+          _aiMetaCell('Instrument', inst) +
+          _aiMetaCell('Entry Price', RS + (trade.entry_price || 0).toFixed(2)) +
+          _aiMetaCell('Exit Price', RS + (trade.exit_price || 0).toFixed(2)) +
+          _aiMetaCell('P&L', pnlSign + RS + (trade.pnl || 0).toFixed(2), trade.pnl >= 0 ? 'var(--green)' : 'var(--red)') +
+          _aiMetaCell('Exit Reason', trade.exit_reason || '?') +
+          _aiMetaCell('Candles', data.candles_fetched + ' bars @ 5m') +
+          '</div>';
+
+        // Format the analysis markdown-ish
+        const analysisHtml = _formatAnalysis(data.analysis || 'No analysis returned.');
+
+        body.innerHTML = metaHtml +
+          '<div class="ai-analysis">' + analysisHtml + '</div>' +
+          '<div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);' +
+          'font-size:.64rem;color:var(--txt-mute);text-align:right;">Model: ' + (data.model || 'gpt-4o-mini') +
+          ' · Trade: ' + trade.trade_id + '</div>';
+
+      } catch (e) {
+        body.innerHTML = '<div class="ai-error">⚠ Request failed: ' + e.message + '</div>';
+      }
+    }
+
+    function _aiMetaCell(label, val, color) {
+      return '<div class="ai-meta-cell">' +
+        '<div class="ai-meta-label">' + label + '</div>' +
+        '<div class="ai-meta-val"' + (color ? ' style="color:' + color + '"' : '') + '>' + val + '</div>' +
+        '</div>';
+    }
+
+    function _formatAnalysis(text) {
+      // Convert markdown ## headings and **bold** to HTML
+      return text
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+        .replace(/^### (.+)$/gm, '<h2>$1</h2>')
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/^[\*\-] (.+)$/gm, '<li>$1</li>')
+        .replace(/(<li>.*<\/li>\n?)+/g, m => '<ul style="margin:6px 0 10px">' + m + '</ul>')
+        .replace(/\n{2,}/g, '</p><p>')
+        .replace(/\n/g, '<br>')
+        .replace(/^(?!<[hup])(.+)$/, '<p>$1</p>');
+    }
+
+    function closeAiModal(e) {
+      if (e.target === document.getElementById('ai-modal-overlay')) {
+        document.getElementById('ai-modal-overlay').classList.remove('open');
+      }
     }
 
     // Keep old name as alias for compatibility with any other callers
