@@ -1234,6 +1234,112 @@ _SAFE_PARAMS: dict[str, tuple] = {
 }
 
 
+# ─── AI Chat Page + API ───────────────────────────────────────────────────────
+
+@app.route("/chat")
+def page_chat():
+    return render_template("chat.html")
+
+
+_CHAT_SYSTEM = """You are the AI assistant for "Project Candles" — an automated NIFTY 50 options paper-trading bot.
+
+## CURRENT LIVE CONFIG
+- RSI_BULL_THRESHOLD     = {RSI_BULL}   (RSI must be above this to enter a CE/bullish trade)
+- RSI_BEAR_THRESHOLD     = {RSI_BEAR}   (RSI must be below this to enter a PE/bearish trade)
+- VOLUME_EXPANSION_MULT  = {VOL}        (volume must be {VOL}× its average to confirm pattern)
+- INITIAL_SL_POINTS      = {SL}         (stop-loss distance in NIFTY index points)
+- DUPLICATE_SIGNAL_COOLDOWN = {COOL}s   (minimum gap before same-direction re-entry)
+- SL_BLOCK_DURATION      = {SLBLK}s    (all entries blocked this long after a stop-loss hit)
+- MAX_OPEN_TRADES        = {MAXOT}      (max concurrent positions)
+- MAX_DAILY_LOSS         = ₹{MDL}       (daily loss limit — bot stops after this)
+- EMA_FAST=20 / EMA_SLOW=50, SUPERTREND(10, 3.0), LOT_SIZE=65, TRADING_MODE=paper
+
+## PARAMETERS YOU CAN MODIFY
+Only these 8, within the stated safe ranges:
+RSI_BULL_THRESHOLD (40-75), RSI_BEAR_THRESHOLD (25-60),
+DUPLICATE_SIGNAL_COOLDOWN (300-3600s), SL_BLOCK_DURATION (300-7200s),
+MAX_OPEN_TRADES (1-5), MAX_DAILY_LOSS (500-10000),
+VOLUME_EXPANSION_MULT (1.0-3.0), INITIAL_SL_POINTS (5-60)
+
+## ACTION FORMAT
+When you want to apply a config change, append EXACTLY this line at the end — nothing after it:
+%%ACTION:config_change:PARAM_NAME:NEW_VALUE:one-sentence reason%%
+Example: %%ACTION:config_change:INITIAL_SL_POINTS:25:Wider SL will reduce stop-outs from normal intraday noise%%
+Include at most ONE action. Only suggest a change when the user explicitly asks or when a benefit is clear.
+
+## STYLE
+- Be concise (this is a trading terminal, not a blog)
+- Use actual numbers from the config above when helpful
+- If asked for code changes beyond the 8 parameters, explain you can only modify those 8
+- ₹ for rupees, answer in plain English"""
+
+
+@app.route("/api/chat", methods=["POST"])
+def api_chat():
+    """Conversational AI assistant with ability to suggest+apply config changes."""
+    import re as _re
+    import openai
+
+    body = request.get_json(force=True) or {}
+    messages = (body.get("messages") or [])[-20:]   # cap history
+
+    if not config.OPENAI_API_KEY:
+        return jsonify({"error": "OpenAI API key not configured."}), 503
+    if not messages:
+        return jsonify({"error": "No messages provided."}), 400
+
+    system = _CHAT_SYSTEM.format(
+        RSI_BULL=config.RSI_BULL_THRESHOLD,
+        RSI_BEAR=config.RSI_BEAR_THRESHOLD,
+        VOL=config.VOLUME_EXPANSION_MULT,
+        SL=config.INITIAL_SL_POINTS,
+        COOL=config.DUPLICATE_SIGNAL_COOLDOWN,
+        SLBLK=config.SL_BLOCK_DURATION,
+        MAXOT=config.MAX_OPEN_TRADES,
+        MDL=config.MAX_DAILY_LOSS,
+    )
+
+    try:
+        client = openai.OpenAI(api_key=config.OPENAI_API_KEY)
+        resp = client.chat.completions.create(
+            model=config.OPENAI_MODEL,
+            messages=[{"role": "system", "content": system}] + messages,
+            temperature=0.4,
+            max_tokens=600,
+        )
+        raw = resp.choices[0].message.content or ""
+
+        # Parse optional %%ACTION...%% block
+        action = None
+        m = _re.search(r'%%ACTION:config_change:(\w+):([\d.]+):(.+?)%%', raw, _re.DOTALL)
+        if m:
+            param, val_str, reason = m.group(1), m.group(2), m.group(3).strip()
+            reply = _re.sub(r'\s*%%ACTION:[^%]+%%', '', raw).strip()
+            if param in _SAFE_PARAMS:
+                lo, hi = _SAFE_PARAMS[param]
+                val = float(val_str)
+                if lo <= val <= hi:
+                    action = {
+                        "type":      "config_change",
+                        "param":     param,
+                        "current":   getattr(config, param, None),
+                        "suggested": val,
+                        "reason":    reason,
+                    }
+        else:
+            reply = raw
+
+        return jsonify({"reply": reply, "action": action})
+
+    except openai.RateLimitError:
+        return jsonify({"error": "RATE_LIMIT"}), 429
+    except openai.AuthenticationError:
+        return jsonify({"error": "OpenAI authentication failed. Check your API key."}), 503
+    except Exception as exc:
+        log.error("chat API error: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
 @app.route("/api/llm/apply-suggestion", methods=["POST"])
 def api_llm_apply_suggestion():
     """
