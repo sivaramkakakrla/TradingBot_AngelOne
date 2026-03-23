@@ -1293,6 +1293,7 @@
 
     // ── TRADE HISTORY (single fetch, split by source) ──
     let _realizedPnl = 0;
+    const _tradesById = {};   // keyed by trade_id for AI modal lookup
 
     function _fmtSym(sym, strike, otype) {
       // If symbol is raw AngelOne format like NIFTY19MAR2624000CE, format nicely
@@ -1309,6 +1310,7 @@
     }
 
     function _tradeRow(t) {
+      _tradesById[t.trade_id] = t;   // store for AI modal lookup
       const cls = t.pnl >= 0 ? 'pos' : 'neg';
       let inst = _fmtSym(t.symbol, t.strike, t.option_type);
       const dirLabel = (t.option_type && t.option_type !== 'IDX') ? 'BUY ' + t.option_type : t.direction;
@@ -1322,7 +1324,7 @@
         '<td class="' + cls + '" style="font-weight:700;">' + RS + t.pnl.toFixed(2) + '</td>' +
         '<td>' + (t.exit_reason ? '<span class="reason-tag">' + t.exit_reason + '</span>' : '') + '</td>' +
         '<td style="color:var(--txt-dim);font-size:.7rem;">' + exitTime + '</td>' +
-        '<td><button class="ai-btn" title="AI Post-Mortem Analysis" onclick="openAiAnalysis(' + JSON.stringify(t) + ')">🤖 AI</button></td>' +
+        '<td><button class="ai-btn" title="AI Post-Mortem Analysis" onclick="openAiAnalysis(\'' + t.trade_id + '\')">🤖 AI</button></td>' +
         '</tr>';
     }
 
@@ -1412,7 +1414,10 @@
     }
 
     // ── AI ANALYSIS ────────────────────────────────────────────────────────────
-    async function openAiAnalysis(trade) {
+    async function openAiAnalysis(tradeOrId) {
+      // Accept either a trade object (legacy) or a trade_id string
+      const trade = (typeof tradeOrId === 'string') ? (_tradesById[tradeOrId] || { trade_id: tradeOrId }) : tradeOrId;
+
       const overlay = document.getElementById('ai-modal-overlay');
       const body = document.getElementById('ai-modal-body');
       const titleEl = document.getElementById('ai-modal-title');
