@@ -1443,21 +1443,35 @@
         function updateATPanel(d) {
             _atEnabled = !!d.enabled;
             const threadAlive = !!d.thread_alive;
+            const isVercel = !!d.is_vercel;
             const btn = document.getElementById('at-toggle-btn');
             const label = document.getElementById('at-status-label');
-            if (_atEnabled && threadAlive) {
+
+            if (isVercel) {
+                btn.textContent = 'LOCAL ONLY';
+                btn.style.background = 'var(--txt-dim)';
+                btn.disabled = true;
+                label.textContent = 'VERCEL (read-only)';
+                label.style.color = 'var(--amber)';
+                // Show Vercel notice in log
+                const logEl = document.getElementById('at-log');
+                logEl.innerHTML = '<div style="color:var(--amber);">⚠️ Auto-trade engine cannot run on Vercel (serverless). Run locally:<br><code style="font-size:.65rem;">python run_autotrade.py</code></div>';
+            } else if (_atEnabled && threadAlive) {
                 btn.textContent = 'STOP';
                 btn.style.background = 'var(--red)';
+                btn.disabled = false;
                 label.textContent = 'RUNNING';
                 label.style.color = 'var(--green)';
             } else if (_atEnabled && !threadAlive) {
                 btn.textContent = 'RESTART';
                 btn.style.background = 'var(--orange, #f0a030)';
+                btn.disabled = false;
                 label.textContent = 'THREAD DEAD';
                 label.style.color = 'var(--red)';
             } else {
                 btn.textContent = 'START';
                 btn.style.background = 'var(--accent)';
+                btn.disabled = false;
                 label.textContent = 'DISABLED';
                 label.style.color = 'var(--txt-dim)';
             }
@@ -1501,11 +1515,15 @@
         }
 
         async function autoStartEngine() {
+            // Don't auto-start on Vercel — it's serverless, threads die immediately
             try {
                 const r = await fetch('/api/autotrade/status');
                 const d = await r.json();
+                if (d.is_vercel) {
+                    console.log('Vercel detected — skipping auto-trade engine start');
+                    return;
+                }
                 if (!d.enabled) {
-                    // Auto-start the engine
                     await fetch('/api/autotrade/start', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },

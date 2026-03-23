@@ -1200,6 +1200,13 @@ def api_options_debug():
 @app.route("/api/autotrade/start", methods=["POST"])
 def api_autotrade_start():
     """Start the auto-trade engine."""
+    import os
+    if os.getenv("VERCEL"):
+        return jsonify({
+            "error": "Auto-trade engine cannot run on Vercel (serverless). Run locally: python run_autotrade.py",
+            "enabled": False,
+            "is_vercel": True,
+        }), 400
     from trading_bot.autotrade import start as at_start, get_status
     data = request.get_json(force=True) if request.is_json else {}
     interval = int(data.get("interval", 60))
@@ -1218,9 +1225,11 @@ def api_autotrade_stop():
 @app.route("/api/autotrade/status")
 def api_autotrade_status():
     """Return current auto-trade status, log, and last signal."""
-    from trading_bot.autotrade import get_status, ensure_running, is_alive
+    import os
+    from trading_bot.autotrade import get_status, is_alive
     status = get_status()
     status["thread_alive"] = is_alive()
+    status["is_vercel"] = bool(os.getenv("VERCEL"))
     return jsonify(status)
 
 
