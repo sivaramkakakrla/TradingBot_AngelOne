@@ -1499,6 +1499,7 @@
 
         // ── Auto-Trade Controls ──
         let _atEnabled = false;
+        let _vercelMarketLive = true;
 
         async function toggleAutoTrade() {
             const btn = document.getElementById('at-toggle-btn');
@@ -1519,32 +1520,41 @@
             _atEnabled = !!d.enabled;
             const threadAlive = !!d.thread_alive;
             const isVercel = !!d.is_vercel;
+            _vercelMarketLive = d.market_live !== false;
             const btn = document.getElementById('at-toggle-btn');
             const label = document.getElementById('at-status-label');
 
             if (isVercel) {
                 // Vercel mode — show auto-scan is active
-                btn.textContent = 'SCAN NOW';
-                btn.style.background = 'var(--accent)';
-                btn.disabled = false;
+                btn.textContent = _vercelMarketLive ? 'SCAN NOW' : 'MARKET CLOSED';
+                btn.style.background = _vercelMarketLive ? 'var(--accent)' : 'var(--border)';
+                btn.disabled = !_vercelMarketLive;
                 btn.onclick = async function () {
+                    if (!_vercelMarketLive) return;
                     btn.disabled = true;
                     btn.textContent = 'SCANNING...';
                     try {
                         const r = await fetch('/api/autotrade/scan', { method: 'POST' });
                         const res = await r.json();
                         const logEl = document.getElementById('at-log');
-                        logEl.innerHTML = '<div style="color:var(--green);">✓ Scan at ' + (res.time || '') + ' | Pos: ' + (res.open_positions || 0) + ' | PnL: ₹' + (res.pnl_today || 0).toFixed(2) + '</div>' + logEl.innerHTML;
+                        if (res.scanned) {
+                            logEl.innerHTML = '<div style="color:var(--green);">✓ Scan at ' + (res.time || '') + ' | Pos: ' + (res.open_positions || 0) + ' | PnL: ₹' + (res.pnl_today || 0).toFixed(2) + '</div>' + logEl.innerHTML;
+                        }
                         _vercelCountdown = 30; // reset countdown after manual scan
                         pollAutoTradeStatus();
                     } catch (e) {
                         console.error('Scan error', e);
                     }
-                    btn.disabled = false;
-                    btn.textContent = 'SCAN NOW';
+                    btn.disabled = !_vercelMarketLive;
+                    btn.textContent = _vercelMarketLive ? 'SCAN NOW' : 'MARKET CLOSED';
                 };
-                label.innerHTML = '<span style="color:var(--green)">● AUTO-SCANNING</span> <span style="font-weight:400;color:var(--txt-mute);font-size:.68rem" id="at-countdown"></span>';
-                label.style.color = 'var(--green)';
+                if (_vercelMarketLive) {
+                    label.innerHTML = '<span style="color:var(--green)">● AUTO-SCANNING</span> <span style="font-weight:400;color:var(--txt-mute);font-size:.68rem" id="at-countdown"></span>';
+                    label.style.color = 'var(--green)';
+                } else {
+                    label.innerHTML = '<span style="color:var(--txt-dim)">● AUTO-SCAN PAUSED</span> <span style="font-weight:400;color:var(--txt-mute);font-size:.68rem" id="at-countdown">(market closed)</span>';
+                    label.style.color = 'var(--txt-dim)';
+                }
             } else if (_atEnabled && threadAlive) {
                 btn.textContent = 'STOP';
                 btn.style.background = 'var(--red)';
@@ -1587,7 +1597,8 @@
             // Log — d.log comes from Redis (newest first), show as-is
             const logEl = document.getElementById('at-log');
             if (d.log && d.log.length > 0) {
-                logEl.innerHTML = d.log.slice(0, 20).map(l => '<div>' + l + '</div>').join('');
+                const lines = d.log.filter(l => l && !l.includes('(market closed)')).slice(0, 20);
+                logEl.innerHTML = lines.length ? lines.map(l => '<div>' + l + '</div>').join('') : '<div>Market closed - auto-scan paused</div>';
             }
         }
 
@@ -1613,6 +1624,11 @@
 
             // Countdown ticker every second
             setInterval(() => {
+                if (!_vercelMarketLive) {
+                    const el = document.getElementById('at-countdown');
+                    if (el) el.textContent = '(market closed)';
+                    return;
+                }
                 _vercelCountdown--;
                 const el = document.getElementById('at-countdown');
                 if (el) el.textContent = '(next in ' + _vercelCountdown + 's)';
@@ -1694,8 +1710,10 @@
             // Update top status bar for Vercel
             try {
                 const st = await (await fetch('/api/autotrade/status')).json();
-                if (st.is_vercel) {
+                if (st.is_vercel && st.market_live !== false) {
                     document.getElementById('status-text').textContent = 'Live · auto-scanning every 30s (Vercel)';
+                } else if (st.is_vercel) {
+                    document.getElementById('status-text').textContent = 'Live · auto-scan paused (market closed)';
                 } else {
                     document.getElementById('status-text').textContent = 'Live · auto-scanning every 30s';
                 }

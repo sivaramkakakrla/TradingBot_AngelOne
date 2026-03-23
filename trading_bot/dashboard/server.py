@@ -1707,7 +1707,7 @@ def api_autotrade_status():
         try:
             from trading_bot.redis_sync import get_scan_log
             redis_log = get_scan_log(20)
-            if redis_log:
+            if live_now and redis_log:
                 scan_log = redis_log
         except Exception:
             pass
