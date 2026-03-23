@@ -1448,7 +1448,7 @@
             const label = document.getElementById('at-status-label');
 
             if (isVercel) {
-                // Vercel mode — auto-scan via dashboard polling
+                // Vercel mode — show auto-scan is active
                 btn.textContent = 'SCAN NOW';
                 btn.style.background = 'var(--accent)';
                 btn.disabled = false;
@@ -1459,7 +1459,8 @@
                         const r = await fetch('/api/autotrade/scan', { method: 'POST' });
                         const res = await r.json();
                         const logEl = document.getElementById('at-log');
-                        logEl.innerHTML = '<div style="color:var(--green);">Scan done at ' + (res.time || '') + ' | Positions: ' + (res.open_positions || 0) + ' | PnL: ₹' + (res.pnl_today || 0).toFixed(2) + '</div>';
+                        logEl.innerHTML = '<div style="color:var(--green);">✓ Scan at ' + (res.time || '') + ' | Pos: ' + (res.open_positions || 0) + ' | PnL: ₹' + (res.pnl_today || 0).toFixed(2) + '</div>' + logEl.innerHTML;
+                        _vercelCountdown = 30; // reset countdown after manual scan
                         pollAutoTradeStatus();
                     } catch (e) {
                         console.error('Scan error', e);
@@ -1467,7 +1468,7 @@
                     btn.disabled = false;
                     btn.textContent = 'SCAN NOW';
                 };
-                label.textContent = 'VERCEL MODE';
+                label.innerHTML = '<span style="color:var(--green)">● AUTO-SCANNING</span> <span style="font-weight:400;color:var(--txt-mute);font-size:.68rem" id="at-countdown"></span>';
                 label.style.color = 'var(--green)';
             } else if (_atEnabled && threadAlive) {
                 btn.textContent = 'STOP';
@@ -1527,23 +1528,57 @@
             } catch (e) { }
         }
 
+        let _vercelCountdown = 30;
+        let _vercelAutoScanActive = false;
+
+        function startVercelAutoScan() {
+            if (_vercelAutoScanActive) return;
+            _vercelAutoScanActive = true;
+            console.log('Vercel auto-scan started — scanning every 30s');
+
+            // Countdown ticker every second
+            setInterval(() => {
+                _vercelCountdown--;
+                const el = document.getElementById('at-countdown');
+                if (el) el.textContent = '(next in ' + _vercelCountdown + 's)';
+                if (_vercelCountdown <= 0) {
+                    _vercelCountdown = 30;
+                    // Trigger auto-scan
+                    fetch('/api/autotrade/scan', { method: 'POST' })
+                        .then(r => r.json())
+                        .then(res => {
+                            const logEl = document.getElementById('at-log');
+                            if (logEl) {
+                                const entry = '<div style="color:var(--txt-dim);">⟳ Auto-scan ' + (res.time || '') + ' | Pos: ' + (res.open_positions || 0) + ' | PnL: ₹' + (res.pnl_today || 0).toFixed(2) + (res.scanned ? '' : ' (market closed)') + '</div>';
+                                logEl.innerHTML = entry + logEl.innerHTML;
+                                // Keep only last 20 entries
+                                const children = logEl.querySelectorAll('div');
+                                for (let i = 20; i < children.length; i++) children[i].remove();
+                            }
+                            pollAutoTradeStatus();
+                        })
+                        .catch(() => { });
+                }
+            }, 1000);
+
+            // Immediate first scan
+            fetch('/api/autotrade/scan', { method: 'POST' })
+                .then(r => r.json())
+                .then(res => {
+                    const logEl = document.getElementById('at-log');
+                    if (logEl) logEl.innerHTML = '<div style="color:var(--green);">✓ Initial scan at ' + (res.time || '') + '</div>';
+                    pollAutoTradeStatus();
+                })
+                .catch(() => { });
+        }
+
         async function autoStartEngine() {
-            // On Vercel, start auto-scanning via dashboard polling
             try {
                 const r = await fetch('/api/autotrade/status');
                 const d = await r.json();
                 updateATPanel(d);
                 if (d.is_vercel) {
-                    console.log('Vercel mode — auto-scanning every 60s while dashboard is open');
-                    // Auto-scan every 60 seconds on Vercel
-                    setInterval(async () => {
-                        try {
-                            await fetch('/api/autotrade/scan', { method: 'POST' });
-                            pollAutoTradeStatus();
-                        } catch (e) { }
-                    }, 60000);
-                    // Do an initial scan immediately
-                    fetch('/api/autotrade/scan', { method: 'POST' }).catch(() => { });
+                    startVercelAutoScan();
                     return;
                 }
                 if (!d.enabled) {
@@ -1569,7 +1604,17 @@
             setInterval(pollAutoTradeStatus, 5000);
             await autoStartEngine();
             await pollAutoTradeStatus();
-            document.getElementById('status-text').textContent = 'Live · auto-scanning every 30s';
+            // Update top status bar for Vercel
+            try {
+                const st = await (await fetch('/api/autotrade/status')).json();
+                if (st.is_vercel) {
+                    document.getElementById('status-text').textContent = 'Live · auto-scanning every 30s (Vercel)';
+                } else {
+                    document.getElementById('status-text').textContent = 'Live · auto-scanning every 30s';
+                }
+            } catch (e) {
+                document.getElementById('status-text').textContent = 'Live · auto-scanning every 30s';
+            }
         })();
     </script>
 </body>

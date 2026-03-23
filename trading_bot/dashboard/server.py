@@ -1250,7 +1250,7 @@ def api_autotrade_status():
             "pnl_today": round(pnl, 2),
             "last_scan": now_ist().strftime("%H:%M:%S"),
             "last_signal": None,
-            "log": [f"Vercel mode — use Scan Now or auto-scan from dashboard"],
+            "log": [f"Auto-scanning active — every 30s while dashboard is open"],
         })
     from trading_bot.autotrade import get_status, is_alive
     status = get_status()
