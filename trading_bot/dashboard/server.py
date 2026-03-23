@@ -1713,6 +1713,10 @@ def api_rule180_pnl():
     """Return Rule180 strategy-only PnL summary and recent trades."""
     trades = _load_rule180_trades()
     today = now_ist().strftime("%Y-%m-%d")
+    try:
+        budget_per_trade = float(os.getenv("R180_CAPITAL_PER_TRADE", "30000"))
+    except Exception:
+        budget_per_trade = 30000.0
 
     total_pnl = 0.0
     today_pnl = 0.0
@@ -1762,6 +1766,7 @@ def api_rule180_pnl():
         "win_rate": round(win_rate, 2),
         "total_pnl": round(total_pnl, 2),
         "today_pnl": round(today_pnl, 2),
+        "budget_per_trade": round(budget_per_trade, 2),
         "recent": recent,
         "source": "rule180_trades_csv",
     })
@@ -1830,6 +1835,14 @@ def api_orb_pnl():
     """Return ORB strategy-only PnL summary and recent trades."""
     trades = _load_orb_trades()
     today = now_ist().strftime("%Y-%m-%d")
+    try:
+        from trading_bot.orb_strategy.config import ORBConfig
+        budget_per_trade = float(ORBConfig.from_env().capital_per_trade)
+    except Exception:
+        try:
+            budget_per_trade = float(os.getenv("ORB_CAPITAL_PER_TRADE", "30000"))
+        except Exception:
+            budget_per_trade = 30000.0
 
     total_pnl = 0.0
     today_pnl = 0.0
@@ -1878,6 +1891,7 @@ def api_orb_pnl():
         "win_rate": round(win_rate, 2),
         "total_pnl": round(total_pnl, 2),
         "today_pnl": round(today_pnl, 2),
+        "budget_per_trade": round(budget_per_trade, 2),
         "recent": recent,
         "runtime": _get_orb_runtime_snapshot(),
         "source": "orb_strategy_trades_csv",

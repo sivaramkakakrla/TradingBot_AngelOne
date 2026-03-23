@@ -360,6 +360,7 @@
                     <div class="v" id="pnlWinRate">0.00%</div>
                 </div>
             </div>
+            <div class="sub" id="budget180" style="margin-top:6px;">Investment Budget: ₹30,000.00 per trade</div>
             <div class="sub" id="pnlSource" style="margin-top:6px;">Source: --</div>
         </div>
 
@@ -545,6 +546,8 @@
 
                 document.getElementById('pnlTrades').textContent = String(d.total_trades || 0);
                 document.getElementById('pnlWinRate').textContent = Number(d.win_rate || 0).toFixed(2) + '%';
+                document.getElementById('budget180').textContent =
+                    'Investment Budget: ' + RS + Number(d.budget_per_trade || 0).toFixed(2) + ' per trade';
                 document.getElementById('pnlSource').textContent = 'Source: ' + (d.source || '--') + ' | Date: ' + (d.date || '--');
 
                 const body = document.getElementById('r180TradesBody');

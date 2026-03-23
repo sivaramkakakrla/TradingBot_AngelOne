@@ -256,6 +256,7 @@
                     <div class="v" id="winRate">0.00%</div>
                 </div>
             </div>
+            <div id="orbBudget" class="hint" style="margin-top:6px;">Investment Budget: ₹30,000.00 per trade</div>
             <div id="pnlMeta" class="hint" style="margin-top:8px;">Source: --</div>
         </div>
 
@@ -335,6 +336,8 @@
 
             document.getElementById('totalTrades').textContent = String(d.total_trades || 0);
             document.getElementById('winRate').textContent = Number(d.win_rate || 0).toFixed(2) + '%';
+            document.getElementById('orbBudget').textContent =
+                'Investment Budget: ' + RS + Number(d.budget_per_trade || 0).toFixed(2) + ' per trade';
             document.getElementById('pnlMeta').textContent = 'Source: ' + (d.source || '--') + ' | Updated: ' + (d.time || '--');
 
             document.getElementById('orbHigh').textContent = d.runtime && d.runtime.orb_high != null ? Number(d.runtime.orb_high).toFixed(2) : '--';
