@@ -1,22 +1,37 @@
 name: Auto-Trade Scanner
 
-# Runs every minute, Mon-Fri, during Indian market hours (9:15 AM - 3:30 PM IST = 3:45 AM - 10:00 AM UTC)
+# Runs Mon-Fri during Indian market hours (9:15 AM - 3:30 PM IST = 3:45 AM - 10:00 AM UTC)
+# GitHub Actions cron may delay runs by 5-15 min — that's fine for 60s scan intervals
 on:
   schedule:
-    # Every minute from 3:45 AM to 10:00 AM UTC (9:15 AM to 3:30 PM IST), Mon-Fri
-    - cron: "*/1 3-9 * * 1-5" # Every minute, hours 3-9 UTC
-    - cron: "45-59 3 * * 1-5" # 3:45-3:59 UTC (9:15-9:29 IST) — first 15 min
-    - cron: "0-30 10 * * 1-5" # 10:00-10:30 UTC (3:30-4:00 IST) — last 30 min
-  workflow_dispatch: # Allow manual trigger
+    - cron: "*/5 3-10 * * 1-5" # Every 5 min, 3:00-10:59 UTC (8:30-16:29 IST), Mon-Fri
+  workflow_dispatch: # Allow manual trigger from GitHub UI
 
 jobs:
   scan:
     runs-on: ubuntu-latest
-    # Only run during market hours (double-check via IST time)
     steps:
-      - name: Trigger Auto-Trade Scan
+      - name: Check Market Hours
+        id: market
         run: |
-          echo "Triggering scan at $(TZ=Asia/Kolkata date '+%Y-%m-%d %H:%M:%S IST')"
+          IST_HOUR=$(TZ=Asia/Kolkata date '+%H')
+          IST_MIN=$(TZ=Asia/Kolkata date '+%M')
+          IST_TIME="${IST_HOUR}:${IST_MIN}"
+          echo "IST time: $IST_TIME"
+
+          # Market hours: 9:15 AM - 3:30 PM IST
+          if [[ "$IST_TIME" < "09:15" ]] || [[ "$IST_TIME" > "15:30" ]]; then
+            echo "Outside market hours — skipping"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "Within market hours — scanning"
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Trigger Auto-Trade Scan
+        if: steps.market.outputs.skip != 'true'
+        run: |
+          echo "Scanning at $(TZ=Asia/Kolkata date '+%Y-%m-%d %H:%M:%S IST')"
 
           RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
             "https://angelonetradingbot.vercel.app/api/autotrade/scan" \
@@ -32,10 +47,3 @@ jobs:
           if [ "$HTTP_CODE" -ne 200 ]; then
             echo "::warning::Scan returned HTTP $HTTP_CODE"
           fi
-
-      - name: Trigger Cron Endpoint (backup)
-        if: failure()
-        run: |
-          curl -s -X GET \
-            "https://angelonetradingbot.vercel.app/api/cron/autotrade" \
-            --max-time 25 || true
