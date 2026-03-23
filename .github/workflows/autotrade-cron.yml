@@ -1,0 +1,41 @@
+name: Auto-Trade Scanner
+
+# Runs every minute, Mon-Fri, during Indian market hours (9:15 AM - 3:30 PM IST = 3:45 AM - 10:00 AM UTC)
+on:
+  schedule:
+    # Every minute from 3:45 AM to 10:00 AM UTC (9:15 AM to 3:30 PM IST), Mon-Fri
+    - cron: "*/1 3-9 * * 1-5" # Every minute, hours 3-9 UTC
+    - cron: "45-59 3 * * 1-5" # 3:45-3:59 UTC (9:15-9:29 IST) — first 15 min
+    - cron: "0-30 10 * * 1-5" # 10:00-10:30 UTC (3:30-4:00 IST) — last 30 min
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    # Only run during market hours (double-check via IST time)
+    steps:
+      - name: Trigger Auto-Trade Scan
+        run: |
+          echo "Triggering scan at $(TZ=Asia/Kolkata date '+%Y-%m-%d %H:%M:%S IST')"
+
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            "https://angelonetradingbot.vercel.app/api/autotrade/scan" \
+            -H "Content-Type: application/json" \
+            --max-time 25)
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -n -1)
+
+          echo "Status: $HTTP_CODE"
+          echo "Response: $BODY"
+
+          if [ "$HTTP_CODE" -ne 200 ]; then
+            echo "::warning::Scan returned HTTP $HTTP_CODE"
+          fi
+
+      - name: Trigger Cron Endpoint (backup)
+        if: failure()
+        run: |
+          curl -s -X GET \
+            "https://angelonetradingbot.vercel.app/api/cron/autotrade" \
+            --max-time 25 || true
