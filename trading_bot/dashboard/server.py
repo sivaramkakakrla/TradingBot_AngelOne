@@ -383,11 +383,12 @@ def api_debug_db():
     # Redis check
     try:
         from trading_bot.redis_sync import get_all_trades_from_redis, get_scan_log
-        from trading_bot.cache import _get_client
+        from trading_bot.cache import _get_client, _UPSTASH_AVAILABLE
         client = _get_client()
         info["redis_client"] = "connected" if client else "None"
         info["redis_url_set"] = bool(os.getenv("UPSTASH_REDIS_REST_URL", "").strip())
         info["redis_token_set"] = bool(os.getenv("UPSTASH_REDIS_REST_TOKEN", "").strip())
+        info["upstash_installed"] = _UPSTASH_AVAILABLE
         if client:
             redis_trades = get_all_trades_from_redis()
             info["redis_total"] = len(redis_trades)
