@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Project Candles - 180 Rule</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg: #f8fafc;
+            --surface: #ffffff;
+            --card: #f1f5f9;
+            --border: #e2e8f0;
+            --txt: #0f172a;
+            --txt-dim: #64748b;
+            --green: #16a34a;
+            --red: #dc2626;
+            --amber: #d97706;
+            --accent: #2563eb;
+            --purple: #7c3aed;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--txt);
+            min-height: 100vh;
+        }
+
+        .topbar {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            height: 48px;
+            padding: 0 24px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .logo {
+            font-size: .95rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .topbar nav {
+            display: flex;
+            gap: 4px;
+            margin-left: 16px;
+        }
+
+        .topbar nav a {
+            color: var(--txt-dim);
+            text-decoration: none;
+            font-size: .8rem;
+            font-weight: 500;
+            padding: 6px 14px;
+            border-radius: 8px;
+        }
+
+        .topbar nav a.active {
+            color: var(--accent);
+            background: rgba(37, 99, 235, .1);
+        }
+
+        .badge {
+            margin-left: auto;
+            font-size: .72rem;
+            font-weight: 700;
+            color: var(--purple);
+            background: rgba(124, 58, 237, .12);
+            border: 1px solid rgba(124, 58, 237, .26);
+            border-radius: 999px;
+            padding: 5px 12px;
+        }
+
+        .wrap {
+            max-width: 1180px;
+            margin: 20px auto;
+            padding: 0 16px 30px;
+            display: grid;
+            gap: 14px;
+        }
+
+        .row {
+            display: grid;
+            gap: 14px;
+        }
+
+        .row.grid-3 {
+            grid-template-columns: repeat(3, 1fr);
+        }
+
+        .row.grid-2 {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        @media (max-width: 980px) {
+
+            .row.grid-3,
+            .row.grid-2 {
+                grid-template-columns: 1fr;
+            }
+
+            .topbar nav {
+                overflow-x: auto;
+                white-space: nowrap;
+            }
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 14px;
+        }
+
+        .title {
+            font-size: .84rem;
+            font-weight: 700;
+            color: var(--txt-dim);
+            margin-bottom: 8px;
+        }
+
+        .big {
+            font-size: 1.35rem;
+            font-weight: 800;
+        }
+
+        .sub {
+            font-size: .75rem;
+            color: var(--txt-dim);
+            margin-top: 4px;
+        }
+
+        .bull {
+            color: var(--green);
+        }
+
+        .bear {
+            color: var(--red);
+        }
+
+        .neutral {
+            color: var(--amber);
+        }
+
+        .controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        select,
+        button {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: .8rem;
+            padding: 8px 10px;
+            background: var(--surface);
+            color: var(--txt);
+        }
+
+        button {
+            background: var(--accent);
+            color: #fff;
+            border-color: var(--accent);
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        button.secondary {
+            background: #fff;
+            color: var(--txt);
+            border-color: var(--border);
+            font-weight: 600;
+        }
+
+        .plan-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+        }
+
+        .pill {
+            border: 1px solid var(--border);
+            background: var(--card);
+            border-radius: 10px;
+            padding: 8px 10px;
+        }
+
+        .pill .k {
+            font-size: .66rem;
+            color: var(--txt-dim);
+            text-transform: uppercase;
+        }
+
+        .pill .v {
+            font-size: .92rem;
+            font-weight: 800;
+            margin-top: 3px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: .78rem;
+        }
+
+        th,
+        td {
+            padding: 8px 6px;
+            border-bottom: 1px solid var(--border);
+            text-align: left;
+        }
+
+        th {
+            color: var(--txt-dim);
+            font-size: .7rem;
+            text-transform: uppercase;
+        }
+
+        .hint {
+            font-size: .73rem;
+            color: var(--txt-dim);
+            line-height: 1.5;
+        }
+
+        .action {
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            font-size: .84rem;
+            font-weight: 700;
+        }
+
+        .action.buy {
+            color: var(--green);
+            background: rgba(22, 163, 74, .08);
+            border-color: rgba(22, 163, 74, .25);
+        }
+
+        .action.wait {
+            color: var(--amber);
+            background: rgba(217, 119, 6, .08);
+            border-color: rgba(217, 119, 6, .25);
+        }
+
+        .action.skip {
+            color: var(--red);
+            background: rgba(220, 38, 38, .08);
+            border-color: rgba(220, 38, 38, .25);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="topbar">
+        <div class="logo">Project Candles</div>
+        <nav>
+            <a href="/">Dashboard</a>
+            <a href="/trade">Paper Trade</a>
+            <a href="/orders">Orders</a>
+            <a href="/opportunities">Opportunities</a>
+            <a href="/history">History</a>
+            <a href="/chat">AI Chat</a>
+            <a href="/180-rule" class="active">180 Rule</a>
+        </nav>
+        <div class="badge">9:25 RULE</div>
+    </div>
+
+    <div class="wrap">
+        <div class="card">
+            <div class="controls">
+                <label for="expiry" style="font-size:.75rem;color:var(--txt-dim);">Expiry</label>
+                <select id="expiry"></select>
+                <button onclick="refreshNow()">Refresh</button>
+                <button class="secondary" onclick="toggleAuto()" id="autoBtn">Auto Refresh: ON</button>
+                <span id="lastTs" class="sub" style="margin-left:6px;">--</span>
+            </div>
+        </div>
+
+        <div class="row grid-3">
+            <div class="card">
+                <div class="title">Trend Bias (to avoid opposite side)</div>
+                <div id="biasText" class="big neutral">NEUTRAL</div>
+                <div id="biasReason" class="sub">--</div>
+            </div>
+            <div class="card">
+                <div class="title">Preferred Side</div>
+                <div id="sideText" class="big">NONE</div>
+                <div id="spotText" class="sub">NIFTY: --</div>
+            </div>
+            <div class="card">
+                <div class="title">Rule Action</div>
+                <div id="actionBox" class="action wait">WAIT - Loading...</div>
+                <div id="actionMsg" class="sub">--</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="title">9:25 Rule Plan</div>
+            <div class="plan-grid">
+                <div class="pill">
+                    <div class="k">Entry Level</div>
+                    <div class="v">180</div>
+                </div>
+                <div class="pill">
+                    <div class="k">Target</div>
+                    <div class="v">220</div>
+                </div>
+                <div class="pill">
+                    <div class="k">Stop Loss</div>
+                    <div class="v">160</div>
+                </div>
+                <div class="pill">
+                    <div class="k">Exit By</div>
+                    <div class="v">10:00</div>
+                </div>
+            </div>
+            <div id="timeState" class="hint" style="margin-top:8px;">--</div>
+        </div>
+
+        <div class="row grid-2">
+            <div class="card">
+                <div class="title">Recommended Contract</div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Symbol</th>
+                            <th>Strike</th>
+                            <th>LTP</th>
+                            <th>Sustain</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pickBody">
+                        <tr>
+                            <td colspan="4" class="sub">Loading...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="card">
+                <div class="title">Top Candidates Near 180</div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Symbol</th>
+                            <th>LTP</th>
+                            <th>Dist(180)</th>
+                            <th>Sustain</th>
+                        </tr>
+                    </thead>
+                    <tbody id="candBody">
+                        <tr>
+                            <td colspan="4" class="sub">Loading...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="title">Execution Guidance</div>
+            <div class="hint">
+                1. At 9:25, only trade in the direction shown by Trend Bias.<br />
+                2. Enter only when recommended contract sustains above 180 (sustain >= 2 polls).<br />
+                3. Fixed risk: stoploss 160, target 220, and force exit by 10:00 at current market price.<br />
+                4. If Trend Bias is NEUTRAL, skip to avoid wrong CE/PE side.
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const RS = '₹';
+        let autoOn = true;
+        let timer = null;
+
+        async function loadExpiries() {
+            const r = await fetch('/api/options/expiries');
+            const d = await r.json();
+            const sel = document.getElementById('expiry');
+            sel.innerHTML = '';
+            (d.expiries || []).forEach(e => {
+                const o = document.createElement('option');
+                o.value = e;
+                o.textContent = e;
+                if (e === d.default_expiry) o.selected = true;
+                sel.appendChild(o);
+            });
+        }
+
+        function fmtAction(a) {
+            if (a === 'BUY') return ['buy', 'BUY'];
+            if (a === 'MONITOR') return ['wait', 'MONITOR'];
+            if (a === 'WAIT') return ['wait', 'WAIT'];
+            return ['skip', 'SKIP'];
+        }
+
+        function render(d) {
+            const bias = (d.bias && d.bias.bias) || 'NEUTRAL';
+            const bEl = document.getElementById('biasText');
+            bEl.textContent = bias + ' (' + ((d.bias && d.bias.confidence) || 0) + '%)';
+            bEl.className = 'big ' + (bias === 'BULLISH' ? 'bull' : bias === 'BEARISH' ? 'bear' : 'neutral');
+            document.getElementById('biasReason').textContent = (d.bias && d.bias.reason) || '--';
+
+            document.getElementById('sideText').textContent = d.preferred_side || 'NONE';
+            document.getElementById('spotText').textContent = 'NIFTY: ' + RS + (d.nifty_spot || 0).toFixed(2) + ' | ATM: ' + (d.atm || '--');
+
+            const map = fmtAction(d.action);
+            const aBox = document.getElementById('actionBox');
+            aBox.className = 'action ' + map[0];
+            aBox.textContent = map[1];
+            document.getElementById('actionMsg').textContent = d.message || '--';
+
+            const ts = d.time_state || {};
+            document.getElementById('timeState').textContent =
+                'Now: ' + (ts.now || '--') + ' | Entry: ' + (ts.entry_open ? 'OPEN' : 'CLOSED') +
+                ' (' + (ts.entry_window || '09:25-09:45') + ')' +
+                ' | Monitor till ' + (ts.exit_by || '10:00');
+
+            const pick = d.recommendation;
+            const pBody = document.getElementById('pickBody');
+            if (!pick) {
+                pBody.innerHTML = '<tr><td colspan="4" class="sub">No contract selected</td></tr>';
+            } else {
+                pBody.innerHTML = '<tr>' +
+                    '<td>' + (pick.symbol || '--') + '</td>' +
+                    '<td>' + (pick.strike || '--') + '</td>' +
+                    '<td>' + RS + (pick.ltp || 0).toFixed(2) + '</td>' +
+                    '<td>' + (pick.sustain_count || 0) + (pick.sustained ? ' (YES)' : ' (NO)') + '</td>' +
+                    '</tr>';
+            }
+
+            const cBody = document.getElementById('candBody');
+            const rows = d.top_candidates || [];
+            if (!rows.length) {
+                cBody.innerHTML = '<tr><td colspan="4" class="sub">No candidates</td></tr>';
+            } else {
+                cBody.innerHTML = rows.map(r => '<tr>' +
+                    '<td>' + (r.symbol || '--') + '</td>' +
+                    '<td>' + RS + (r.ltp || 0).toFixed(2) + '</td>' +
+                    '<td>' + (r.distance_to_180 || 0).toFixed(2) + '</td>' +
+                    '<td>' + (r.sustain_count || 0) + '</td>' +
+                    '</tr>').join('');
+            }
+
+            document.getElementById('lastTs').textContent = 'Updated ' + (d.time || '--');
+        }
+
+        async function refreshNow() {
+            const ex = document.getElementById('expiry').value;
+            const r = await fetch('/api/rule180/recommendation?expiry=' + encodeURIComponent(ex));
+            const d = await r.json();
+            if (d.error) {
+                document.getElementById('actionBox').className = 'action skip';
+                document.getElementById('actionBox').textContent = 'ERROR';
+                document.getElementById('actionMsg').textContent = d.error;
+                return;
+            }
+            render(d);
+        }
+
+        function toggleAuto() {
+            autoOn = !autoOn;
+            document.getElementById('autoBtn').textContent = 'Auto Refresh: ' + (autoOn ? 'ON' : 'OFF');
+        }
+
+        (async () => {
+            await loadExpiries();
+            await refreshNow();
+            timer = setInterval(() => { if (autoOn) refreshNow(); }, 20000);
+        })();
+    </script>
+</body>
+
+</html>

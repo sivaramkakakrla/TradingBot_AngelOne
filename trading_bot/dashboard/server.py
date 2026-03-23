@@ -120,6 +120,11 @@ def history_page():
     return render_template("history.html")
 
 
+@app.route("/180-rule")
+def rule180_page():
+    return render_template("rule180.html")
+
+
 @app.route("/api/candles")
 def api_candles():
     """
@@ -1452,6 +1457,227 @@ def api_llm_apply_suggestion():
 
 
 # ─── Options Chain APIs ───────────────────────────────────────────────────────
+
+def _compute_rule180_bias() -> dict:
+    """
+    Determine directional bias to avoid opposite-side picks at 09:25.
+
+    Combines:
+      - 5m EMA(9/21) trend
+      - 1m short-term momentum (last 5 bars)
+      - 1m candle breadth (green vs red in last 5 bars)
+    """
+    from trading_bot.candle_cache import get_candles
+
+    df1m, _, _ = get_candles("1m", 80)
+    df5m, _, _ = get_candles("5m", 80)
+    if df1m is None or len(df1m) < 30 or df5m is None or len(df5m) < 30:
+        return {
+            "bias": "NEUTRAL",
+            "confidence": 45,
+            "reason": "insufficient candle data",
+            "metrics": {},
+        }
+
+    c1 = df1m["close"].astype(float)
+    c5 = df5m["close"].astype(float)
+
+    ema5_fast = c5.ewm(span=9, adjust=False).mean().iloc[-1]
+    ema5_slow = c5.ewm(span=21, adjust=False).mean().iloc[-1]
+    m1_move = float(c1.iloc[-1] - c1.iloc[-6])
+
+    last5 = df1m.tail(5)
+    green = int((last5["close"] > last5["open"]).sum())
+    red = int((last5["close"] < last5["open"]).sum())
+
+    bull = 0
+    bear = 0
+    notes = []
+
+    if ema5_fast > ema5_slow:
+        bull += 1
+        notes.append("5m EMA9 > EMA21")
+    else:
+        bear += 1
+        notes.append("5m EMA9 < EMA21")
+
+    if m1_move > 0:
+        bull += 1
+        notes.append("1m momentum up")
+    elif m1_move < 0:
+        bear += 1
+        notes.append("1m momentum down")
+
+    if green >= 3:
+        bull += 1
+        notes.append(f"last5 breadth green={green}")
+    elif red >= 3:
+        bear += 1
+        notes.append(f"last5 breadth red={red}")
+
+    if bull >= 2 and bull > bear:
+        bias = "BULLISH"
+    elif bear >= 2 and bear > bull:
+        bias = "BEARISH"
+    else:
+        bias = "NEUTRAL"
+
+    conf = 55 + abs(bull - bear) * 12
+    conf = max(35, min(90, conf))
+
+    return {
+        "bias": bias,
+        "confidence": int(conf),
+        "reason": ", ".join(notes[:3]),
+        "metrics": {
+            "ema5_fast": round(float(ema5_fast), 2),
+            "ema5_slow": round(float(ema5_slow), 2),
+            "m1_move_5bars": round(float(m1_move), 2),
+            "green_last5": green,
+            "red_last5": red,
+            "score_bull": bull,
+            "score_bear": bear,
+        },
+    }
+
+
+def _rule180_time_state() -> dict:
+    now = now_ist()
+    t = now.strftime("%H:%M")
+    entry_open = "09:25" <= t <= "09:45"
+    monitor_open = "09:25" <= t <= "10:00"
+    return {
+        "now": t,
+        "entry_open": entry_open,
+        "monitor_open": monitor_open,
+        "entry_window": "09:25-09:45",
+        "exit_by": "10:00",
+    }
+
+
+def _pick_rule180_contract(chain: dict, side: str) -> tuple[dict | None, list[dict]]:
+    """
+    Pick contract for the 180 rule.
+
+    Priority:
+      1) Sustained above 180 (two consecutive polls)
+      2) LTP closest to 180 on desired side
+    """
+    contracts: list[dict] = []
+    for row in chain.get("chain", []):
+        leg = row.get(side)
+        if not leg:
+            continue
+        ltp = float(leg.get("ltp") or 0)
+        if ltp <= 0:
+            continue
+        token = str(leg.get("token", ""))
+        key = f"rule180:sustain:{token}"
+        prev = get_cached(key) or {"count": 0}
+        count = int(prev.get("count", 0))
+        count = count + 1 if ltp >= 180 else 0
+        set_cached(key, {"count": count, "last": ltp}, ttl=7200)
+        contracts.append({
+            "strike": row.get("strike"),
+            "token": token,
+            "symbol": leg.get("symbol"),
+            "ltp": round(ltp, 2),
+            "sustain_count": count,
+            "sustained": count >= 2,
+            "distance_to_180": round(abs(ltp - 180), 2),
+        })
+
+    if not contracts:
+        return None, []
+
+    sustained = [c for c in contracts if c["sustained"] and c["ltp"] >= 180]
+    sustained.sort(key=lambda x: x["distance_to_180"])
+    if sustained:
+        return sustained[0], contracts
+
+    # Fallback: nearest to 180 above 170
+    near = [c for c in contracts if c["ltp"] >= 170]
+    near.sort(key=lambda x: (abs(x["ltp"] - 180), -x["ltp"]))
+    return (near[0] if near else None), contracts
+
+
+@app.route("/api/rule180/recommendation")
+def api_rule180_recommendation():
+    """
+    Rule-180 assistant:
+      - Detect trend bias so user avoids opposite CE/PE selection
+      - Pick option contract near/sustaining above 180 premium
+      - Return fixed plan: target 220, stoploss 160, exit by 10:00
+    """
+    from trading_bot.auth.login import get_session
+    import datetime as _dt
+
+    expiry_str = request.args.get("expiry", "")
+    expiry_date = None
+    if expiry_str:
+        try:
+            expiry_date = _dt.date.fromisoformat(expiry_str)
+        except ValueError:
+            return jsonify({"error": f"Invalid expiry date: {expiry_str}"}), 400
+
+    bias_data = _compute_rule180_bias()
+    side = "CE" if bias_data["bias"] == "BULLISH" else "PE" if bias_data["bias"] == "BEARISH" else ""
+    tstate = _rule180_time_state()
+
+    tick = get_latest_tick()
+    nifty_spot = tick.ltp
+    if nifty_spot <= 0:
+        tick, _ = fetch_live_once()
+        nifty_spot = tick.ltp
+    if nifty_spot <= 0:
+        return jsonify({"error": "No NIFTY spot available"}), 400
+
+    session = get_session()
+    chain = build_option_chain(session, nifty_spot, expiry_date)
+
+    recommendation = None
+    candidates = []
+    action = "WAIT"
+    message = "No trade"
+
+    if side:
+        recommendation, candidates = _pick_rule180_contract(chain, side)
+        if recommendation is None:
+            message = f"{side} side has no valid premium near 180"
+        elif not tstate["entry_open"]:
+            action = "MONITOR"
+            message = f"Entry window closed ({tstate['entry_window']}). Monitor only until {tstate['exit_by']}"
+        elif recommendation["ltp"] < 180:
+            action = "WAIT"
+            message = f"{side} not yet above 180. Wait for sustain above 180"
+        elif recommendation["sustain_count"] < 2:
+            action = "WAIT"
+            message = f"{side} touched 180 but not sustained yet (count={recommendation['sustain_count']})"
+        else:
+            action = "BUY"
+            message = f"BUY {side}: trend-aligned and sustained above 180"
+    else:
+        message = "Trend is neutral. Skip to avoid wrong-side CE/PE selection"
+
+    return jsonify({
+        "time": now_ist().strftime("%H:%M:%S"),
+        "nifty_spot": round(float(nifty_spot), 2),
+        "expiry": chain.get("expiry"),
+        "atm": chain.get("atm"),
+        "bias": bias_data,
+        "preferred_side": side or "NONE",
+        "time_state": tstate,
+        "plan": {
+            "entry_level": 180,
+            "target": 220,
+            "stoploss": 160,
+            "exit_by": "10:00",
+        },
+        "action": action,
+        "message": message,
+        "recommendation": recommendation,
+        "top_candidates": sorted(candidates, key=lambda x: x["distance_to_180"])[:8],
+    })
 
 @app.route("/api/options/expiries")
 def api_options_expiries():
