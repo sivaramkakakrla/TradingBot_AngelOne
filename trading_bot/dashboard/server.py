@@ -1688,6 +1688,7 @@ def api_autotrade_status():
         # On Vercel, report status from DB and scan log from Redis
         from trading_bot.data.store import get_open_trades, get_today_pnl
         from trading_bot.utils.time_utils import now_ist
+        from trading_bot.autotrade import _is_live_market_hours
         open_trades = get_open_trades()
         auto_count = sum(
             1 for t in open_trades
@@ -1697,7 +1698,12 @@ def api_autotrade_status():
         pnl = get_today_pnl(today_str)
 
         # Get scan log from Redis
-        scan_log = ["Auto-scanning active — every 30s while dashboard is open"]
+        live_now = _is_live_market_hours()
+        scan_log = [
+            "Auto-scan active during live market hours"
+            if live_now else
+            f"Auto-scan paused (live hours: {config.MARKET_OPEN_TIME}-{config.MARKET_CLOSE_TIME} IST)"
+        ]
         try:
             from trading_bot.redis_sync import get_scan_log
             redis_log = get_scan_log(20)
@@ -1711,6 +1717,7 @@ def api_autotrade_status():
             "mode": "vercel",
             "thread_alive": True,
             "is_vercel": True,
+            "market_live": live_now,
             "open_positions": auto_count,
             "pnl_today": round(pnl, 2),
             "last_scan": now_ist().strftime("%H:%M:%S"),
@@ -1744,22 +1751,32 @@ def api_autotrade_scan():
             _monitor_positions,
             _scan_and_trade,
             _is_in_trade_window,
+            _is_live_market_hours,
         )
         from trading_bot.data.store import get_open_trades, get_today_pnl
 
         result = {"time": now_ist().strftime("%H:%M:%S")}
 
-        # Monitor existing positions (SL/target/EOD exit)
-        _monitor_positions()
-        result["monitored"] = True
+        live_now = _is_live_market_hours()
+        result["market_live"] = live_now
 
-        # Scan for new signals
-        if _is_in_trade_window():
-            _scan_and_trade()
-            result["scanned"] = True
+        # Strict live-hours gate: no monitor/scan work outside market hours.
+        if live_now:
+            # Monitor existing positions (SL/target/EOD exit)
+            _monitor_positions()
+            result["monitored"] = True
+
+            # Scan for new signals
+            if _is_in_trade_window():
+                _scan_and_trade()
+                result["scanned"] = True
+            else:
+                result["scanned"] = False
+                result["reason"] = "outside_trade_window"
         else:
+            result["monitored"] = False
             result["scanned"] = False
-            result["reason"] = "outside_trade_window"
+            result["reason"] = "market_closed"
 
         open_trades = get_open_trades()
         auto_count = sum(
@@ -1771,13 +1788,13 @@ def api_autotrade_scan():
         result["pnl_today"] = round(today_pnl, 2)
         result["status"] = "ok"
 
-        # Log scan to Redis so dashboard shows history
+        # Log only real scans to Redis to avoid off-hours noise spam.
         try:
             from trading_bot.redis_sync import push_scan_log
-            ts = now_ist().strftime("%H:%M:%S")
-            scanned_text = "scanned" if result.get("scanned") else "market closed"
-            log_entry = f"[{ts}] pos={auto_count} pnl=₹{today_pnl:.2f} ({scanned_text})"
-            push_scan_log(log_entry)
+            if result.get("scanned"):
+                ts = now_ist().strftime("%H:%M:%S")
+                log_entry = f"[{ts}] pos={auto_count} pnl=₹{today_pnl:.2f} (scanned)"
+                push_scan_log(log_entry)
         except Exception:
             pass
 
