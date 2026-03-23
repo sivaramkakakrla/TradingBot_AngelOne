@@ -272,7 +272,14 @@ def insert_order(order: dict) -> int:
     sql = f"INSERT INTO orders ({cols}) VALUES ({placeholders})"
     with get_cursor() as cur:
         cur.execute(sql, order)
-        return cur.lastrowid
+        rowid = cur.lastrowid
+    # Sync to Redis for Vercel persistence
+    try:
+        from trading_bot.redis_sync import sync_order_to_redis
+        sync_order_to_redis(order)
+    except Exception:
+        pass
+    return rowid
 
 
 def update_order_status(order_id: str, status: str, completed_at: str = "") -> None:
@@ -294,7 +301,14 @@ def insert_trade(trade: dict) -> int:
     sql = f"INSERT INTO trades ({cols}) VALUES ({placeholders})"
     with get_cursor() as cur:
         cur.execute(sql, trade)
-        return cur.lastrowid
+        rowid = cur.lastrowid
+    # Sync to Redis for Vercel persistence
+    try:
+        from trading_bot.redis_sync import sync_trade_to_redis
+        sync_trade_to_redis(trade)
+    except Exception:
+        pass
+    return rowid
 
 
 def close_trade(
@@ -314,6 +328,17 @@ def close_trade(
     """
     with get_cursor() as cur:
         cur.execute(sql, (exit_price, exit_time, exit_reason, pnl, exit_order_id, trade_id))
+    # Sync closed trade to Redis
+    try:
+        from trading_bot.redis_sync import sync_trade_to_redis
+        # Re-read the full trade row so Redis has all fields
+        with get_cursor() as cur:
+            cur.execute("SELECT * FROM trades WHERE trade_id = ?", (trade_id,))
+            row = cur.fetchone()
+            if row:
+                sync_trade_to_redis(dict(row))
+    except Exception:
+        pass
 
 
 def get_open_trades() -> list[dict]:
@@ -418,7 +443,14 @@ def init_portfolio(initial_capital: float) -> dict:
             "VALUES (?, ?, 0, 0, 0, 0, ?, ?)",
             (initial_capital, initial_capital, now_str, now_str),
         )
-    return get_portfolio()
+    portfolio = get_portfolio()
+    try:
+        from trading_bot.redis_sync import sync_portfolio_to_redis
+        if portfolio:
+            sync_portfolio_to_redis(portfolio)
+    except Exception:
+        pass
+    return portfolio
 
 
 def update_portfolio_after_trade(pnl: float, is_win: bool) -> dict:
@@ -439,7 +471,15 @@ def update_portfolio_after_trade(pnl: float, is_win: bool) -> dict:
             "WHERE id = (SELECT id FROM portfolio ORDER BY id LIMIT 1)",
             (pnl, pnl, win_inc, loss_inc, now_str),
         )
-    return get_portfolio()
+    portfolio = get_portfolio()
+    # Sync portfolio to Redis for Vercel persistence
+    try:
+        from trading_bot.redis_sync import sync_portfolio_to_redis
+        if portfolio:
+            sync_portfolio_to_redis(portfolio)
+    except Exception:
+        pass
+    return portfolio
 
 
 def reset_portfolio(initial_capital: float) -> dict:
@@ -454,4 +494,11 @@ def reset_portfolio(initial_capital: float) -> dict:
             "VALUES (?, ?, 0, 0, 0, 0, ?, ?)",
             (initial_capital, initial_capital, now_str, now_str),
         )
-    return get_portfolio()
+    portfolio = get_portfolio()
+    try:
+        from trading_bot.redis_sync import sync_portfolio_to_redis
+        if portfolio:
+            sync_portfolio_to_redis(portfolio)
+    except Exception:
+        pass
+    return portfolio

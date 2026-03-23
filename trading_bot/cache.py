@@ -38,8 +38,8 @@ def _get_client():
         print("[cache] upstash-redis not installed — caching disabled")
         return None
 
-    url = os.getenv("UPSTASH_REDIS_URL", "").strip()
-    token = os.getenv("UPSTASH_REDIS_TOKEN", "").strip()
+    url = os.getenv("UPSTASH_REDIS_REST_URL", os.getenv("UPSTASH_REDIS_URL", "")).strip()
+    token = os.getenv("UPSTASH_REDIS_REST_TOKEN", os.getenv("UPSTASH_REDIS_TOKEN", "")).strip()
 
     if not url or not token:
         print("[cache] UPSTASH_REDIS_URL / UPSTASH_REDIS_TOKEN not set — caching disabled")

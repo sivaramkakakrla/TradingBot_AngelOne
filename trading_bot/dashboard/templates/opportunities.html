@@ -1447,15 +1447,13 @@
             const btn = document.getElementById('at-toggle-btn');
             const label = document.getElementById('at-status-label');
 
-            if (isVercel) {
-                btn.textContent = 'LOCAL ONLY';
-                btn.style.background = 'var(--txt-dim)';
+            if (isVercel && _atEnabled) {
+                // Vercel cron mode — always running
+                btn.textContent = 'CRON ACTIVE';
+                btn.style.background = 'var(--green)';
                 btn.disabled = true;
-                label.textContent = 'VERCEL (read-only)';
-                label.style.color = 'var(--amber)';
-                // Show Vercel notice in log
-                const logEl = document.getElementById('at-log');
-                logEl.innerHTML = '<div style="color:var(--amber);">⚠️ Auto-trade engine cannot run on Vercel (serverless). Run locally:<br><code style="font-size:.65rem;">python run_autotrade.py</code></div>';
+                label.textContent = 'RUNNING (Cron)';
+                label.style.color = 'var(--green)';
             } else if (_atEnabled && threadAlive) {
                 btn.textContent = 'STOP';
                 btn.style.background = 'var(--red)';
@@ -1515,12 +1513,13 @@
         }
 
         async function autoStartEngine() {
-            // Don't auto-start on Vercel — it's serverless, threads die immediately
+            // On Vercel, cron handles auto-trade — just fetch status
             try {
                 const r = await fetch('/api/autotrade/status');
                 const d = await r.json();
+                updateATPanel(d);
                 if (d.is_vercel) {
-                    console.log('Vercel detected — skipping auto-trade engine start');
+                    console.log('Vercel cron mode — auto-trade managed by Vercel Cron');
                     return;
                 }
                 if (!d.enabled) {

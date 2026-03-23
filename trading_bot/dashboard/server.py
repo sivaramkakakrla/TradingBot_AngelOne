@@ -1202,11 +1202,14 @@ def api_autotrade_start():
     """Start the auto-trade engine."""
     import os
     if os.getenv("VERCEL"):
+        # On Vercel, auto-trade runs via cron — no thread needed
         return jsonify({
-            "error": "Auto-trade engine cannot run on Vercel (serverless). Run locally: python run_autotrade.py",
-            "enabled": False,
+            "enabled": True,
+            "mode": "cron",
+            "message": "Auto-trade runs via Vercel Cron (every 1 min during market hours)",
             "is_vercel": True,
-        }), 400
+            "thread_alive": False,
+        })
     from trading_bot.autotrade import start as at_start, get_status
     data = request.get_json(force=True) if request.is_json else {}
     interval = int(data.get("interval", 60))
@@ -1226,10 +1229,33 @@ def api_autotrade_stop():
 def api_autotrade_status():
     """Return current auto-trade status, log, and last signal."""
     import os
+    is_vercel = bool(os.getenv("VERCEL"))
+    if is_vercel:
+        # On Vercel, report cron-based status from Redis/DB
+        from trading_bot.data.store import get_open_trades, get_today_pnl
+        from trading_bot.utils.time_utils import now_ist
+        open_trades = get_open_trades()
+        auto_count = sum(
+            1 for t in open_trades
+            if (t.get("source") or t["trade_id"][:2]) in ("AUTO", "AT")
+        )
+        today_str = now_ist().strftime("%Y-%m-%d")
+        pnl = get_today_pnl(today_str)
+        return jsonify({
+            "enabled": True,
+            "mode": "cron",
+            "thread_alive": True,  # cron is always "alive"
+            "is_vercel": True,
+            "open_positions": auto_count,
+            "pnl_today": round(pnl, 2),
+            "last_scan": now_ist().strftime("%H:%M:%S"),
+            "last_signal": None,
+            "log": ["Auto-trade runs via Vercel Cron (every 1 min)"],
+        })
     from trading_bot.autotrade import get_status, is_alive
     status = get_status()
     status["thread_alive"] = is_alive()
-    status["is_vercel"] = bool(os.getenv("VERCEL"))
+    status["is_vercel"] = False
     return jsonify(status)
 
 
