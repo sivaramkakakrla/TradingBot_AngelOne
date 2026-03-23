@@ -1,10 +1,6 @@
 {
   "rewrites": [
     {
-      "source": "/api/cron/autotrade",
-      "destination": "/api/cron/autotrade"
-    },
-    {
       "source": "/(.*)",
       "destination": "/api/index"
     }

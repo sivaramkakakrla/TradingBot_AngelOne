@@ -1259,7 +1259,8 @@ def api_autotrade_status():
     return jsonify(status)
 
 
-@app.route("/api/autotrade/scan", methods=["POST"])
+@app.route("/api/autotrade/scan", methods=["POST", "GET"])
+@app.route("/api/cron/autotrade", methods=["GET"])
 def api_autotrade_scan():
     """Trigger one auto-trade scan cycle (works on Vercel and local)."""
     import os
