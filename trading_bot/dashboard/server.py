@@ -383,10 +383,20 @@ def api_debug_db():
     # Redis check
     try:
         from trading_bot.redis_sync import get_all_trades_from_redis, get_scan_log
-        redis_trades = get_all_trades_from_redis()
-        info["redis_total"] = len(redis_trades)
-        info["redis_open"] = len([t for t in redis_trades if t.get("status") == "OPEN"])
-        info["redis_scan_log"] = get_scan_log(5)
+        from trading_bot.cache import _get_client
+        client = _get_client()
+        info["redis_client"] = "connected" if client else "None"
+        info["redis_url_set"] = bool(os.getenv("UPSTASH_REDIS_REST_URL", "").strip())
+        info["redis_token_set"] = bool(os.getenv("UPSTASH_REDIS_REST_TOKEN", "").strip())
+        if client:
+            redis_trades = get_all_trades_from_redis()
+            info["redis_total"] = len(redis_trades)
+            info["redis_open"] = len([t for t in redis_trades if t.get("status") == "OPEN"])
+            info["redis_scan_log"] = get_scan_log(5)
+        else:
+            info["redis_total"] = 0
+            info["redis_open"] = 0
+            info["redis_scan_log"] = []
     except Exception as e:
         info["redis_error"] = str(e)
     return jsonify(info)
