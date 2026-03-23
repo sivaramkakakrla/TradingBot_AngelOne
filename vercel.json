@@ -8,11 +8,5 @@
       "source": "/(.*)",
       "destination": "/api/index"
     }
-  ],
-  "crons": [
-    {
-      "path": "/api/cron/autotrade",
-      "schedule": "* * * * *"
-    }
   ]
 }

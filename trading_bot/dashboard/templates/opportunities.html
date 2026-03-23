@@ -1447,12 +1447,27 @@
             const btn = document.getElementById('at-toggle-btn');
             const label = document.getElementById('at-status-label');
 
-            if (isVercel && _atEnabled) {
-                // Vercel cron mode — always running
-                btn.textContent = 'CRON ACTIVE';
-                btn.style.background = 'var(--green)';
-                btn.disabled = true;
-                label.textContent = 'RUNNING (Cron)';
+            if (isVercel) {
+                // Vercel mode — auto-scan via dashboard polling
+                btn.textContent = 'SCAN NOW';
+                btn.style.background = 'var(--accent)';
+                btn.disabled = false;
+                btn.onclick = async function () {
+                    btn.disabled = true;
+                    btn.textContent = 'SCANNING...';
+                    try {
+                        const r = await fetch('/api/autotrade/scan', { method: 'POST' });
+                        const res = await r.json();
+                        const logEl = document.getElementById('at-log');
+                        logEl.innerHTML = '<div style="color:var(--green);">Scan done at ' + (res.time || '') + ' | Positions: ' + (res.open_positions || 0) + ' | PnL: ₹' + (res.pnl_today || 0).toFixed(2) + '</div>';
+                        pollAutoTradeStatus();
+                    } catch (e) {
+                        console.error('Scan error', e);
+                    }
+                    btn.disabled = false;
+                    btn.textContent = 'SCAN NOW';
+                };
+                label.textContent = 'VERCEL MODE';
                 label.style.color = 'var(--green)';
             } else if (_atEnabled && threadAlive) {
                 btn.textContent = 'STOP';
@@ -1513,13 +1528,22 @@
         }
 
         async function autoStartEngine() {
-            // On Vercel, cron handles auto-trade — just fetch status
+            // On Vercel, start auto-scanning via dashboard polling
             try {
                 const r = await fetch('/api/autotrade/status');
                 const d = await r.json();
                 updateATPanel(d);
                 if (d.is_vercel) {
-                    console.log('Vercel cron mode — auto-trade managed by Vercel Cron');
+                    console.log('Vercel mode — auto-scanning every 60s while dashboard is open');
+                    // Auto-scan every 60 seconds on Vercel
+                    setInterval(async () => {
+                        try {
+                            await fetch('/api/autotrade/scan', { method: 'POST' });
+                            pollAutoTradeStatus();
+                        } catch (e) { }
+                    }, 60000);
+                    // Do an initial scan immediately
+                    fetch('/api/autotrade/scan', { method: 'POST' }).catch(() => { });
                     return;
                 }
                 if (!d.enabled) {

@@ -1231,7 +1231,7 @@ def api_autotrade_status():
     import os
     is_vercel = bool(os.getenv("VERCEL"))
     if is_vercel:
-        # On Vercel, report cron-based status from Redis/DB
+        # On Vercel, report status from DB and optionally trigger a scan
         from trading_bot.data.store import get_open_trades, get_today_pnl
         from trading_bot.utils.time_utils import now_ist
         open_trades = get_open_trades()
@@ -1243,20 +1243,64 @@ def api_autotrade_status():
         pnl = get_today_pnl(today_str)
         return jsonify({
             "enabled": True,
-            "mode": "cron",
-            "thread_alive": True,  # cron is always "alive"
+            "mode": "vercel",
+            "thread_alive": True,
             "is_vercel": True,
             "open_positions": auto_count,
             "pnl_today": round(pnl, 2),
             "last_scan": now_ist().strftime("%H:%M:%S"),
             "last_signal": None,
-            "log": ["Auto-trade runs via Vercel Cron (every 1 min)"],
+            "log": [f"Vercel mode — use Scan Now or auto-scan from dashboard"],
         })
     from trading_bot.autotrade import get_status, is_alive
     status = get_status()
     status["thread_alive"] = is_alive()
     status["is_vercel"] = False
     return jsonify(status)
+
+
+@app.route("/api/autotrade/scan", methods=["POST"])
+def api_autotrade_scan():
+    """Trigger one auto-trade scan cycle (works on Vercel and local)."""
+    import os
+    from trading_bot.utils.time_utils import now_ist
+
+    try:
+        from trading_bot.autotrade import (
+            _monitor_positions,
+            _scan_and_trade,
+            _is_in_trade_window,
+        )
+        from trading_bot.data.store import get_open_trades, get_today_pnl
+
+        result = {"time": now_ist().strftime("%H:%M:%S")}
+
+        # Monitor existing positions (SL/target/EOD exit)
+        _monitor_positions()
+        result["monitored"] = True
+
+        # Scan for new signals
+        if _is_in_trade_window():
+            _scan_and_trade()
+            result["scanned"] = True
+        else:
+            result["scanned"] = False
+            result["reason"] = "outside_trade_window"
+
+        open_trades = get_open_trades()
+        auto_count = sum(
+            1 for t in open_trades
+            if (t.get("source") or t["trade_id"][:2]) in ("AUTO", "AT")
+        )
+        today_pnl = get_today_pnl(now_ist().strftime("%Y-%m-%d"))
+        result["open_positions"] = auto_count
+        result["pnl_today"] = round(today_pnl, 2)
+        result["status"] = "ok"
+
+        return jsonify(result)
+    except Exception as e:
+        log.error("Scan error: %s", e, exc_info=True)
+        return jsonify({"error": str(e)}), 500
 
 
 # ─── Start helper ─────────────────────────────────────────────────────────────
