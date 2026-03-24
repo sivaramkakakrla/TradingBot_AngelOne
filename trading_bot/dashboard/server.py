@@ -75,8 +75,13 @@ def api_strategy_test():
                 if api_rows:
                     upsert_candles(api_rows)
                     rows = fetch_candles_by_date(config.UNDERLYING, timeframe, date_str)
+                else:
+                    return jsonify({"error": f"No candle data from AngelOne API for {date_str}. Market may be closed (holiday/weekend).", "date": date_str}), 404
+            else:
+                return jsonify({"error": "Could not authenticate with AngelOne. Check API credentials.", "date": date_str}), 500
         except Exception as e:
             log.warning("Live candle fetch for backtest failed: %s", e)
+            return jsonify({"error": f"Failed to fetch candles: {str(e)}", "date": date_str}), 500
 
     if not rows:
         return jsonify({"error": "No candle data for date", "date": date_str}), 404
