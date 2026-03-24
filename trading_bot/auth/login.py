@@ -63,15 +63,25 @@ def authenticate() -> SmartConnect:
             cached_auth = get_cached("angelone:auth")
             if cached_auth and cached_auth.get("jwt"):
                 log.info("Restoring AngelOne session from Redis cache (skipping generateSession)")
-                global _auth_token, _feed_token, _refresh_token
                 obj = SmartConnect(api_key=config.ANGEL_API_KEY)
                 obj.access_token  = cached_auth["jwt"]
                 obj.refresh_token = cached_auth.get("refresh", "")
-                _auth_token    = cached_auth["jwt"]
-                _refresh_token = cached_auth.get("refresh", "")
-                _feed_token    = cached_auth.get("feed", "")
-                _session = obj
-                return _session
+
+                # ── Validate restored token with a lightweight API call ──
+                try:
+                    profile = obj.getProfile(cached_auth.get("refresh", ""))
+                    if profile and profile.get("success") is True and profile.get("data"):
+                        log.info("Cached token is VALID — reusing session")
+                        _auth_token    = cached_auth["jwt"]
+                        _refresh_token = cached_auth.get("refresh", "")
+                        _feed_token    = cached_auth.get("feed", "")
+                        _session = obj
+                        return _session
+                    else:
+                        log.warning("Cached token INVALID (profile: %s) — doing fresh login",
+                                    profile.get("message", "unknown") if profile else "no response")
+                except Exception as _validate_exc:
+                    log.warning("Cached token EXPIRED (%s) — doing fresh login", _validate_exc)
         except Exception as _cache_exc:
             log.warning("Redis auth restore failed, doing fresh login: %s", _cache_exc)
 
