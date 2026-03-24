@@ -422,9 +422,14 @@
         <!-- Strategy Backtest/Test Tab -->
         <div class="card" id="testCard" style="display:none;">
             <div class="title">Strategy Backtest — Historical Validation</div>
-            <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap;">
                 <label for="testDate">Select Date:</label>
                 <input type="date" id="testDate" max="{{max_date}}" />
+                <select id="btMode"
+                    style="padding:5px 10px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--txt);font-size:.74rem;">
+                    <option value="candle">Candlestick Patterns</option>
+                    <option value="20day">20-Day Avg + LinReg</option>
+                </select>
                 <button class="primary" onclick="runTest()">Run Test</button>
                 <span id="testStatus" class="hint"></span>
             </div>
@@ -472,7 +477,8 @@
                 if (!date) { status.textContent = 'Please select a date.'; return; }
                 status.textContent = 'Loading...';
                 try {
-                    const resp = await fetch(`/api/strategy/test?date=${date}`);
+                    const mode = document.getElementById('btMode').value;
+                    const resp = await fetch(`/api/strategy/test?date=${date}&mode=${mode}`);
                     const text = await resp.text();
                     let data;
                     try {
@@ -535,7 +541,7 @@
                             html += `<td style="padding:5px 8px;">${i + 1}</td>`;
                             html += `<td style="padding:5px 8px;">${timeStr}</td>`;
                             html += `<td style="padding:5px 8px;color:${dirClr};font-weight:600;">${t.direction === 'BULLISH' ? '▲ BUY' : '▼ SELL'}</td>`;
-                            html += `<td style="padding:5px 8px;max-width:120px;overflow:hidden;text-overflow:ellipsis;">${(t.patterns || []).join(', ')}</td>`;
+                            html += `<td style="padding:5px 8px;max-width:120px;overflow:hidden;text-overflow:ellipsis;">${(t.patterns || []).join(', ') || t.signal_type || '--'}</td>`;
                             html += `<td style="padding:5px 8px;text-align:right;">${(t.entry_price || 0).toFixed(2)}</td>`;
                             html += `<td style="padding:5px 8px;text-align:right;color:#dc2626;">${(t.sl_price || 0).toFixed(2)}</td>`;
                             html += `<td style="padding:5px 8px;text-align:right;color:#16a34a;">${(t.target_price || 0).toFixed(2)}</td>`;
@@ -619,6 +625,28 @@
                 <div class="pill">
                     <div class="k">SMA Slope</div>
                     <div class="v" id="smaSlope">--</div>
+                </div>
+            </div>
+            <div class="row grid-5" style="margin-top:8px;">
+                <div class="pill">
+                    <div class="k">LinReg(14) Daily</div>
+                    <div class="v" id="lrDailyDir">--</div>
+                </div>
+                <div class="pill">
+                    <div class="k">LR Daily Slope</div>
+                    <div class="v" id="lrDailySlope">--</div>
+                </div>
+                <div class="pill">
+                    <div class="k">LinReg(14) 1m</div>
+                    <div class="v" id="lr1mDir">--</div>
+                </div>
+                <div class="pill">
+                    <div class="k">Theta Zone</div>
+                    <div class="v" id="thetaZone">--</div>
+                </div>
+                <div class="pill">
+                    <div class="k">Timing</div>
+                    <div class="v" id="timingStatus">--</div>
                 </div>
             </div>
         </div>
@@ -1041,6 +1069,27 @@
                 const slope = d.sma_slope_label || 'FLAT';
                 el('smaSlope').textContent = slope + ' (' + Number(d.sma_slope_pct || 0).toFixed(3) + '%)';
                 el('smaSlope').className = 'v ' + (slope === 'RISING' ? 'good' : slope === 'FALLING' ? 'bad' : 'warn');
+
+                // LinReg daily
+                const lrDDir = d.linreg_daily_direction || 'FLAT';
+                el('lrDailyDir').textContent = lrDDir;
+                el('lrDailyDir').className = 'v ' + (lrDDir === 'RISING' ? 'good' : lrDDir === 'FALLING' ? 'bad' : 'warn');
+                el('lrDailySlope').textContent = Number(d.linreg_daily_slope || 0).toFixed(4);
+                setColor(el('lrDailySlope'), d.linreg_daily_slope || 0);
+
+                // LinReg 1m
+                const lr1m = d.linreg_1m_direction || 'FLAT';
+                el('lr1mDir').textContent = lr1m + ' (' + Number(d.linreg_1m_slope || 0).toFixed(4) + ')';
+                el('lr1mDir').className = 'v ' + (lr1m === 'RISING' ? 'good' : lr1m === 'FALLING' ? 'bad' : 'warn');
+
+                // Theta
+                const tz = d.theta_zone || '--';
+                el('thetaZone').textContent = tz;
+                el('thetaZone').className = 'v ' + (d.theta_passed ? 'good' : 'bad');
+
+                // Timing
+                el('timingStatus').textContent = d.timing_confirmed ? 'CONFIRMED' : 'WAITING';
+                el('timingStatus').className = 'v ' + (d.timing_confirmed ? 'good' : 'warn');
 
                 // Signal
                 el('sigType').textContent = d.signal_type || 'NONE';

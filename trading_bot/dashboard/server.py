@@ -51,11 +51,16 @@ def api_strategy_test():
     try:
         date_str = request.args.get("date")
         timeframe = request.args.get("timeframe", "1m")
+        mode = request.args.get("mode", "candle")   # "candle" or "20day"
         if not date_str:
             date_str = now_ist().strftime("%Y-%m-%d")
 
         # Ensure DB schema exists (Vercel cold starts wipe /tmp)
         init_db()
+
+        # ── mode=20day: 20-Day Avg + LinReg backtest ─────────────────
+        if mode == "20day":
+            return _backtest_20day(date_str, timeframe)
 
         # Step 1: Try DB first
         rows = fetch_candles_by_date(config.UNDERLYING, timeframe, date_str)
@@ -186,6 +191,148 @@ def api_strategy_test():
     except Exception as exc:
         tb = traceback.format_exc()
         log.error("api_strategy_test crash: %s\n%s", exc, tb)
+        return jsonify({"error": f"{type(exc).__name__}: {exc}", "traceback": tb}), 500
+
+
+def _backtest_20day(date_str: str, timeframe: str):
+    """Run 20-Day Avg + LinReg(14) + Theta backtest for a single day."""
+    import traceback
+    from datetime import date as _date, datetime as _dt
+    from trading_bot.scoring import fetch_daily_closes, analyze_live, compute_20day_avg
+
+    try:
+        session = None
+        try:
+            from trading_bot.auth.login import get_session
+            session = get_session()
+        except Exception:
+            pass
+        if not session:
+            return jsonify({"error": "no session", "signals": [], "summary": {}})
+
+        # 1) Fetch daily data (for 20-day SMA + LinReg daily)
+        daily_df = fetch_daily_closes(session)
+        if daily_df is None or len(daily_df) < 20:
+            return jsonify({"error": "insufficient daily data", "signals": [], "summary": {}})
+
+        # 2) Fetch 1m candles for the test date
+        rows = fetch_candles_by_date(config.UNDERLYING, timeframe, date_str)
+        if not rows:
+            from trading_bot.data.historical import fetch_candles_for_day
+            from trading_bot.data.store import upsert_candles
+            trade_date = _date.fromisoformat(date_str)
+            api_rows = fetch_candles_for_day(session, trade_date, timeframe)
+            if not api_rows:
+                return jsonify({"error": f"No candle data for {date_str}", "signals": [], "summary": {}}), 404
+            upsert_candles(api_rows)
+            rows = fetch_candles_by_date(config.UNDERLYING, timeframe, date_str)
+
+        if not rows:
+            return jsonify({"error": "No candle data", "signals": [], "summary": {}}), 404
+
+        df_1m = pd.DataFrame(
+            [{"open": float(r["open"]), "high": float(r["high"]), "low": float(r["low"]),
+              "close": float(r["close"]), "volume": float(r["volume"]),
+              "timestamp": r["timestamp"]} for r in rows],
+        )
+
+        # 3) Walk through 1m bars — run analyze_live every 5 bars
+        enter_signals = []
+        step = 5
+        for i in range(14, len(df_1m), step):
+            subdf = df_1m.iloc[:i + 1].copy()
+            live_price = float(subdf["close"].iloc[-1])
+            bar_ts = str(subdf["timestamp"].iloc[-1])
+            try:
+                bar_time = _dt.fromisoformat(bar_ts)
+            except Exception:
+                bar_time = None
+
+            result = analyze_live(daily_df, subdf, live_price, bar_time=bar_time)
+            if result.should_enter:
+                d = result.to_dict()
+                d["_full_idx"] = i
+                d["bar_timestamp"] = bar_ts
+                enter_signals.append(d)
+                break   # one entry per day
+
+        # 4) P&L simulation
+        trades = []
+        SL_PTS = 30.0
+        TGT_PTS = 60.0
+        for sig in enter_signals:
+            idx = sig.pop("_full_idx")
+            entry_px = sig["entry_price"]
+            direction = sig["direction"]
+            sig["sl_points"] = SL_PTS
+            sig["target_points"] = TGT_PTS
+
+            if direction == "BULLISH":
+                sl_price = entry_px - SL_PTS
+                tgt_price = entry_px + TGT_PTS
+            else:
+                sl_price = entry_px + SL_PTS
+                tgt_price = entry_px - TGT_PTS
+
+            exit_price = None
+            exit_reason = "EOD"
+            exit_time = str(df_1m["timestamp"].iloc[-1])
+
+            for j in range(idx + 1, len(df_1m)):
+                h = float(df_1m["high"].iloc[j])
+                l = float(df_1m["low"].iloc[j])
+                if direction == "BULLISH":
+                    if l <= sl_price:
+                        exit_price, exit_reason = sl_price, "SL_HIT"
+                        exit_time = str(df_1m["timestamp"].iloc[j])
+                        break
+                    if h >= tgt_price:
+                        exit_price, exit_reason = tgt_price, "TARGET_HIT"
+                        exit_time = str(df_1m["timestamp"].iloc[j])
+                        break
+                else:
+                    if h >= sl_price:
+                        exit_price, exit_reason = sl_price, "SL_HIT"
+                        exit_time = str(df_1m["timestamp"].iloc[j])
+                        break
+                    if l <= tgt_price:
+                        exit_price, exit_reason = tgt_price, "TARGET_HIT"
+                        exit_time = str(df_1m["timestamp"].iloc[j])
+                        break
+
+            if exit_price is None:
+                exit_price = float(df_1m["close"].iloc[-1])
+
+            pnl = (exit_price - entry_px) if direction == "BULLISH" else (entry_px - exit_price)
+            sig["sl_price"] = round(sl_price, 2)
+            sig["target_price"] = round(tgt_price, 2)
+            sig["exit_price"] = round(exit_price, 2)
+            sig["exit_reason"] = exit_reason
+            sig["exit_time"] = exit_time
+            sig["pnl_points"] = round(pnl, 2)
+            trades.append(sig)
+
+        # 5) Summary
+        wins = [t for t in trades if t["pnl_points"] > 0]
+        losses = [t for t in trades if t["pnl_points"] <= 0]
+        total_pnl = sum(t["pnl_points"] for t in trades)
+        summary = {
+            "total_trades": len(trades),
+            "wins": len(wins),
+            "losses": len(losses),
+            "win_rate": round(len(wins) / len(trades) * 100, 1) if trades else 0,
+            "total_pnl": round(total_pnl, 2),
+            "avg_pnl": round(total_pnl / len(trades), 2) if trades else 0,
+        }
+
+        candles = [{"open": r["open"], "high": r["high"], "low": r["low"],
+                     "close": r["close"], "volume": r["volume"],
+                     "time": r["timestamp"]} for r in rows]
+        return jsonify(_sanitize({"candles": candles, "signals": trades, "summary": summary}))
+
+    except Exception as exc:
+        tb = traceback.format_exc()
+        log.error("_backtest_20day crash: %s\n%s", exc, tb)
         return jsonify({"error": f"{type(exc).__name__}: {exc}", "traceback": tb}), 500
 
 

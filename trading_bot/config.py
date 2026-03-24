@@ -196,6 +196,17 @@ AI_MIN_CONFIDENCE = 55           # skip trade if AI rates it below 55/100
 AI_FILTER_TIMEOUT = 8            # seconds — if AI takes longer, fall through
 
 # ═══════════════════════════════════════════════════════════════════════════════
+#  20-DAY AVG + LINEAR REGRESSION STRATEGY
+# ═══════════════════════════════════════════════════════════════════════════════
+LINREG_PERIOD = 14                # LinReg period for daily & 1m
+LINREG_FLAT_SLOPE_THRESH = 0.5    # abs(slope) below this → FLAT
+LINREG_1M_FLAT_SLOPE_THRESH = 0.1 # 1m LinReg flat threshold (smaller scale)
+THETA_MORNING_END = "11:30"       # full confidence zone ends
+THETA_MIDDAY_END = "13:30"        # midday zone ends (need stronger signals)
+THETA_STRONG_SIGNAL_HOUR = "13:30"  # after this, require both slopes strongly aligned
+THETA_BLOCK_HOUR = "14:45"       # after this, no new entries (theta too punishing)
+
+# ═══════════════════════════════════════════════════════════════════════════════
 #  PAPER TRADING PORTFOLIO
 # ═══════════════════════════════════════════════════════════════════════════════
 PAPER_INITIAL_CAPITAL = 30_000  # ₹30,000 starting balance
