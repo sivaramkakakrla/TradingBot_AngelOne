@@ -147,10 +147,10 @@ MAX_ENTRY_PREMIUM = 280.0
 # ═══════════════════════════════════════════════════════════════════════════════
 #  EXIT / RISK MANAGEMENT
 # ═══════════════════════════════════════════════════════════════════════════════
-INITIAL_SL_POINTS = 25        # wider SL: avoid shakeouts on 1m noise
-TRAIL_START_POINTS = 35       # start trailing after this profit
-TRAILING_SL_POINTS = 20       # trail SL distance once trailing activates
-PARTIAL_EXIT_POINTS = 45      # take 50% off at this profit
+INITIAL_SL_POINTS = 20        # SL: 20 pts from entry (matches 9:25 AM strategy)
+TRAIL_START_POINTS = 25       # start trailing after 25 pts profit (62.5% of target)
+TRAILING_SL_POINTS = 15       # trail SL distance once trailing activates
+PARTIAL_EXIT_POINTS = 30      # take 50% off at 30 pts profit (75% of target)
 PARTIAL_EXIT_PCT = 0.50       # sell 50% at partial target
 
 MAX_LOTS_PER_TRADE = 2
