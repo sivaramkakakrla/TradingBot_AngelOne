@@ -29,7 +29,7 @@ from trading_bot.data.store import (
 )
 from trading_bot.market import fetch_option_ltp, get_latest_tick, fetch_live_once
 from trading_bot.strategy import evaluate, is_sideways_market, get_htf_bias, Signal
-from trading_bot.scoring import score_signal
+from trading_bot.scoring import fetch_daily_closes, analyze_live
 from trading_bot.utils.logger import get_logger
 from trading_bot.utils.time_utils import now_ist
 
@@ -596,54 +596,60 @@ def _scan_and_trade():
     # ── Evaluate strategy (with all gates wired in) ──────────────────────
     signals = evaluate(df, df_15m=df_15m)
 
-    # ── Scoring engine (parallel probabilistic path) ─────────────────────
-    scored = score_signal(df, df_15m)
-    _log_event(f"SCORE: {scored.log_line}", console=False)
+    # ── 20-Day Average strategy (parallel path) ────────────────────────
+    daily_df = fetch_daily_closes(session)
+    live_price = float(df["close"].iloc[-1]) if len(df) > 0 else 0.0
+    avg_signal = analyze_live(daily_df, df, live_price)
+    _log_event(f"20D_AVG: {avg_signal.log_line}", console=False)
 
     enter_signals = [s for s in signals if s.action == "ENTER"] if signals else []
     skip_signals = [s for s in signals if s.action != "ENTER"] if signals else []
 
-    # If pattern engine produced no ENTER but scoring engine says ENTER,
-    # create a Signal from the scoring engine for the trade pipeline.
-    if not enter_signals and scored.should_enter and scored.direction != "NEUTRAL":
+    # If pattern engine produced no ENTER but 20-day avg says ENTER,
+    # create a Signal from the 20-day average strategy for the trade pipeline.
+    if not enter_signals and avg_signal.should_enter and avg_signal.direction != "NEUTRAL":
         from trading_bot.indicators import atr as calc_atr
         atr_s = calc_atr(df, 14)
         atr_val = float(atr_s.iloc[-1]) if len(atr_s) > 0 else config.INITIAL_SL_POINTS
         sl = round(max(atr_val * 1.5, config.INITIAL_SL_POINTS), 2)
         target = round(sl * 2, 2)
-        score_signal_obj = Signal(
-            direction=scored.direction,
-            strength=min(scored.total_score * 10, 100),
-            patterns=["scoring_engine"],
+        avg_signal_obj = Signal(
+            direction=avg_signal.direction,
+            strength=70,
+            patterns=["20day_avg_" + avg_signal.signal_type.lower()],
             filters={
-                "trend": scored.trend.score > 0,
-                "momentum": scored.momentum.score > 0,
-                "volatility": scored.volatility.score > 0,
-                "efficiency": scored.efficiency.score > 0,
-                "structure": scored.structure.score > 0,
+                "sma_slope": avg_signal.sma_slope_label != "FLAT",
+                "price_position": avg_signal.price_vs_sma != "AT",
+                "intraday_confirm": avg_signal.intraday_bias == avg_signal.direction,
             },
             confirmations=sum([
-                scored.trend.score > 0,
-                scored.momentum.score > 0,
-                scored.volatility.score > 0,
-                scored.efficiency.score > 0,
-                scored.structure.score > 0,
+                avg_signal.sma_slope_label != "FLAT",
+                avg_signal.price_vs_sma != "AT",
+                avg_signal.intraday_bias == avg_signal.direction,
             ]),
             action="ENTER",
-            reason=f"Scoring engine: score={scored.total_score}/{scored.entry_threshold} | {scored.trend.label}",
+            reason=(
+                f"20D Avg: {avg_signal.signal_type} | "
+                f"SMA={avg_signal.sma_value:.2f} | "
+                f"Live={avg_signal.live_price:.2f} | "
+                f"Dist={avg_signal.distance_pct:+.2f}%"
+            ),
             sl_points=sl,
             target_points=target,
-            bar_timestamp=scored.bar_timestamp,
-            entry_price=scored.entry_price,
-            pattern_descriptions=["Probabilistic scoring engine entry (pullback/momentum/structure)"],
+            bar_timestamp=avg_signal.bar_timestamp,
+            entry_price=avg_signal.entry_price,
+            pattern_descriptions=[
+                f"20-day average {avg_signal.signal_type}: "
+                f"NIFTY {avg_signal.price_vs_sma} SMA, slope {avg_signal.sma_slope_label}"
+            ],
             expected_profit_pts=target,
         )
-        enter_signals.append(score_signal_obj)
+        enter_signals.append(avg_signal_obj)
         _log_event(
-            f"SCORING ENGINE ENTRY: {scored.direction} score={scored.total_score} "
-            f"(trend={scored.trend.score} mom={scored.momentum.score} "
-            f"vol={scored.volatility.score} eff={scored.efficiency.score} "
-            f"struct={scored.structure.score} pb={scored.pullback.score})"
+            f"20D AVG ENTRY: {avg_signal.direction} {avg_signal.option_type} | "
+            f"Type={avg_signal.signal_type} | SMA={avg_signal.sma_value:.2f} | "
+            f"Live={avg_signal.live_price:.2f} | Dist={avg_signal.distance_pct:+.2f}% | "
+            f"Slope={avg_signal.sma_slope_label}"
         )
 
     if not signals and not enter_signals:

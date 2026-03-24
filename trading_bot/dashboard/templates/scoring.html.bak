@@ -152,10 +152,6 @@
             color: var(--red);
         }
 
-        .warn {
-            color: var(--amber);
-        }
-
         .hint {
             font-size: .74rem;
             color: var(--txt-dim);
@@ -206,15 +202,18 @@
             color: #fff;
         }
 
-        .chart-area {
-            width: 100%;
-            height: 260px;
-            position: relative;
+        .score-bar {
+            display: flex;
+            gap: 2px;
+            height: 8px;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 6px;
         }
 
-        .chart-area canvas {
-            width: 100%;
+        .score-seg {
             height: 100%;
+            border-radius: 2px;
         }
 
         .equity-chart {
@@ -226,38 +225,6 @@
         .equity-chart canvas {
             width: 100%;
             height: 100%;
-        }
-
-        .signal-box {
-            padding: 12px;
-            border-radius: 10px;
-            border: 1px solid var(--border);
-            background: var(--card);
-            margin-top: 12px;
-        }
-
-        .signal-tag {
-            display: inline-block;
-            padding: 6px 16px;
-            border-radius: 8px;
-            font-weight: 800;
-            font-size: 1rem;
-        }
-
-        .signal-tag.ce {
-            background: var(--green-bg);
-            color: var(--green);
-        }
-
-        .signal-tag.pe {
-            background: var(--red-bg);
-            color: var(--red);
-        }
-
-        .signal-tag.skip {
-            background: var(--card);
-            color: var(--txt-dim);
-            border: 1px solid var(--border);
         }
 
         @media (max-width: 980px) {
@@ -307,95 +274,13 @@
             <a href="/orb-strategy">ORB Strategy</a>
             <a href="/20-day-avg" class="active">20-Day Avg</a>
         </nav>
-        <div class="badge">NIFTY 20-DAY AVERAGE</div>
+        <div class="badge">20-DAY SCORING ENGINE</div>
     </div>
 
     <div class="wrap">
-        <!-- NIFTY Live vs 20-Day SMA -->
-        <div class="card">
-            <div class="title">NIFTY 50 — Live Price vs 20-Day Average</div>
-            <div class="row grid-5">
-                <div class="pill">
-                    <div class="k">NIFTY Live</div>
-                    <div class="v" id="livePrice">--</div>
-                </div>
-                <div class="pill">
-                    <div class="k">20-Day SMA</div>
-                    <div class="v" id="smaValue">--</div>
-                </div>
-                <div class="pill">
-                    <div class="k">Distance</div>
-                    <div class="v" id="distPts">--</div>
-                </div>
-                <div class="pill">
-                    <div class="k">Position</div>
-                    <div class="v" id="pricePos">--</div>
-                </div>
-                <div class="pill">
-                    <div class="k">SMA Slope</div>
-                    <div class="v" id="smaSlope">--</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Price vs SMA Chart -->
-        <div class="card">
-            <div class="title">NIFTY Daily Close vs 20-Day SMA (Last 20 Days)</div>
-            <div class="chart-area">
-                <canvas id="smaCanvas"></canvas>
-            </div>
-        </div>
-
-        <!-- Signal Decision -->
-        <div class="card">
-            <div class="title">Signal Analysis</div>
-            <div class="row grid-4">
-                <div class="pill">
-                    <div class="k">Signal Type</div>
-                    <div class="v" id="sigType">--</div>
-                </div>
-                <div class="pill">
-                    <div class="k">Direction</div>
-                    <div class="v" id="sigDir">--</div>
-                </div>
-                <div class="pill">
-                    <div class="k">Intraday Momentum</div>
-                    <div class="v" id="intraBias">--</div>
-                </div>
-                <div class="pill">
-                    <div class="k">Decision</div>
-                    <div class="v" id="sigDecision">--</div>
-                </div>
-            </div>
-            <div class="signal-box">
-                <div style="display:flex;justify-content:space-between;align-items:center;">
-                    <div>
-                        <span class="k" style="font-size:.66rem;color:var(--txt-dim);text-transform:uppercase;">Trade
-                            Signal</span>
-                        <div id="sigTag" class="signal-tag skip" style="margin-top:6px;">WAITING</div>
-                    </div>
-                    <div style="text-align:right;max-width:60%;">
-                        <div id="sigReasons" class="hint" style="font-family:monospace;font-size:.7rem;">--</div>
-                    </div>
-                </div>
-                <div id="sigLog" class="hint"
-                    style="margin-top:8px;font-family:monospace;font-size:.68rem;color:var(--txt-dim);word-break:break-all;">
-                    --</div>
-            </div>
-        </div>
-
-        <!-- Controls -->
-        <div class="card">
-            <div class="controls">
-                <button class="primary" onclick="refresh()">Refresh</button>
-                <button onclick="toggleAuto()" id="autoBtn">Auto Refresh: ON</button>
-                <span id="lastTs" class="hint">--</span>
-            </div>
-        </div>
-
         <!-- Portfolio Summary -->
         <div class="card">
-            <div class="title">Portfolio — 20-Day Avg Strategy (₹30,000 Investment)</div>
+            <div class="title">Scoring Engine — Portfolio (₹30,000 Investment)</div>
             <div class="row grid-5">
                 <div class="pill">
                     <div class="k">Investment</div>
@@ -455,6 +340,71 @@
             </div>
         </div>
 
+        <!-- Controls -->
+        <div class="card">
+            <div class="controls">
+                <button class="primary" onclick="refresh()">Refresh</button>
+                <button onclick="toggleAuto()" id="autoBtn">Auto Refresh: ON</button>
+                <span id="lastTs" class="hint">--</span>
+            </div>
+        </div>
+
+        <!-- Live Scoring Engine -->
+        <div class="card">
+            <div class="title">Live Scoring Engine (Current State)</div>
+            <div class="row grid-3">
+                <div class="pill">
+                    <div class="k">Trend (15m)</div>
+                    <div class="v" id="scTrend">--</div>
+                    <div class="hint" id="scTrendDetail">Slope: -- | NormSlope: --</div>
+                </div>
+                <div class="pill">
+                    <div class="k">Momentum (1m)</div>
+                    <div class="v" id="scMomentum">--</div>
+                    <div class="hint" id="scMomDetail">BodyRatio: -- | Strength: --</div>
+                </div>
+                <div class="pill">
+                    <div class="k">Efficiency</div>
+                    <div class="v" id="scEfficiency">--</div>
+                    <div class="hint" id="scEffDetail">Ratio: --</div>
+                </div>
+            </div>
+            <div class="row grid-3" style="margin-top:12px;">
+                <div class="pill">
+                    <div class="k">Volatility</div>
+                    <div class="v" id="scVolatility">--</div>
+                    <div class="hint" id="scVolDetail">ATR ratio: --</div>
+                </div>
+                <div class="pill">
+                    <div class="k">Structure</div>
+                    <div class="v" id="scStructure">--</div>
+                    <div class="hint" id="scStrDetail">Breakout: --</div>
+                </div>
+                <div class="pill">
+                    <div class="k">Pullback</div>
+                    <div class="v" id="scPullback">--</div>
+                    <div class="hint" id="scPbDetail">--</div>
+                </div>
+            </div>
+
+            <!-- Score bar + decision -->
+            <div
+                style="margin-top: 14px; padding: 10px; background: var(--card); border-radius: 10px; border: 1px solid var(--border);">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <div class="k" style="font-size:.66rem;color:var(--txt-dim);text-transform:uppercase;">Total
+                            Score</div>
+                        <div id="scTotal" style="font-size: 1.4rem; font-weight: 800;">0 / 6</div>
+                    </div>
+                    <div id="scDecision" style="font-size: 1rem; font-weight: 800; padding: 8px 20px; border-radius: 8px;
+                        background: var(--red-bg); color: var(--red);">NO ENTRY</div>
+                </div>
+                <div class="score-bar" id="scoreBar"></div>
+                <div id="scLogLine" class="hint" style="margin-top:8px; font-family: monospace; font-size: .7rem;">--
+                </div>
+            </div>
+        </div>
+
         <!-- Daily Breakdown Table -->
         <div class="card">
             <div class="title">Daily P&L Breakdown (Last 20 Trading Days)</div>
@@ -478,28 +428,6 @@
                 </tbody>
             </table>
         </div>
-
-        <!-- Daily Close Table -->
-        <div class="card">
-            <div class="title">NIFTY Daily Closes (20-Day Window)</div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Close</th>
-                        <th>20D SMA</th>
-                        <th>Diff (pts)</th>
-                        <th>Diff (%)</th>
-                        <th>Position</th>
-                    </tr>
-                </thead>
-                <tbody id="closesBody">
-                    <tr>
-                        <td colspan="6" class="hint">Loading...</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
     </div>
 
     <script>
@@ -517,94 +445,10 @@
         }
 
         function setColor(el, val) {
-            el.className = el.className.replace(/\b(good|bad|warn)\b/g, '').trim();
+            el.className = el.className.replace(/\b(good|bad)\b/g, '').trim();
             el.classList.add(Number(val) >= 0 ? 'good' : 'bad');
         }
 
-        // ── Draw NIFTY vs SMA chart ─────────────────────────────────
-        function drawSmaChart(dates, closes, smaVals) {
-            const canvas = document.getElementById('smaCanvas');
-            if (!canvas || !closes.length) return;
-            const ctx = canvas.getContext('2d');
-            const dpr = window.devicePixelRatio || 1;
-            const rect = canvas.parentElement.getBoundingClientRect();
-            canvas.width = rect.width * dpr;
-            canvas.height = rect.height * dpr;
-            ctx.scale(dpr, dpr);
-            const W = rect.width, H = rect.height;
-
-            const allVals = [...closes, ...smaVals.filter(v => v !== null)];
-            const mn = Math.min(...allVals) - 50;
-            const mx = Math.max(...allVals) + 50;
-            const pad = { l: 65, r: 20, t: 12, b: 32 };
-            const cw = W - pad.l - pad.r, ch = H - pad.t - pad.b;
-
-            ctx.clearRect(0, 0, W, H);
-
-            // Grid lines
-            ctx.strokeStyle = '#e2e8f0';
-            ctx.lineWidth = 0.5;
-            for (let i = 0; i <= 5; i++) {
-                const y = pad.t + (ch / 5) * i;
-                ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W - pad.r, y); ctx.stroke();
-                const label = mx - ((mx - mn) / 5) * i;
-                ctx.fillStyle = '#94a3b8'; ctx.font = '10px Inter';
-                ctx.textAlign = 'right';
-                ctx.fillText(label.toFixed(0), pad.l - 6, y + 4);
-            }
-
-            const len = closes.length;
-            const toX = i => pad.l + (i / Math.max(len - 1, 1)) * cw;
-            const toY = v => pad.t + ((mx - v) / (mx - mn)) * ch;
-
-            // NIFTY close line (blue)
-            ctx.beginPath();
-            ctx.strokeStyle = '#2563eb';
-            ctx.lineWidth = 2;
-            for (let i = 0; i < len; i++) {
-                const x = toX(i), y = toY(closes[i]);
-                i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-            }
-            ctx.stroke();
-
-            // SMA line (orange dashed)
-            ctx.beginPath();
-            ctx.strokeStyle = '#d97706';
-            ctx.lineWidth = 2;
-            ctx.setLineDash([5, 3]);
-            let started = false;
-            for (let i = 0; i < len; i++) {
-                if (smaVals[i] === null) continue;
-                const x = toX(i), y = toY(smaVals[i]);
-                if (!started) { ctx.moveTo(x, y); started = true; }
-                else ctx.lineTo(x, y);
-            }
-            ctx.stroke();
-            ctx.setLineDash([]);
-
-            // Dots on closes
-            for (let i = 0; i < len; i++) {
-                ctx.beginPath();
-                const above = smaVals[i] !== null && closes[i] >= smaVals[i];
-                ctx.fillStyle = above ? '#16a34a' : '#dc2626';
-                ctx.arc(toX(i), toY(closes[i]), 3, 0, Math.PI * 2);
-                ctx.fill();
-            }
-
-            // Date labels
-            ctx.fillStyle = '#94a3b8'; ctx.font = '9px Inter'; ctx.textAlign = 'center';
-            const step = Math.max(1, Math.floor(len / 7));
-            for (let i = 0; i < len; i += step) {
-                ctx.fillText(dates[i].substring(5), toX(i), H - 8);
-            }
-
-            // Legend
-            ctx.font = '10px Inter'; ctx.textAlign = 'left';
-            ctx.fillStyle = '#2563eb'; ctx.fillText('● NIFTY Close', pad.l + 10, pad.t + 16);
-            ctx.fillStyle = '#d97706'; ctx.fillText('- - 20-Day SMA', pad.l + 110, pad.t + 16);
-        }
-
-        // ── Draw equity curve ──────────────────────────────────────
         function drawEquity(days) {
             const canvas = document.getElementById('equityCanvas');
             if (!canvas || !days.length) return;
@@ -624,8 +468,9 @@
 
             ctx.clearRect(0, 0, W, H);
 
-            // Grid
-            ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 0.5;
+            // Grid lines
+            ctx.strokeStyle = '#e2e8f0';
+            ctx.lineWidth = 0.5;
             for (let i = 0; i <= 4; i++) {
                 const y = pad.t + (ch / 4) * i;
                 ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W - pad.r, y); ctx.stroke();
@@ -635,13 +480,13 @@
                 ctx.fillText(RS + label.toFixed(0), pad.l - 6, y + 4);
             }
 
-            // Baseline
+            // Investment baseline
             const baseY = pad.t + ((mx - INVESTMENT) / (mx - mn)) * ch;
             ctx.setLineDash([4, 4]); ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1;
             ctx.beginPath(); ctx.moveTo(pad.l, baseY); ctx.lineTo(W - pad.r, baseY); ctx.stroke();
             ctx.setLineDash([]);
 
-            // Line
+            // Equity line
             if (vals.length < 2) return;
             ctx.beginPath();
             ctx.strokeStyle = vals[vals.length - 1] >= INVESTMENT ? '#16a34a' : '#dc2626';
@@ -653,6 +498,7 @@
             }
             ctx.stroke();
 
+            // Points
             for (let i = 0; i < vals.length; i++) {
                 const x = pad.l + (i / (vals.length - 1)) * cw;
                 const y = pad.t + ((mx - vals[i]) / (mx - mn)) * ch;
@@ -662,20 +508,40 @@
                 ctx.fill();
             }
 
+            // Date labels
             ctx.fillStyle = '#94a3b8'; ctx.font = '9px Inter'; ctx.textAlign = 'center';
             const step = Math.max(1, Math.floor(vals.length / 6));
             for (let i = 0; i < days.length; i += step) {
                 const x = pad.l + (i / (vals.length - 1)) * cw;
-                ctx.fillText(days[i].date.substring(5), x, H - 8);
+                const label = days[i].date.substring(5); // MM-DD
+                ctx.fillText(label, x, H - 8);
             }
         }
 
-        // ── Fetch P&L ──────────────────────────────────────────────
+        function renderScoreBar(components) {
+            const bar = document.getElementById('scoreBar');
+            const colors = {
+                trend: '#3b82f6', momentum: '#8b5cf6', volatility: '#f59e0b',
+                efficiency: '#06b6d4', structure: '#10b981', pullback: '#ec4899'
+            };
+            const maxes = { trend: 3, momentum: 2, volatility: 1, efficiency: 2, structure: 2, pullback: 2 };
+            let html = '';
+            for (const [k, max] of Object.entries(maxes)) {
+                const score = components[k] || 0;
+                const pct = (score / 12) * 100;
+                const empty = ((max - score) / 12) * 100;
+                if (score > 0) html += `<div class="score-seg" style="width:${pct}%;background:${colors[k]};"></div>`;
+                if (max - score > 0) html += `<div class="score-seg" style="width:${empty}%;background:#e2e8f0;"></div>`;
+            }
+            bar.innerHTML = html;
+        }
+
         async function fetchPnl() {
             try {
                 const r = await fetch('/api/scoring/pnl');
                 const d = await r.json();
 
+                // Portfolio summary
                 const bal = INVESTMENT + Number(d.total_pnl || 0);
                 const el = (id) => document.getElementById(id);
                 el('currentBal').textContent = RS + bal.toFixed(2);
@@ -688,6 +554,7 @@
                 el('avgDaily').textContent = fmt(d.avg_daily_pnl);
                 setColor(el('avgDaily'), d.avg_daily_pnl);
 
+                // Metrics
                 el('totalTrades').textContent = d.total_trades || 0;
                 el('winLoss').textContent = `${d.wins || 0} / ${d.losses || 0}`;
                 const wr = d.total_trades ? ((d.wins / d.total_trades) * 100) : 0;
@@ -696,6 +563,7 @@
                 el('bestDay').textContent = fmt(d.best_day);
                 el('worstDay').textContent = fmt(d.worst_day);
 
+                // Daily table
                 const days = d.daily || [];
                 const body = el('dailyBody');
                 if (!days.length) {
@@ -718,128 +586,81 @@
                     }).join('');
                 }
 
+                // Equity chart
                 drawEquity(days);
-                el('lastTs').textContent = 'P&L: ' + (d.time || '--');
-            } catch (e) {
-                console.error('fetchPnl error:', e);
-            }
+
+                el('lastTs').textContent = 'Updated: ' + (d.time || '--');
+            } catch (e) { console.error('PnL fetch error:', e); }
         }
 
-        // ── Fetch live 20-day avg state ────────────────────────────
-        async function fetchLive() {
+        async function fetchScoring() {
             try {
                 const r = await fetch('/api/scoring/live');
                 const d = await r.json();
+                if (!d || d.error) return;
+
                 const el = (id) => document.getElementById(id);
+                const t = d.trend || {};
+                el('scTrend').textContent = t.label || '--';
+                el('scTrend').className = 'v ' + (t.direction === 'BULLISH' ? 'good' : t.direction === 'BEARISH' ? 'bad' : '');
+                el('scTrendDetail').textContent = `Slope: ${(t.slope || 0).toFixed(4)} | NormSlope: ${(t.normalized_slope || 0).toFixed(3)}`;
 
-                if (d.error) {
-                    el('livePrice').textContent = d.error;
-                    return;
-                }
+                const m = d.momentum || {};
+                el('scMomentum').textContent = m.label || '--';
+                el('scMomDetail').textContent = `BodyRatio: ${(m.body_ratio || 0).toFixed(3)} | Strength: ${(m.momentum_strength || 0).toFixed(2)}`;
 
-                // Live price
-                el('livePrice').textContent = Number(d.live_price || 0).toFixed(2);
-                el('smaValue').textContent = Number(d.sma_value || 0).toFixed(2);
+                const e = d.efficiency || {};
+                el('scEfficiency').textContent = e.label || '--';
+                el('scEffDetail').textContent = `Ratio: ${(e.efficiency || 0).toFixed(3)}`;
 
-                // Distance
-                const dist = Number(d.distance_pts || 0);
-                const distPct = Number(d.distance_pct || 0);
-                el('distPts').textContent = (dist >= 0 ? '+' : '') + dist.toFixed(1) + ' (' + distPct.toFixed(2) + '%)';
-                setColor(el('distPts'), dist);
+                const v = d.volatility || {};
+                el('scVolatility').textContent = v.score ? 'OK' : 'LOW';
+                el('scVolatility').className = 'v ' + (v.score ? 'good' : 'bad');
+                el('scVolDetail').textContent = `ATR ratio: ${(v.volatility_ratio || 0).toFixed(3)}`;
 
-                // Position
-                const pos = d.price_vs_sma || 'AT';
-                el('pricePos').textContent = pos;
-                el('pricePos').className = 'v ' + (pos === 'ABOVE' ? 'good' : pos === 'BELOW' ? 'bad' : 'warn');
+                const s = d.structure || {};
+                el('scStructure').textContent = s.pattern || 'NONE';
+                el('scStructure').className = 'v ' + (s.pattern === 'HH_HL' ? 'good' : s.pattern === 'LH_LL' ? 'bad' : '');
+                el('scStrDetail').textContent = `Breakout: ${(s.breakout_strength || 0).toFixed(2)}`;
 
-                // Slope
-                const slope = d.sma_slope_label || 'FLAT';
-                el('smaSlope').textContent = slope + ' (' + Number(d.sma_slope_pct || 0).toFixed(3) + '%)';
-                el('smaSlope').className = 'v ' + (slope === 'RISING' ? 'good' : slope === 'FALLING' ? 'bad' : 'warn');
+                const p = d.pullback || {};
+                el('scPullback').textContent = p.is_pullback ? 'YES' : 'NO';
+                el('scPullback').className = 'v ' + (p.is_pullback ? 'good' : '');
+                el('scPbDetail').textContent = p.is_pullback ? 'Pullback entry detected' : 'No pullback';
 
-                // Signal
-                el('sigType').textContent = d.signal_type || 'NONE';
-                const dir = d.direction || 'NEUTRAL';
-                el('sigDir').textContent = dir;
-                el('sigDir').className = 'v ' + (dir === 'BULLISH' ? 'good' : dir === 'BEARISH' ? 'bad' : '');
-
-                const ib = d.intraday_bias || 'NEUTRAL';
-                el('intraBias').textContent = ib;
-                el('intraBias').className = 'v ' + (ib === 'BULLISH' ? 'good' : ib === 'BEARISH' ? 'bad' : 'warn');
-
-                // Decision tag
-                const tag = el('sigTag');
-                const ot = d.option_type || '';
-                if (d.should_enter && ot) {
-                    tag.textContent = 'BUY ' + ot;
-                    tag.className = 'signal-tag ' + (ot === 'CE' ? 'ce' : 'pe');
-                    el('sigDecision').textContent = 'ENTER ' + ot;
-                    el('sigDecision').className = 'v ' + (ot === 'CE' ? 'good' : 'bad');
+                el('scTotal').textContent = `${d.total_score || 0} / ${d.entry_threshold || 6}`;
+                const dec = el('scDecision');
+                if (d.should_enter) {
+                    dec.textContent = d.direction === 'BULLISH' ? 'BUY CE' : 'BUY PE';
+                    dec.style.background = 'var(--green-bg)'; dec.style.color = 'var(--green)';
                 } else {
-                    tag.textContent = 'NO ENTRY';
-                    tag.className = 'signal-tag skip';
-                    el('sigDecision').textContent = 'SKIP';
-                    el('sigDecision').className = 'v warn';
+                    dec.textContent = 'NO ENTRY';
+                    dec.style.background = 'var(--red-bg)'; dec.style.color = 'var(--red)';
                 }
 
-                // Reasons
-                const reasons = d.skip_reasons || [];
-                el('sigReasons').textContent = reasons.length ? reasons.join(' | ') : 'All conditions met';
-                el('sigLog').textContent = d.log_line || '--';
+                el('scLogLine').textContent = d.log_line || '--';
 
-                // SMA chart
-                const dates = d.daily_dates || [];
-                const closes = d.daily_closes || [];
-                const sma = d.sma_series || [];
-                if (dates.length && closes.length) {
-                    drawSmaChart(dates, closes, sma);
-
-                    // Daily closes table
-                    const closesBody = el('closesBody');
-                    let rows = '';
-                    for (let i = 0; i < dates.length; i++) {
-                        const c = closes[i];
-                        const s = sma[i];
-                        const diff = s !== null ? (c - s).toFixed(1) : '--';
-                        const diffPct = s !== null ? ((c - s) / s * 100).toFixed(2) + '%' : '--';
-                        const position = s === null ? '--' : (c > s ? 'ABOVE' : c < s ? 'BELOW' : 'AT');
-                        const cls = position === 'ABOVE' ? 'good' : position === 'BELOW' ? 'bad' : '';
-                        rows += `<tr>
-                            <td>${dates[i]}</td>
-                            <td>${Number(c).toFixed(2)}</td>
-                            <td>${s !== null ? Number(s).toFixed(2) : '--'}</td>
-                            <td class="${cls}">${diff}</td>
-                            <td class="${cls}">${diffPct}</td>
-                            <td class="${cls}" style="font-weight:600">${position}</td>
-                        </tr>`;
-                    }
-                    closesBody.innerHTML = rows || '<tr><td colspan="6" class="hint">No data</td></tr>';
-                }
-
-            } catch (e) {
-                console.error('fetchLive error:', e);
-            }
+                renderScoreBar({
+                    trend: (t.score || 0), momentum: (m.score || 0),
+                    volatility: (v.score || 0), efficiency: (e.score || 0),
+                    structure: (s.score || 0), pullback: (p.score || 0)
+                });
+            } catch (e) { console.error('Scoring fetch error:', e); }
         }
 
-        // ── Auto refresh ────────────────────────────────────────────
-        let timer;
-        function startTimer() {
-            timer = setInterval(() => { fetchLive(); fetchPnl(); }, 30000);
+        async function refresh() {
+            await Promise.all([fetchPnl(), fetchScoring()]);
         }
+
         function toggleAuto() {
             autoOn = !autoOn;
             document.getElementById('autoBtn').textContent = 'Auto Refresh: ' + (autoOn ? 'ON' : 'OFF');
-            if (autoOn) startTimer(); else clearInterval(timer);
-        }
-        function refresh() {
-            fetchLive();
-            fetchPnl();
         }
 
-        // ── Init ────────────────────────────────────────────────────
-        fetchLive();
-        fetchPnl();
-        startTimer();
+        (async () => {
+            await refresh();
+            setInterval(() => { if (autoOn) refresh(); }, 10000);
+        })();
     </script>
 </body>
 

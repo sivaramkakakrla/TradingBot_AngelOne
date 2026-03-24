@@ -2765,10 +2765,10 @@ def api_scoring_pnl():
 
 @app.route("/api/scoring/live")
 def api_scoring_live():
-    """Return live scoring engine state for current 1m + 15m candles."""
-    from trading_bot.scoring import score_signal
+    """Return live 20-day average analysis for NIFTY 50."""
+    from trading_bot.scoring import fetch_daily_closes, analyze_live
 
-    cached = get_cached("scoring_live", ttl=15)
+    cached = get_cached("scoring_live", ttl=30)
     if cached:
         return jsonify(cached)
 
@@ -2781,28 +2781,32 @@ def api_scoring_live():
             pass
 
         if not session:
-            return jsonify({"error": "no session", "total_score": 0, "should_enter": False})
+            return jsonify({"error": "no session", "should_enter": False})
 
+        # Fetch daily NIFTY closes for 20-day SMA
+        daily_df = fetch_daily_closes(session)
+        if daily_df is None or len(daily_df) < 20:
+            return jsonify({"error": "insufficient daily data", "should_enter": False})
+
+        # Fetch 1m candles for intraday confirmation + live price
         from trading_bot.data.historical import fetch_candle_data
-        df_1m = fetch_candle_data(session, "NIFTY", config.NIFTY_TOKEN,
-                                  "ONE_MINUTE", days=2)
-        df_15m = None
+        df_1m = None
+        live_price = 0.0
         try:
-            df_15m = fetch_candle_data(session, "NIFTY", config.NIFTY_TOKEN,
-                                       "FIFTEEN_MINUTE", days=5)
+            df_1m = fetch_candle_data(session, "NIFTY", config.NIFTY_TOKEN,
+                                      "ONE_MINUTE", days=2)
+            if df_1m is not None and len(df_1m) > 0:
+                live_price = float(df_1m["close"].iloc[-1])
         except Exception:
             pass
 
-        if df_1m is None or len(df_1m) < 20:
-            return jsonify({"error": "insufficient data", "total_score": 0, "should_enter": False})
-
-        result = score_signal(df_1m, df_15m)
+        result = analyze_live(daily_df, df_1m, live_price)
         data = result.to_dict()
-        set_cached("scoring_live", data, ttl=15)
+        set_cached("scoring_live", data, ttl=30)
         return jsonify(_sanitize(data))
     except Exception as exc:
         log.warning("api_scoring_live error: %s", exc)
-        return jsonify({"error": str(exc), "total_score": 0, "should_enter": False})
+        return jsonify({"error": str(exc), "should_enter": False})
 
 
 # ─── Start helper ─────────────────────────────────────────────────────────────
