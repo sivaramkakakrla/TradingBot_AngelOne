@@ -709,11 +709,15 @@ def _get_ai_confidence(sig, df: pd.DataFrame) -> int | None:
         return None   # fail open — don't block trade on AI failure
 
 
+_MONITOR_INTERVAL = 5   # seconds between position checks (SL/target)
+
+
 def _auto_trade_loop():
-    """Background thread: scan + monitor on a timer."""
+    """Background thread: monitor every 5s, scan for new signals every SCAN_INTERVAL."""
     global _running
     _log_event("Auto-trade engine STARTED")
     _consecutive_errors = 0
+    _last_scan_time = 0.0  # epoch; 0 ensures first loop scans immediately
 
     # Preload option instrument master
     try:
@@ -726,11 +730,14 @@ def _auto_trade_loop():
     try:
         while _running:
             try:
-                # Monitor existing positions (every cycle)
+                # --- Monitor existing positions every 5 seconds ---
                 _monitor_positions()
 
-                # Scan for new signals
-                _scan_and_trade()
+                # --- Scan for new signals only every SCAN_INTERVAL ---
+                now_ts = time.time()
+                if now_ts - _last_scan_time >= _SCAN_INTERVAL:
+                    _scan_and_trade()
+                    _last_scan_time = now_ts
 
                 # Update dashboard status
                 open_trades = get_open_trades()
@@ -757,7 +764,7 @@ def _auto_trade_loop():
                     _log_event(f"Too many errors — backing off {backoff}s")
                     time.sleep(backoff)
 
-            time.sleep(_SCAN_INTERVAL)
+            time.sleep(_MONITOR_INTERVAL)   # wake every 5s to check positions
     finally:
         # Always reset status when thread exits (crash or normal stop)
         with _lock:
@@ -773,7 +780,7 @@ def start(scan_interval: int = 60):
         return
     # Reset state in case of previous crash
     _running = True
-    _SCAN_INTERVAL = max(scan_interval, 30)  # minimum 30s
+    _SCAN_INTERVAL = max(scan_interval, 5)   # minimum 5s
     with _lock:
         _status["enabled"] = True
     _thread = threading.Thread(target=_auto_trade_loop, name="autotrade", daemon=True)
