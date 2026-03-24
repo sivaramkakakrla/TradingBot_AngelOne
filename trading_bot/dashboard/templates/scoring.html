@@ -471,9 +471,16 @@
                 status.textContent = 'Loading...';
                 try {
                     const resp = await fetch(`/api/strategy/test?date=${date}`);
-                    const data = await resp.json();
+                    let data;
+                    try {
+                        data = await resp.json();
+                    } catch (jsonErr) {
+                        const text = await resp.text().catch(() => '');
+                        status.textContent = `Server error (${resp.status}): ${text.substring(0, 200) || 'Could not parse response'}`;
+                        return;
+                    }
                     if (!resp.ok) {
-                        status.textContent = data.error || 'API error';
+                        status.textContent = data.error || `API error (${resp.status})`;
                         return;
                     }
                     status.textContent = '';
@@ -499,7 +506,7 @@
                         drawTestChart(data.candles, data.signals);
                     }
                 } catch (e) {
-                    status.textContent = 'Error loading test data.';
+                    status.textContent = 'Error: ' + (e.message || e);
                 }
             }
 
