@@ -524,12 +524,8 @@ def evaluate(df: pd.DataFrame, backtest: bool = False,
             sl_points=sl,
             target_points=target,
             bar_timestamp=bar_ts,
-            entry_price=entry_px,
-            bar_index=int(ref_idx),
-            pattern_descriptions=pat_descs,
-            expected_profit_pts=target,
+            entry_price=entry_px
         )
-        results.append(signal)
 
         # ── Step 6: Persist to DB ────────────────────────────────────
         try:

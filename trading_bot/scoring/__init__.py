@@ -1,118 +1,4 @@
-"""
-scoring/ — 20-Day Average NIFTY strategy engine.
 
-Generates BUY CE / BUY PE signals by comparing NIFTY 50 live price
-against its 20-day simple moving average (SMA) of daily closes.
-
-Logic:
-  1. Fetch last 25+ trading days of daily NIFTY closes.
-  2. Compute 20-day SMA and its slope (rising / falling / flat).
-  3. Compare live NIFTY price to 20-day SMA:
-     - Price ABOVE SMA + SMA rising + intraday momentum bullish → BUY CE
-     - Price BELOW SMA + SMA falling + intraday momentum bearish → BUY PE
-  4. Key signal types:
-     a) CROSSOVER — price just crossed the 20-day SMA (strongest)
-     b) BOUNCE — price pulled back to SMA and bounced in trend direction
-     c) TREND RIDE — price above/below SMA with intraday momentum confirming
-  5. Avoid entries when:
-     - Price is stretched >1.5% from SMA (mean-reversion risk)
-     - SMA is flat (no trend)
-     - Intraday candle contradicts the daily bias
-
-Public API
-----------
-    fetch_daily_closes(session)    -> pd.DataFrame (daily OHLCV, 30 days)
-    compute_20day_avg(daily_df)    -> AvgState
-    analyze_live(daily_df, df_1m)  -> TwentyDaySignal
-"""
-
-from __future__ import annotations
-
-from dataclasses import dataclass, field, asdict
-from typing import Optional
-from datetime import date, timedelta
-
-import numpy as np
-import pandas as pd
-
-from trading_bot import config
-from trading_bot.indicators import ema as calc_ema, atr as calc_atr
-from trading_bot.utils.logger import get_logger
-from trading_bot.utils.time_utils import now_ist
-
-log = get_logger(__name__)
-
-
-# ── Tunable thresholds ───────────────────────────────────────────────────────
-SMA_PERIOD = 20              # 20-day average
-SLOPE_LOOKBACK = 3           # compare SMA today vs SMA N days ago for slope
-FLAT_SLOPE_THRESH = 0.0015   # abs(slope_pct) below this = flat/sideways
-STRETCH_WARN_PCT = 1.5       # if price >1.5% from SMA, warn (mean reversion risk)
-STRETCH_BLOCK_PCT = 2.5      # if price >2.5% from SMA, block entry (overextended)
-CROSSOVER_LOOKBACK = 2       # days to check for recent crossover
-BOUNCE_BAND_PCT = 0.3        # price within 0.3% of SMA = "touching"
-MOMENTUM_BODY_RATIO = 0.4    # 1m candle body/range for directional confirmation
-
-
-# ── Result dataclasses ───────────────────────────────────────────────────────
-
-@dataclass
-class DailyBar:
-    date: str
-    close: float
-
-
-@dataclass
-class AvgState:
-    """State of the 20-day SMA computation."""
-    sma_value: float = 0.0        # current 20-day SMA
-    sma_prev: float = 0.0         # previous day's SMA
-    slope_pct: float = 0.0        # SMA change over SLOPE_LOOKBACK as % of SMA
-    slope_label: str = "FLAT"     # RISING | FALLING | FLAT
-    daily_closes: list = field(default_factory=list)  # last 20 closes
-    daily_dates: list = field(default_factory=list)    # last 20 dates
-    sma_series: list = field(default_factory=list)     # SMA values for chart
-
-
-@dataclass
-class TwentyDaySignal:
-    """Signal from 20-day average strategy."""
-    direction: str = "NEUTRAL"      # BULLISH | BEARISH | NEUTRAL
-    signal_type: str = "NONE"       # CROSSOVER | BOUNCE | TREND_RIDE | NONE
-    should_enter: bool = False
-    option_type: str = ""           # CE | PE | ""
-
-    # 20-day avg state
-    sma_value: float = 0.0
-    sma_slope_label: str = "FLAT"
-    sma_slope_pct: float = 0.0
-
-    # Live price state
-    live_price: float = 0.0
-    price_vs_sma: str = "AT"       # ABOVE | BELOW | AT
-    distance_pct: float = 0.0      # % distance from SMA
-    distance_pts: float = 0.0      # point distance from SMA
-
-    # Intraday confirmation
-    intraday_bias: str = "NEUTRAL"  # BULLISH | BEARISH | NEUTRAL
-    intraday_body_ratio: float = 0.0
-    intraday_momentum: str = ""
-
-    # Skip reasons
-    skip_reasons: list = field(default_factory=list)
-
-    # For trade placement
-    entry_price: float = 0.0
-    bar_timestamp: str = ""
-    log_line: str = ""
-
-    # Daily data for chart
-    daily_closes: list = field(default_factory=list)
-    daily_dates: list = field(default_factory=list)
-    sma_series: list = field(default_factory=list)
-
-    def to_dict(self) -> dict:
-        return asdict(self)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -485,4 +371,7 @@ def analyze_live(daily_df: pd.DataFrame, df_1m: pd.DataFrame | None = None,
     log.info("20DAY_AVG: %s", sig.log_line)
 
     return sig
+
+
+import pandas as pd
 

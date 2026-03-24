@@ -1,3 +1,85 @@
+from trading_bot.strategy import evaluate
+# ─────────────────────────────────────────────────────────────────────────────
+import datetime
+import json
+import os
+import threading
+import csv
+from zoneinfo import ZoneInfo
+
+from flask import Flask, jsonify, render_template, request
+from flask_cors import CORS
+
+import uuid
+
+import numpy as np
+import pandas as pd
+
+from trading_bot import config
+from trading_bot.data.store import (
+    close_trade, fetch_candles, fetch_candles_by_date,
+    get_cursor, get_open_trades, get_today_pnl, init_db,
+    insert_order, insert_trade,
+    get_portfolio, init_portfolio, update_portfolio_after_trade, reset_portfolio,
+    get_pnl_between, get_weekly_pnl_breakdown,
+)
+from trading_bot.indicators import sma, linear_regression
+from trading_bot.candles import detect_all, scan_signals
+from trading_bot.strategy import evaluate, evaluate_latest, evaluate_historical
+from trading_bot.market import get_latest_tick, get_latest_sensex_tick, start_feed, stop_feed, fetch_option_ltp, fetch_live_once
+from trading_bot.options import (
+    build_option_chain, get_available_expiries, get_weekly_expiries,
+    load_options, get_option_ltp as _opt_ltp,
+)
+from trading_bot.utils.logger import get_logger
+from trading_bot.utils.time_utils import now_ist
+from trading_bot.cache import get_cached, set_cached
+
+log = get_logger(__name__)
+
+IST = ZoneInfo(config.TIMEZONE)
+_HERE = os.path.dirname(os.path.abspath(__file__))
+app = Flask(__name__, template_folder=os.path.join(_HERE, "templates"))
+CORS(app)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Strategy Test API — returns signals for a given date (for dashboard test tab)
+@app.route("/api/strategy/test")
+def api_strategy_test():
+    """
+    Test the MA20+LINFCST14 strategy on a given date.
+    Query params:
+        date — YYYY-MM-DD (default: today)
+        timeframe — 1m/5m (default: 1m)
+    Returns:
+        { candles: [...], signals: [...] }
+    """
+    date_str = request.args.get("date")
+    timeframe = request.args.get("timeframe", "1m")
+    if not date_str:
+        date_str = now_ist().strftime("%Y-%m-%d")
+    # Fetch candles for the date from DB
+    rows = fetch_candles_by_date(config.UNDERLYING, timeframe, date_str)
+    if not rows:
+        return jsonify({"error": "No candle data for date", "date": date_str}), 404
+    # Build DataFrame from DB rows
+    df = pd.DataFrame(
+        [{"open": r["open"], "high": r["high"], "low": r["low"],
+          "close": r["close"], "volume": r["volume"]} for r in rows],
+        dtype=float,
+    )
+    # Run strategy on all bars (simulate scan)
+    signals = []
+    for i in range(30, len(df)):
+        subdf = df.iloc[:i+1]
+        sigs = evaluate(subdf, backtest=True)
+        if sigs:
+            signals.append(sigs[-1].to_dict())
+    # Return candles and signals
+    candles = [{"open": r["open"], "high": r["high"], "low": r["low"],
+                "close": r["close"], "volume": r["volume"],
+                "time": r["timestamp"]} for r in rows]
+    return jsonify({"candles": candles, "signals": signals})
 """
 dashboard/server.py — Flask web dashboard for Project Candles.
 
@@ -101,9 +183,7 @@ def index():
     return render_template("index.html")
 
 
-@app.route("/trade")
-def trade_page():
-    return render_template("trade.html")
+
 
 
 @app.route("/orders")
@@ -133,7 +213,12 @@ def orb_strategy_page():
 
 @app.route("/20-day-avg")
 def scoring_page():
-    return render_template("scoring.html")
+    return render_template("scoring.html", max_date=now_ist().strftime("%Y-%m-%d"))
+
+
+@app.route("/pnl")
+def pnl_page():
+    return render_template("pnl.html")
 
 
 @app.route("/api/candles")

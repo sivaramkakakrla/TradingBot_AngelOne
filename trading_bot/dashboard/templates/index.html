@@ -307,6 +307,197 @@
       background: var(--red);
     }
 
+    /* ── Auto-Trade Panel ── */
+    .at-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px 28px;
+      width: 100%;
+      max-width: 900px;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, .06);
+    }
+
+    .at-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+
+    .at-title {
+      font-size: .82rem;
+      font-weight: 700;
+      color: var(--txt);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .at-status-badge {
+      font-size: .65rem;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 12px;
+    }
+
+    .at-btn {
+      border: none;
+      color: #fff;
+      font-size: .72rem;
+      font-weight: 700;
+      padding: 7px 18px;
+      border-radius: 8px;
+      cursor: pointer;
+      letter-spacing: .3px;
+    }
+
+    .at-countdown {
+      font-size: .65rem;
+      color: var(--txt-mute);
+      margin-left: 4px;
+    }
+
+    .at-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .at-stat {
+      background: var(--card);
+      border-radius: 10px;
+      padding: 10px 14px;
+    }
+
+    .at-stat-label {
+      font-size: .6rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      color: var(--txt-mute);
+      margin-bottom: 3px;
+    }
+
+    .at-stat-val {
+      font-size: 1.05rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .at-log {
+      max-height: 120px;
+      overflow-y: auto;
+      font-size: .68rem;
+      color: var(--txt-dim);
+      background: var(--card);
+      border-radius: 8px;
+      padding: 8px 10px;
+    }
+
+    .at-log:empty::before {
+      content: 'No recent activity';
+      color: var(--txt-mute);
+      font-style: italic;
+    }
+
+    .at-log-header {
+      font-size: .65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      color: var(--txt-mute);
+      margin-bottom: 6px;
+    }
+
+    .at-signal:empty {
+      display: none;
+    }
+
+    /* ── Hamburger menu for mobile ── */
+    .hamburger {
+      display: none;
+      background: none;
+      border: none;
+      cursor: pointer;
+      width: 32px;
+      height: 32px;
+      position: relative;
+      padding: 0;
+    }
+
+    .hamburger span {
+      display: block;
+      width: 20px;
+      height: 2px;
+      background: var(--txt);
+      border-radius: 2px;
+      position: absolute;
+      left: 6px;
+      transition: all .25s;
+    }
+
+    .hamburger span:nth-child(1) {
+      top: 8px;
+    }
+
+    .hamburger span:nth-child(2) {
+      top: 15px;
+    }
+
+    .hamburger span:nth-child(3) {
+      top: 22px;
+    }
+
+    .hamburger.open span:nth-child(1) {
+      top: 15px;
+      transform: rotate(45deg);
+    }
+
+    .hamburger.open span:nth-child(2) {
+      opacity: 0;
+    }
+
+    .hamburger.open span:nth-child(3) {
+      top: 15px;
+      transform: rotate(-45deg);
+    }
+
+    .mobile-menu {
+      display: none;
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, .1);
+      z-index: 100;
+      padding: 8px 0;
+      flex-direction: column;
+    }
+
+    .mobile-menu.show {
+      display: flex;
+    }
+
+    .mobile-menu a {
+      color: var(--txt-dim);
+      text-decoration: none;
+      font-size: .82rem;
+      font-weight: 500;
+      padding: 10px 20px;
+      transition: all .15s;
+    }
+
+    .mobile-menu a:hover,
+    .mobile-menu a.active {
+      color: var(--accent);
+      background: rgba(59, 130, 246, .06);
+    }
+
     @media (max-width: 900px) {
       body {
         height: auto;
@@ -316,25 +507,20 @@
       .topbar {
         height: auto;
         padding: 10px 12px;
-        flex-wrap: wrap;
-        row-gap: 8px;
+        position: relative;
       }
 
-      .topbar nav {
-        order: 3;
-        margin-left: 0;
-        width: 100%;
-        overflow-x: auto;
-        white-space: nowrap;
-        padding-bottom: 2px;
+      .topbar nav.desktop-nav {
+        display: none;
       }
 
-      .topbar nav a {
-        display: inline-block;
+      .hamburger {
+        display: block;
       }
 
       .main {
         padding: 20px 12px;
+        align-items: stretch;
       }
 
       .cards {
@@ -355,6 +541,14 @@
       .status-bar {
         padding: 6px 12px;
       }
+
+      .at-panel {
+        padding: 14px 14px;
+      }
+
+      .at-grid {
+        grid-template-columns: 1fr 1fr;
+      }
     }
   </style>
 </head>
@@ -363,9 +557,8 @@
 
   <div class="topbar">
     <div class="logo">Project Candles</div>
-    <nav>
+    <nav class="desktop-nav">
       <a href="/" class="active">Dashboard</a>
-      <a href="/trade">Paper Trade</a>
       <a href="/orders">Orders</a>
       <a href="/opportunities">Opportunities</a>
       <a href="/history">History</a>
@@ -373,12 +566,28 @@
       <a href="/180-rule">180 Rule</a>
       <a href="/orb-strategy">ORB Strategy</a>
       <a href="/20-day-avg">20-Day Avg</a>
+      <a href="/pnl">P&amp;L</a>
     </nav>
+    <button class="hamburger" id="hamburger"
+      onclick="document.getElementById('hamburger').classList.toggle('open');document.getElementById('mobile-menu').classList.toggle('show');">
+      <span></span><span></span><span></span>
+    </button>
     <div class="badge-area">
       <div class="market-badge connecting" id="market-badge">
         <span class="dot"></span>
         <span id="market-label">CONNECTING</span>
       </div>
+    </div>
+    <div class="mobile-menu" id="mobile-menu">
+      <a href="/" class="active">Dashboard</a>
+      <a href="/orders">Orders</a>
+      <a href="/opportunities">Opportunities</a>
+      <a href="/history">History</a>
+      <a href="/chat">AI Chat</a>
+      <a href="/180-rule">180 Rule</a>
+      <a href="/orb-strategy">ORB Strategy</a>
+      <a href="/20-day-avg">20-Day Avg</a>
+      <a href="/pnl">P&amp;L</a>
     </div>
   </div>
 
@@ -435,28 +644,32 @@
           <div
             style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--txt-mute);margin-bottom:4px;">
             Today P&amp;L</div>
-          <div style="font-size:1.5rem;font-weight:800;font-variant-numeric:tabular-nums;" id="idx-pnl-today">₹0</div>
+          <div style="font-size:1.5rem;font-weight:800;font-variant-numeric:tabular-nums;" id="idx-pnl-today">₹0
+          </div>
         </div>
         <div style="width:1px;height:40px;background:var(--border);"></div>
         <div>
           <div
             style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--txt-mute);margin-bottom:4px;">
             This Month</div>
-          <div style="font-size:1.5rem;font-weight:800;font-variant-numeric:tabular-nums;" id="idx-pnl-month">₹0</div>
+          <div style="font-size:1.5rem;font-weight:800;font-variant-numeric:tabular-nums;" id="idx-pnl-month">₹0
+          </div>
         </div>
         <div style="width:1px;height:40px;background:var(--border);"></div>
         <div>
           <div
             style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--txt-mute);margin-bottom:4px;">
             This Week</div>
-          <div style="font-size:1.5rem;font-weight:800;font-variant-numeric:tabular-nums;" id="idx-pnl-week">₹0</div>
+          <div style="font-size:1.5rem;font-weight:800;font-variant-numeric:tabular-nums;" id="idx-pnl-week">₹0
+          </div>
         </div>
         <div style="width:1px;height:40px;background:var(--border);"></div>
         <div>
           <div
             style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--txt-mute);margin-bottom:4px;">
             Month Trades</div>
-          <div style="font-size:1.5rem;font-weight:800;font-variant-numeric:tabular-nums;" id="idx-pnl-trades">0</div>
+          <div style="font-size:1.5rem;font-weight:800;font-variant-numeric:tabular-nums;" id="idx-pnl-trades">0
+          </div>
         </div>
         <div style="width:1px;height:40px;background:var(--border);"></div>
         <div>
@@ -469,6 +682,36 @@
           style="margin-left:auto;display:flex;align-items:center;gap:6px;font-size:.72rem;font-weight:700;color:var(--accent);text-decoration:none;padding:7px 16px;border:1px solid rgba(59,130,246,.3);border-radius:8px;background:rgba(59,130,246,.06);white-space:nowrap;">View
           Details →</a>
       </div>
+    </div>
+
+    <!-- Auto-Trade Panel -->
+    <div class="at-panel">
+      <div class="at-header">
+        <div class="at-title">⚡ Auto-Trade <span class="at-status-badge" id="at-status-label"
+            style="background:var(--card);color:var(--txt-dim);">DISABLED</span></div>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+          <span class="at-countdown" id="at-countdown"></span>
+          <button class="at-btn" id="at-toggle-btn" style="background:var(--accent);"
+            onclick="toggleAutoTrade()">START</button>
+        </div>
+      </div>
+      <div class="at-grid">
+        <div class="at-stat">
+          <div class="at-stat-label">Open Positions</div>
+          <div class="at-stat-val" id="at-open">0</div>
+        </div>
+        <div class="at-stat">
+          <div class="at-stat-label">Today P&amp;L</div>
+          <div class="at-stat-val" id="at-pnl">₹0.00</div>
+        </div>
+        <div class="at-stat">
+          <div class="at-stat-label">Last Scan</div>
+          <div class="at-stat-val" id="at-last-scan" style="font-size:.78rem;">--</div>
+        </div>
+      </div>
+      <div id="at-last-signal" class="at-signal" style="margin-bottom:8px;"></div>
+      <div class="at-log-header">Activity Log</div>
+      <div class="at-log" id="at-log"></div>
     </div>
 
   </div>
@@ -593,6 +836,123 @@
       setInterval(pollLive, 2000);
       setInterval(pollPnlSummary, 60000);
     })();
+  </script>
+
+  <!-- ── Auto-Trade Controls ── -->
+  <script>
+    let _atEnabled = false;
+    let _vercelMarketLive = true;
+
+    function updateATPanel(d) {
+      _atEnabled = !!d.enabled;
+      const threadAlive = !!d.thread_alive;
+      const isVercel = !!d.is_vercel;
+      _vercelMarketLive = d.market_live !== false;
+      const btn = document.getElementById('at-toggle-btn');
+      const label = document.getElementById('at-status-label');
+      if (isVercel) {
+        btn.textContent = _vercelMarketLive ? 'SCAN NOW' : 'MARKET CLOSED';
+        btn.style.background = _vercelMarketLive ? 'var(--accent)' : 'var(--border)';
+        btn.disabled = !_vercelMarketLive;
+        btn.onclick = async function () {
+          if (!_vercelMarketLive) return;
+          btn.disabled = true; btn.textContent = 'SCANNING...';
+          try {
+            const r = await fetch('/api/autotrade/scan', { method: 'POST' });
+            const res = await r.json();
+            pollAutoTradeStatus();
+          } catch (e) { } finally { btn.disabled = false; btn.textContent = 'SCAN NOW'; }
+        };
+      } else if (_atEnabled && threadAlive) {
+        btn.textContent = 'RUNNING'; btn.style.background = 'var(--red)'; btn.disabled = false;
+        label.textContent = 'RUNNING'; label.style.color = 'var(--green)'; label.style.background = 'var(--green-bg)';
+      } else if (_atEnabled && !threadAlive) {
+        btn.textContent = 'RESTART'; btn.style.background = 'var(--amber)'; btn.disabled = false;
+        label.textContent = 'THREAD DEAD'; label.style.color = 'var(--red)'; label.style.background = 'var(--red-bg)';
+      } else {
+        btn.textContent = 'START'; btn.style.background = 'var(--accent)'; btn.disabled = false;
+        label.textContent = 'DISABLED'; label.style.color = 'var(--txt-dim)'; label.style.background = 'var(--card)';
+      }
+      document.getElementById('at-open').textContent = d.open_positions || 0;
+      const pnl = d.pnl_today || 0;
+      const pnlEl = document.getElementById('at-pnl');
+      pnlEl.textContent = (pnl >= 0 ? '+' : '') + '\u20b9' + pnl.toFixed(2);
+      pnlEl.style.color = pnl >= 0 ? 'var(--green)' : 'var(--red)';
+      document.getElementById('at-last-scan').textContent = d.last_scan || '--';
+      const sigEl = document.getElementById('at-last-signal');
+      if (d.last_signal) {
+        const s = d.last_signal;
+        const col = s.direction === 'BULLISH' ? 'var(--green)' : 'var(--red)';
+        const optType = s.option_type || (s.direction === 'BULLISH' ? 'CE' : 'PE');
+        sigEl.innerHTML = '<div style="font-size:.7rem;padding:6px 8px;background:var(--card);border-radius:6px;border:1px solid var(--border);">' +
+          '<div style="font-weight:700;color:' + col + ';">BUY ' + optType + ' @ ' + (s.entry_price || 0).toFixed(2) + ' (' + s.time + ')</div>' +
+          '<div style="color:var(--txt-dim);margin-top:3px;">Patterns: ' + (s.patterns || []).join(', ').replace(/_/g, ' ') + '</div>' +
+          '<div style="color:var(--txt-dim);">Expected: +' + (s.expected_profit_pts || 0).toFixed(1) + ' pts | SL: -' + (s.sl_points || 0).toFixed(1) + ' pts</div></div>';
+      } else { sigEl.innerHTML = ''; }
+      const logEl = document.getElementById('at-log');
+      if (d.log && d.log.length > 0) {
+        const lines = d.log.filter(l => l && !l.includes('(market closed)')).slice(0, 20);
+        logEl.innerHTML = lines.length ? lines.map(l => '<div>' + l + '</div>').join('') : '<div>Market closed - auto-scan paused</div>';
+      } else { logEl.innerHTML = ''; }
+    }
+
+    async function pollAutoTradeStatus() {
+      try { const r = await fetch('/api/autotrade/status'); const d = await r.json(); updateATPanel(d); } catch (e) { }
+    }
+
+    async function toggleAutoTrade() {
+      const btn = document.getElementById('at-toggle-btn');
+      if (_atEnabled) {
+        await fetch('/api/autotrade/stop', { method: 'POST' });
+      } else {
+        await fetch('/api/autotrade/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      }
+      pollAutoTradeStatus();
+    }
+
+    let _vercelCountdown = 30;
+    let _vercelAutoScanActive = false;
+    function startVercelAutoScan() {
+      if (_vercelAutoScanActive) return; _vercelAutoScanActive = true;
+      setInterval(() => {
+        if (!_vercelMarketLive) { const el = document.getElementById('at-countdown'); if (el) el.textContent = '(market closed)'; return; }
+        _vercelCountdown--;
+        const el = document.getElementById('at-countdown'); if (el) el.textContent = '(next in ' + _vercelCountdown + 's)';
+        if (_vercelCountdown <= 0) {
+          _vercelCountdown = 30;
+          fetch('/api/autotrade/scan', { method: 'POST' }).then(r => r.json()).then(res => {
+            const logEl = document.getElementById('at-log');
+            if (logEl && res.scanned) {
+              const entry = '<div style="color:var(--txt-dim);">\u27f3 Auto-scan ' + (res.time || '') + ' | Pos: ' + (res.open_positions || 0) + ' | PnL: \u20b9' + (res.pnl_today || 0).toFixed(2) + '</div>';
+              logEl.innerHTML = entry + logEl.innerHTML;
+              const children = logEl.querySelectorAll('div'); for (let i = 20; i < children.length; i++) children[i].remove();
+            }
+            if (!res.market_live) { const el = document.getElementById('at-countdown'); if (el) el.textContent = '(paused - market closed)'; }
+            pollAutoTradeStatus();
+          }).catch(() => { });
+        }
+      }, 1000);
+      fetch('/api/autotrade/scan', { method: 'POST' }).then(r => r.json()).then(res => {
+        const logEl = document.getElementById('at-log');
+        if (logEl) {
+          if (res.scanned) { logEl.innerHTML = '<div style="color:var(--green);">\u2713 Initial scan at ' + (res.time || '') + '</div>'; }
+          else if (!res.market_live) { logEl.innerHTML = '<div style="color:var(--txt-dim);">Market closed - auto-scan paused</div>'; }
+        }
+        pollAutoTradeStatus();
+      }).catch(() => { });
+    }
+
+    async function autoStartEngine() {
+      try {
+        const r = await fetch('/api/autotrade/status'); const d = await r.json(); updateATPanel(d);
+        if (d.is_vercel) { startVercelAutoScan(); return; }
+        if (!d.enabled) { await fetch('/api/autotrade/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); }
+      } catch (e) { }
+    }
+
+    setInterval(pollAutoTradeStatus, 5000);
+    autoStartEngine();
+    pollAutoTradeStatus();
   </script>
 
   <!-- Floating AI Chat button -->

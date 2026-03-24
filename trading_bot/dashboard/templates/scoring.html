@@ -75,6 +75,95 @@
             background: rgba(37, 99, 235, .1);
         }
 
+        /* ─ Hamburger menu ─ */
+        .topbar-nav-hamburger {
+            display: none;
+            background: none;
+            border: none;
+            cursor: pointer;
+            width: 32px;
+            height: 32px;
+            position: relative;
+            padding: 0;
+            flex-shrink: 0;
+        }
+
+        .topbar-nav-hamburger span {
+            display: block;
+            width: 20px;
+            height: 2px;
+            background: var(--txt);
+            border-radius: 2px;
+            position: absolute;
+            left: 6px;
+            transition: all .25s;
+        }
+
+        .topbar-nav-hamburger span:nth-child(1) {
+            top: 8px;
+        }
+
+        .topbar-nav-hamburger span:nth-child(2) {
+            top: 15px;
+        }
+
+        .topbar-nav-hamburger span:nth-child(3) {
+            top: 22px;
+        }
+
+        .topbar-nav-hamburger.open span:nth-child(1) {
+            top: 15px;
+            transform: rotate(45deg);
+        }
+
+        .topbar-nav-hamburger.open span:nth-child(2) {
+            opacity: 0;
+        }
+
+        .topbar-nav-hamburger.open span:nth-child(3) {
+            top: 15px;
+            transform: rotate(-45deg);
+        }
+
+        .topbar-mobile-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, .12);
+            z-index: 200;
+            padding: 8px 0;
+            flex-direction: column;
+        }
+
+        .topbar-mobile-menu.show {
+            display: flex;
+        }
+
+        .topbar-mobile-menu a {
+            color: var(--txt-dim);
+            text-decoration: none;
+            font-size: .84rem;
+            font-weight: 500;
+            padding: 11px 20px;
+            transition: all .15s;
+            border-left: 3px solid transparent;
+        }
+
+        .topbar-mobile-menu a:hover {
+            background: rgba(59, 130, 246, .05);
+            color: var(--txt);
+        }
+
+        .topbar-mobile-menu a.active {
+            color: var(--accent);
+            background: rgba(59, 130, 246, .07);
+            border-left-color: var(--accent);
+        }
+
         .badge {
             margin-left: auto;
             font-size: .72rem;
@@ -264,8 +353,7 @@
             .topbar {
                 height: auto;
                 padding: 10px 12px;
-                flex-wrap: wrap;
-                row-gap: 8px;
+                position: relative;
             }
 
             .badge {
@@ -278,16 +366,12 @@
                 grid-template-columns: 1fr 1fr;
             }
 
-            .topbar nav {
-                order: 3;
-                margin-left: 0;
-                width: 100%;
-                overflow-x: auto;
-                white-space: nowrap;
+            .topbar nav.desktop-nav {
+                display: none;
             }
 
-            .topbar nav a {
-                display: inline-block;
+            .topbar-nav-hamburger {
+                display: block;
             }
         }
     </style>
@@ -296,9 +380,8 @@
 <body>
     <div class="topbar">
         <div class="logo">Project Candles</div>
-        <nav>
+        <nav class="desktop-nav">
             <a href="/">Dashboard</a>
-            <a href="/trade">Paper Trade</a>
             <a href="/orders">Orders</a>
             <a href="/opportunities">Opportunities</a>
             <a href="/history">History</a>
@@ -306,11 +389,152 @@
             <a href="/180-rule">180 Rule</a>
             <a href="/orb-strategy">ORB Strategy</a>
             <a href="/20-day-avg" class="active">20-Day Avg</a>
+            <a href="/pnl">P&amp;L</a>
         </nav>
+        <button class="topbar-nav-hamburger" id="topbar-hamburger"
+            onclick="this.classList.toggle('open');document.getElementById('topbar-mobile-menu').classList.toggle('show');">
+            <span></span><span></span><span></span>
+        </button>
         <div class="badge">NIFTY 20-DAY AVERAGE</div>
+        <div class="topbar-mobile-menu" id="topbar-mobile-menu">
+            <a href="/">Dashboard</a>
+            <a href="/orders">Orders</a>
+            <a href="/opportunities">Opportunities</a>
+            <a href="/history">History</a>
+            <a href="/chat">AI Chat</a>
+            <a href="/180-rule">180 Rule</a>
+            <a href="/orb-strategy">ORB Strategy</a>
+            <a href="/20-day-avg" class="active">20-Day Avg</a>
+            <a href="/pnl">P&amp;L</a>
+        </div>
     </div>
 
     <div class="wrap">
+        <!-- Tab toggle -->
+        <div style="display:flex;gap:8px;margin-bottom:-6px;">
+            <button class="primary" id="liveTabBtn" onclick="showLiveTab()"
+                style="font-size:.74rem;padding:6px 16px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer;">Live
+                Analysis</button>
+            <button id="testTabBtn" onclick="showTestTab()"
+                style="font-size:.74rem;padding:6px 16px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--txt-dim);cursor:pointer;">Backtest</button>
+        </div>
+
+        <!-- Strategy Backtest/Test Tab -->
+        <div class="card" id="testCard" style="display:none;">
+            <div class="title">Strategy Backtest — Historical Validation</div>
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+                <label for="testDate">Select Date:</label>
+                <input type="date" id="testDate" max="{{max_date}}" />
+                <button class="primary" onclick="runTest()">Run Test</button>
+                <span id="testStatus" class="hint"></span>
+            </div>
+            <div id="testResults" style="margin-top:16px;"></div>
+            <div id="testChartArea" style="margin-top:18px;display:none;">
+                <canvas id="testChart" height="180"></canvas>
+            </div>
+        </div>
+        <script>
+            // --- Tab Toggle Logic ---
+            const testCard = document.getElementById('testCard');
+            const mainCards = Array.from(document.querySelectorAll('.wrap > .card')).filter(c => c !== testCard);
+            const tabToggle = testCard.previousElementSibling; // tab-toggle div
+            function showLiveTab() {
+                testCard.style.display = 'none';
+                mainCards.forEach(c => c.style.display = '');
+                document.getElementById('liveTabBtn').style.background = 'var(--accent)';
+                document.getElementById('liveTabBtn').style.color = '#fff';
+                document.getElementById('liveTabBtn').style.borderColor = 'var(--accent)';
+                document.getElementById('testTabBtn').style.background = 'var(--card)';
+                document.getElementById('testTabBtn').style.color = 'var(--txt-dim)';
+                document.getElementById('testTabBtn').style.borderColor = 'var(--border)';
+            }
+            function showTestTab() {
+                testCard.style.display = '';
+                mainCards.forEach(c => c.style.display = 'none');
+                document.getElementById('testTabBtn').style.background = 'var(--accent)';
+                document.getElementById('testTabBtn').style.color = '#fff';
+                document.getElementById('testTabBtn').style.borderColor = 'var(--accent)';
+                document.getElementById('liveTabBtn').style.background = 'var(--card)';
+                document.getElementById('liveTabBtn').style.color = 'var(--txt-dim)';
+                document.getElementById('liveTabBtn').style.borderColor = 'var(--border)';
+            }
+
+            async function runTest() {
+                const date = document.getElementById('testDate').value;
+                const status = document.getElementById('testStatus');
+                const resultsDiv = document.getElementById('testResults');
+                const chartArea = document.getElementById('testChartArea');
+                status.textContent = '';
+                resultsDiv.innerHTML = '';
+                chartArea.style.display = 'none';
+                if (!date) { status.textContent = 'Please select a date.'; return; }
+                status.textContent = 'Loading...';
+                try {
+                    const resp = await fetch(`/api/strategy/test?date=${date}`);
+                    const data = await resp.json();
+                    if (!resp.ok) {
+                        status.textContent = data.error || 'API error';
+                        return;
+                    }
+                    status.textContent = '';
+                    if (!data.candles || data.candles.length === 0) {
+                        resultsDiv.innerHTML = '<span class="hint">No candle data for this date. Data is only available for dates when candles were stored.</span>';
+                        return;
+                    }
+                    // Show summary
+                    const sigCount = data.signals ? data.signals.length : 0;
+                    let html = `<b>Candles:</b> <span style="font-family:monospace;">${data.candles.length}</span><br>`;
+                    html += `<b>Signals found:</b> <span style="font-family:monospace;">${sigCount}</span><br>`;
+                    if (sigCount > 0) {
+                        html += '<div style="margin-top:8px;">';
+                        data.signals.forEach((s, i) => {
+                            html += `<div style="padding:4px 0;font-size:.78rem;color:var(--txt-dim);">${i + 1}. ${s.direction || ''} — strength: ${s.strength || 0}, patterns: ${(s.patterns || []).join(', ')}</div>`;
+                        });
+                        html += '</div>';
+                    }
+                    resultsDiv.innerHTML = html;
+                    // Draw chart
+                    if (data.candles.length) {
+                        chartArea.style.display = '';
+                        drawTestChart(data.candles, data.signals);
+                    }
+                } catch (e) {
+                    status.textContent = 'Error loading test data.';
+                }
+            }
+
+            function drawTestChart(candles, signals) {
+                const canvas = document.getElementById('testChart');
+                const ctx = canvas.getContext('2d');
+                const W = canvas.width = canvas.parentElement.offsetWidth;
+                const H = canvas.height;
+                ctx.clearRect(0, 0, W, H);
+                // Draw close price line
+                const closes = candles.map(c => c[4]);
+                const mn = Math.min(...closes), mx = Math.max(...closes);
+                const pad = { l: 40, r: 10, t: 10, b: 24 };
+                const cw = W - pad.l - pad.r, ch = H - pad.t - pad.b;
+                const toX = i => pad.l + (i / Math.max(closes.length - 1, 1)) * cw;
+                const toY = v => pad.t + ((mx - v) / (mx - mn)) * ch;
+                ctx.strokeStyle = '#2563eb'; ctx.lineWidth = 2; ctx.beginPath();
+                closes.forEach((v, i) => { i === 0 ? ctx.moveTo(toX(i), toY(v)) : ctx.lineTo(toX(i), toY(v)); });
+                ctx.stroke();
+                // Mark signals
+                signals.forEach(idx => {
+                    if (idx < 0 || idx >= closes.length) return;
+                    ctx.beginPath();
+                    ctx.arc(toX(idx), toY(closes[idx]), 5, 0, 2 * Math.PI);
+                    ctx.fillStyle = '#d97706';
+                    ctx.fill();
+                });
+                // X axis labels
+                ctx.fillStyle = '#64748b'; ctx.font = '10px Inter'; ctx.textAlign = 'center';
+                const step = Math.max(1, Math.floor(closes.length / 7));
+                for (let i = 0; i < closes.length; i += step) {
+                    ctx.fillText(String(i + 1), toX(i), H - 6);
+                }
+            }
+        </script>
         <!-- NIFTY Live vs 20-Day SMA -->
         <div class="card">
             <div class="title">NIFTY 50 — Live Price vs 20-Day Average</div>

@@ -91,6 +91,88 @@
       background: rgba(59, 130, 246, .1);
     }
 
+    /* Hamburger menu */
+    .hamburger {
+      display: none;
+      background: none;
+      border: none;
+      cursor: pointer;
+      width: 32px;
+      height: 32px;
+      position: relative;
+      padding: 0;
+    }
+
+    .hamburger span {
+      display: block;
+      width: 20px;
+      height: 2px;
+      background: var(--txt);
+      border-radius: 2px;
+      position: absolute;
+      left: 6px;
+      transition: all .25s;
+    }
+
+    .hamburger span:nth-child(1) {
+      top: 8px;
+    }
+
+    .hamburger span:nth-child(2) {
+      top: 15px;
+    }
+
+    .hamburger span:nth-child(3) {
+      top: 22px;
+    }
+
+    .hamburger.open span:nth-child(1) {
+      top: 15px;
+      transform: rotate(45deg);
+    }
+
+    .hamburger.open span:nth-child(2) {
+      opacity: 0;
+    }
+
+    .hamburger.open span:nth-child(3) {
+      top: 15px;
+      transform: rotate(-45deg);
+    }
+
+    .mobile-menu {
+      display: none;
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, .1);
+      z-index: 100;
+      padding: 8px 0;
+      flex-direction: column;
+    }
+
+    .mobile-menu.show {
+      display: flex;
+    }
+
+    .mobile-menu a {
+      color: var(--txt-dim);
+      text-decoration: none;
+      font-size: .82rem;
+      font-weight: 500;
+      padding: 10px 20px;
+      transition: all .15s;
+    }
+
+    .mobile-menu a:hover,
+    .mobile-menu a.active {
+      color: var(--accent);
+      background: rgba(59, 130, 246, .06);
+    }
+
     .market-badge {
       margin-left: auto;
       display: flex;
@@ -892,21 +974,15 @@
       .topbar {
         height: auto;
         padding: 10px 12px;
-        flex-wrap: wrap;
-        row-gap: 8px;
+        position: relative;
       }
 
-      .topbar nav {
-        order: 3;
-        margin-left: 0;
-        width: 100%;
-        overflow-x: auto;
-        white-space: nowrap;
-        padding-bottom: 2px;
+      .topbar nav.desktop-nav {
+        display: none;
       }
 
-      .topbar nav a {
-        display: inline-block;
+      .hamburger {
+        display: block;
       }
 
       .port-strip {
@@ -971,20 +1047,33 @@
   <!-- Top bar -->
   <div class="topbar">
     <div class="logo">Project Candles</div>
-    <nav>
+    <nav class="desktop-nav">
       <a href="/">Dashboard</a>
-      <a href="/trade">Paper Trade</a>
       <a href="/orders" class="active">Orders</a>
       <a href="/opportunities">Opportunities</a>
       <a href="/history">History</a>
       <a href="/chat">AI Chat</a>
       <a href="/180-rule">180 Rule</a>
       <a href="/orb-strategy">ORB Strategy</a>
-      <a href="/20-day-avg">20-Day Avg</a>
+      <a href="/pnl">P&amp;L</a>
     </nav>
+    <button class="hamburger" id="hamburger"
+      onclick="document.getElementById('hamburger').classList.toggle('open');document.getElementById('mobile-menu').classList.toggle('show');">
+      <span></span><span></span><span></span>
+    </button>
     <div class="market-badge connecting" id="market-badge">
       <span class="dot"></span>
       <span id="market-label">CONNECTING</span>
+    </div>
+    <div class="mobile-menu" id="mobile-menu">
+      <a href="/">Dashboard</a>
+      <a href="/orders" class="active">Orders</a>
+      <a href="/opportunities">Opportunities</a>
+      <a href="/history">History</a>
+      <a href="/chat">AI Chat</a>
+      <a href="/180-rule">180 Rule</a>
+      <a href="/orb-strategy">ORB Strategy</a>
+      <a href="/pnl">P&amp;L</a>
     </div>
   </div>
 

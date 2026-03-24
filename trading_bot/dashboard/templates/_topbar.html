@@ -1,0 +1,120 @@
+<style>
+    /* ── Shared Mobile Hamburger Nav ── */
+    .topbar-nav-hamburger {
+        display: none;
+        background: none;
+        border: none;
+        cursor: pointer;
+        width: 32px;
+        height: 32px;
+        position: relative;
+        padding: 0;
+        flex-shrink: 0;
+    }
+
+    .topbar-nav-hamburger span {
+        display: block;
+        width: 20px;
+        height: 2px;
+        background: var(--txt);
+        border-radius: 2px;
+        position: absolute;
+        left: 6px;
+        transition: all .25s;
+    }
+
+    .topbar-nav-hamburger span:nth-child(1) {
+        top: 8px;
+    }
+
+    .topbar-nav-hamburger span:nth-child(2) {
+        top: 15px;
+    }
+
+    .topbar-nav-hamburger span:nth-child(3) {
+        top: 22px;
+    }
+
+    .topbar-nav-hamburger.open span:nth-child(1) {
+        top: 15px;
+        transform: rotate(45deg);
+    }
+
+    .topbar-nav-hamburger.open span:nth-child(2) {
+        opacity: 0;
+    }
+
+    .topbar-nav-hamburger.open span:nth-child(3) {
+        top: 15px;
+        transform: rotate(-45deg);
+    }
+
+    .topbar-mobile-menu {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, .12);
+        z-index: 200;
+        padding: 8px 0;
+        flex-direction: column;
+    }
+
+    .topbar-mobile-menu.show {
+        display: flex;
+    }
+
+    .topbar-mobile-menu a {
+        color: var(--txt-dim);
+        text-decoration: none;
+        font-size: .84rem;
+        font-weight: 500;
+        padding: 11px 20px;
+        transition: background .12s, color .12s;
+        border-left: 3px solid transparent;
+    }
+
+    .topbar-mobile-menu a:hover {
+        background: rgba(59, 130, 246, .05);
+        color: var(--txt);
+    }
+
+    .topbar-mobile-menu a.active {
+        color: var(--accent);
+        background: rgba(59, 130, 246, .07);
+        border-left-color: var(--accent);
+    }
+
+    @media (max-width: 900px) {
+        .topbar {
+            position: relative;
+        }
+
+        .topbar nav.desktop-nav {
+            display: none !important;
+        }
+
+        .topbar-nav-hamburger {
+            display: block;
+        }
+    }
+</style>
+
+<nav class="desktop-nav">
+    <a href="/" {% if active_page=='dashboard' %} class="active" {% endif %}>Dashboard</a>
+    <a href="/orders" {% if active_page=='orders' %} class="active" {% endif %}>Orders</a>
+    <a href="/opportunities" {% if active_page=='opportunities' %} class="active" {% endif %}>Opportunities</a>
+    <a href="/history" {% if active_page=='history' %} class="active" {% endif %}>History</a>
+    <a href="/chat" {% if active_page=='chat' %} class="active" {% endif %}>AI Chat</a>
+    <a href="/180-rule" {% if active_page=='rule180' %} class="active" {% endif %}>180 Rule</a>
+    <a href="/orb-strategy" {% if active_page=='orb' %} class="active" {% endif %}>ORB Strategy</a>
+    <a href="/20-day-avg" {% if active_page=='scoring' %} class="active" {% endif %}>20-Day Avg</a>
+    <a href="/pnl" {% if active_page=='pnl' %} class="active" {% endif %}>P&amp;L</a>
+</nav>
+<button class="topbar-nav-hamburger" id="topbar-hamburger"
+    onclick="this.classList.toggle('open');document.getElementById('topbar-mobile-menu').classList.toggle('show');">
+    <span></span><span></span><span></span>
+</button>
