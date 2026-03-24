@@ -28,7 +28,7 @@ jobs:
             echo "skip=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Trigger Auto-Trade Scan (4x per minute, every 15s)
+      - name: Trigger Auto-Trade Scan (12x per minute, every 5s)
         if: steps.market.outputs.skip != 'true'
         run: |
           do_scan() {
@@ -37,7 +37,7 @@ jobs:
               "https://angelonetradingbot.vercel.app/api/autotrade/scan" \
               -H "Content-Type: application/json" \
               -H "User-Agent: github-actions" \
-              --max-time 12)
+              --max-time 4)
             HTTP_CODE=$(echo "$RESPONSE" | tail -1)
             BODY=$(echo "$RESPONSE" | head -n -1)
             echo "  Status: $HTTP_CODE | Response: $BODY"
@@ -46,11 +46,8 @@ jobs:
             fi
           }
 
-          # Scan 4 times in this 1-minute job window (~15s apart)
-          do_scan
-          sleep 15
-          do_scan
-          sleep 15
-          do_scan
-          sleep 15
-          do_scan
+          # Scan 12 times (~every 5s) — covers the full 1-minute cron window
+          for i in $(seq 1 12); do
+            do_scan
+            [ $i -lt 12 ] && sleep 5
+          done
