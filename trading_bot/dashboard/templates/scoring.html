@@ -471,12 +471,12 @@
                 status.textContent = 'Loading...';
                 try {
                     const resp = await fetch(`/api/strategy/test?date=${date}`);
+                    const text = await resp.text();
                     let data;
                     try {
-                        data = await resp.json();
+                        data = JSON.parse(text);
                     } catch (jsonErr) {
-                        const text = await resp.text().catch(() => '');
-                        status.textContent = `Server error (${resp.status}): ${text.substring(0, 200) || 'Could not parse response'}`;
+                        status.textContent = `Server error (${resp.status}): ${text.substring(0, 300) || 'Empty response'}`;
                         return;
                     }
                     if (!resp.ok) {
