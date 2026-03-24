@@ -545,6 +545,8 @@ def evaluate(df: pd.DataFrame, backtest: bool = False,
             direction, pattern_names, strength, action, reason_str,
         )
 
+        results.append(signal)
+
     # Sort by strength descending
     results.sort(key=lambda s: -s.strength)
     return results
