@@ -46,63 +46,70 @@ CORS(app)
 # Strategy Test API — returns signals for a given date (for dashboard test tab)
 @app.route("/api/strategy/test")
 def api_strategy_test():
-    """
-    Test the MA20+LINFCST14 strategy on a given date.
-    Query params:
-        date — YYYY-MM-DD (default: today)
-        timeframe — 1m/5m (default: 1m)
-    Returns:
-        { candles: [...], signals: [...] }
-    """
-    date_str = request.args.get("date")
-    timeframe = request.args.get("timeframe", "1m")
-    if not date_str:
-        date_str = now_ist().strftime("%Y-%m-%d")
-    # Fetch candles for the date from DB
-    rows = fetch_candles_by_date(config.UNDERLYING, timeframe, date_str)
+    """Test the strategy on a given date. Full error handling for Vercel."""
+    import traceback
+    try:
+        date_str = request.args.get("date")
+        timeframe = request.args.get("timeframe", "1m")
+        if not date_str:
+            date_str = now_ist().strftime("%Y-%m-%d")
 
-    # If DB has no data, try fetching live from AngelOne API
-    if not rows:
-        try:
+        # Ensure DB schema exists (Vercel cold starts wipe /tmp)
+        init_db()
+
+        # Step 1: Try DB first
+        rows = fetch_candles_by_date(config.UNDERLYING, timeframe, date_str)
+
+        # Step 2: If no DB data, fetch live from AngelOne API
+        if not rows:
             from trading_bot.data.historical import fetch_candles_for_day
             from trading_bot.data.store import upsert_candles
             from trading_bot.auth.login import get_session
             from datetime import date as _date
-            session = get_session()
-            if session:
-                trade_date = _date.fromisoformat(date_str)
-                api_rows = fetch_candles_for_day(session, trade_date, timeframe)
-                if api_rows:
-                    upsert_candles(api_rows)
-                    rows = fetch_candles_by_date(config.UNDERLYING, timeframe, date_str)
-                else:
-                    return jsonify({"error": f"No candle data from AngelOne API for {date_str}. Market may be closed (holiday/weekend).", "date": date_str}), 404
-            else:
-                return jsonify({"error": "Could not authenticate with AngelOne. Check API credentials.", "date": date_str}), 500
-        except Exception as e:
-            log.warning("Live candle fetch for backtest failed: %s", e)
-            return jsonify({"error": f"Failed to fetch candles: {str(e)}", "date": date_str}), 500
 
-    if not rows:
-        return jsonify({"error": "No candle data for date", "date": date_str}), 404
-    # Build DataFrame from DB rows
-    df = pd.DataFrame(
-        [{"open": r["open"], "high": r["high"], "low": r["low"],
-          "close": r["close"], "volume": r["volume"]} for r in rows],
-        dtype=float,
-    )
-    # Run strategy on all bars (simulate scan)
-    signals = []
-    for i in range(30, len(df)):
-        subdf = df.iloc[:i+1]
-        sigs = evaluate(subdf, backtest=True)
-        if sigs:
-            signals.append(sigs[-1].to_dict())
-    # Return candles and signals
-    candles = [{"open": r["open"], "high": r["high"], "low": r["low"],
-                "close": r["close"], "volume": r["volume"],
-                "time": r["timestamp"]} for r in rows]
-    return jsonify({"candles": candles, "signals": signals})
+            session = get_session()
+            if not session:
+                return jsonify({"error": "Could not authenticate with AngelOne. Check API credentials.", "date": date_str}), 500
+
+            trade_date = _date.fromisoformat(date_str)
+            api_rows = fetch_candles_for_day(session, trade_date, timeframe)
+            if not api_rows:
+                return jsonify({"error": f"No candle data for {date_str}. Market may be closed (holiday/weekend).", "date": date_str}), 404
+
+            upsert_candles(api_rows)
+            rows = fetch_candles_by_date(config.UNDERLYING, timeframe, date_str)
+
+        if not rows:
+            return jsonify({"error": "No candle data for date", "date": date_str}), 404
+
+        # Step 3: Build DataFrame
+        df = pd.DataFrame(
+            [{"open": r["open"], "high": r["high"], "low": r["low"],
+              "close": r["close"], "volume": r["volume"]} for r in rows],
+            dtype=float,
+        )
+
+        # Step 4: Run strategy on all bars
+        signals = []
+        for i in range(30, len(df)):
+            try:
+                subdf = df.iloc[:i+1]
+                sigs = evaluate(subdf, backtest=True)
+                if sigs:
+                    signals.append(sigs[-1].to_dict())
+            except Exception:
+                pass  # skip bars that fail evaluation
+
+        # Step 5: Return results
+        candles = [{"open": r["open"], "high": r["high"], "low": r["low"],
+                    "close": r["close"], "volume": r["volume"],
+                    "time": r["timestamp"]} for r in rows]
+        return jsonify({"candles": candles, "signals": signals})
+
+    except Exception as exc:
+        tb = traceback.format_exc()
+        log.error("api_strategy_test crash: %s\n%s", exc, tb)
+        return jsonify({"error": f"{type(exc).__name__}: {exc}", "traceback": tb}), 500
 
 
 # ─── Numpy-safe JSON helper ───────────────────────────────────────────────────

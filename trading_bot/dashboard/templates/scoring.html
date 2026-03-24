@@ -480,7 +480,9 @@
                         return;
                     }
                     if (!resp.ok) {
-                        status.textContent = data.error || `API error (${resp.status})`;
+                        let msg = data.error || `API error (${resp.status})`;
+                        if (data.traceback) msg += '\n\nTraceback:\n' + data.traceback;
+                        status.textContent = msg;
                         return;
                     }
                     status.textContent = '';
