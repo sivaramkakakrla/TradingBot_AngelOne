@@ -115,12 +115,11 @@ PCR_BULLISH = 1.2
 PCR_BEARISH = 0.8
 
 # Time windows (IST, 24h format)
-# Excludes choppy midday zone (11:30–13:30) and pre-close noise (14:45+)
+# Trade throughout market hours — no midday exclusion
 TRADE_WINDOWS = [
-    ("09:20", "11:30"),   # morning momentum — strong directional moves
-    ("13:30", "15:00"),   # afternoon trend resumption (extended from 14:45)
+    ("09:15", "15:15"),   # full market session
 ]
-FORCE_EXIT_TIME = "15:00"
+FORCE_EXIT_TIME = "15:15"
 
 # ─── No-trade zone description (informational — enforced by TRADE_WINDOWS) ────
 # 11:30–13:30: midday chop, low liquidity, fake breakouts, theta burns options
