@@ -4,7 +4,7 @@ name: Auto-Trade Scanner
 # GitHub Actions cron may delay runs by 5-15 min — that's fine for 60s scan intervals
 on:
   schedule:
-    - cron: "*/5 3-10 * * 1-5" # Every 5 min, 3:00-10:59 UTC (8:30-16:29 IST), Mon-Fri
+    - cron: "* 3-10 * * 1-5" # Every 1 min, 3:00-10:59 UTC (8:30-16:29 IST), Mon-Fri
   workflow_dispatch: # Allow manual trigger from GitHub UI
 
 jobs:
