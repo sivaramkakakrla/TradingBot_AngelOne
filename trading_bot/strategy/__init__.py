@@ -524,7 +524,8 @@ def evaluate(df: pd.DataFrame, backtest: bool = False,
             sl_points=sl,
             target_points=target,
             bar_timestamp=bar_ts,
-            entry_price=entry_px
+            entry_price=entry_px,
+            bar_index=ref_idx,
         )
 
         # ── Step 6: Persist to DB ────────────────────────────────────

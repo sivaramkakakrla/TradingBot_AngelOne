@@ -490,36 +490,82 @@
                         resultsDiv.innerHTML = '<span class="hint">No candle data for this date. Data is only available for dates when candles were stored.</span>';
                         return;
                     }
-                    // Show summary
-                    const sigCount = data.signals ? data.signals.length : 0;
-                    let html = `<b>Candles:</b> <span style="font-family:monospace;">${data.candles.length}</span><br>`;
-                    html += `<b>Signals found:</b> <span style="font-family:monospace;">${sigCount}</span><br>`;
-                    if (sigCount > 0) {
-                        html += '<div style="margin-top:8px;">';
-                        data.signals.forEach((s, i) => {
-                            html += `<div style="padding:4px 0;font-size:.78rem;color:var(--txt-dim);">${i + 1}. ${s.direction || ''} — strength: ${s.strength || 0}, patterns: ${(s.patterns || []).join(', ')}</div>`;
+
+                    const trades = data.signals || [];
+                    const summary = data.summary || {};
+                    let html = '';
+
+                    // Summary card
+                    html += `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;">`;
+                    html += `<div class="pill"><div class="k">Candles</div><div class="v">${data.candles.length}</div></div>`;
+                    html += `<div class="pill"><div class="k">Trades</div><div class="v">${summary.total_trades || 0}</div></div>`;
+                    html += `<div class="pill"><div class="k">Wins</div><div class="v" style="color:#16a34a;">${summary.wins || 0}</div></div>`;
+                    html += `<div class="pill"><div class="k">Losses</div><div class="v" style="color:#dc2626;">${summary.losses || 0}</div></div>`;
+                    html += `<div class="pill"><div class="k">Win Rate</div><div class="v">${summary.win_rate || 0}%</div></div>`;
+                    const pnlColor = (summary.total_pnl || 0) >= 0 ? '#16a34a' : '#dc2626';
+                    html += `<div class="pill"><div class="k">Total P&L</div><div class="v" style="color:${pnlColor};">${(summary.total_pnl || 0) >= 0 ? '+' : ''}${(summary.total_pnl || 0).toFixed(2)} pts</div></div>`;
+                    html += `<div class="pill"><div class="k">Avg P&L</div><div class="v">${(summary.avg_pnl || 0).toFixed(2)} pts</div></div>`;
+                    html += `</div>`;
+
+                    // Trade table
+                    if (trades.length > 0) {
+                        html += `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:.72rem;font-family:monospace;">`;
+                        html += `<thead><tr style="background:var(--card);border-bottom:1px solid var(--border);">`;
+                        html += `<th style="padding:6px 8px;text-align:left;">#</th>`;
+                        html += `<th style="padding:6px 8px;text-align:left;">Time</th>`;
+                        html += `<th style="padding:6px 8px;text-align:left;">Dir</th>`;
+                        html += `<th style="padding:6px 8px;text-align:left;">Patterns</th>`;
+                        html += `<th style="padding:6px 8px;text-align:right;">Entry</th>`;
+                        html += `<th style="padding:6px 8px;text-align:right;">SL</th>`;
+                        html += `<th style="padding:6px 8px;text-align:right;">Target</th>`;
+                        html += `<th style="padding:6px 8px;text-align:right;">Exit</th>`;
+                        html += `<th style="padding:6px 8px;text-align:left;">Reason</th>`;
+                        html += `<th style="padding:6px 8px;text-align:right;">P&L</th>`;
+                        html += `</tr></thead><tbody>`;
+                        trades.forEach((t, i) => {
+                            const pnl = t.pnl_points || 0;
+                            const clr = pnl > 0 ? '#16a34a' : pnl < 0 ? '#dc2626' : 'var(--txt-dim)';
+                            const dirClr = t.direction === 'BULLISH' ? '#16a34a' : '#dc2626';
+                            const exitClr = t.exit_reason === 'TARGET_HIT' ? '#16a34a' : t.exit_reason === 'SL_HIT' ? '#dc2626' : '#d97706';
+                            const timeStr = (t.bar_timestamp || '').split(' ').pop() || '';
+                            const exitTimeStr = (t.exit_time || '').split(' ').pop() || '';
+                            html += `<tr style="border-bottom:1px solid var(--border);">`;
+                            html += `<td style="padding:5px 8px;">${i + 1}</td>`;
+                            html += `<td style="padding:5px 8px;">${timeStr}</td>`;
+                            html += `<td style="padding:5px 8px;color:${dirClr};font-weight:600;">${t.direction === 'BULLISH' ? '▲ BUY' : '▼ SELL'}</td>`;
+                            html += `<td style="padding:5px 8px;max-width:120px;overflow:hidden;text-overflow:ellipsis;">${(t.patterns || []).join(', ')}</td>`;
+                            html += `<td style="padding:5px 8px;text-align:right;">${(t.entry_price || 0).toFixed(2)}</td>`;
+                            html += `<td style="padding:5px 8px;text-align:right;color:#dc2626;">${(t.sl_price || 0).toFixed(2)}</td>`;
+                            html += `<td style="padding:5px 8px;text-align:right;color:#16a34a;">${(t.target_price || 0).toFixed(2)}</td>`;
+                            html += `<td style="padding:5px 8px;text-align:right;">${(t.exit_price || 0).toFixed(2)}</td>`;
+                            html += `<td style="padding:5px 8px;color:${exitClr};font-weight:600;">${t.exit_reason || ''}</td>`;
+                            html += `<td style="padding:5px 8px;text-align:right;color:${clr};font-weight:700;">${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}</td>`;
+                            html += `</tr>`;
                         });
-                        html += '</div>';
+                        html += `</tbody></table></div>`;
+                    } else {
+                        html += `<span class="hint">No confirmed ENTER signals for this date.</span>`;
                     }
+
                     resultsDiv.innerHTML = html;
                     // Draw chart
                     if (data.candles.length) {
                         chartArea.style.display = '';
-                        drawTestChart(data.candles, data.signals);
+                        drawTestChart(data.candles, trades);
                     }
                 } catch (e) {
                     status.textContent = 'Error: ' + (e.message || e);
                 }
             }
 
-            function drawTestChart(candles, signals) {
+            function drawTestChart(candles, trades) {
                 const canvas = document.getElementById('testChart');
                 const ctx = canvas.getContext('2d');
                 const W = canvas.width = canvas.parentElement.offsetWidth;
                 const H = canvas.height;
                 ctx.clearRect(0, 0, W, H);
                 // Draw close price line
-                const closes = candles.map(c => c[4]);
+                const closes = candles.map(c => c.close || c[4]);
                 const mn = Math.min(...closes), mx = Math.max(...closes);
                 const pad = { l: 40, r: 10, t: 10, b: 24 };
                 const cw = W - pad.l - pad.r, ch = H - pad.t - pad.b;
@@ -528,12 +574,16 @@
                 ctx.strokeStyle = '#2563eb'; ctx.lineWidth = 2; ctx.beginPath();
                 closes.forEach((v, i) => { i === 0 ? ctx.moveTo(toX(i), toY(v)) : ctx.lineTo(toX(i), toY(v)); });
                 ctx.stroke();
-                // Mark signals
-                signals.forEach(idx => {
-                    if (idx < 0 || idx >= closes.length) return;
+                // Mark entry signals with green (win) or red (loss) dots
+                trades.forEach(t => {
+                    const ep = t.entry_price;
+                    // Find closest candle index by price
+                    let bestIdx = 0, bestDist = Infinity;
+                    closes.forEach((c, i) => { const d = Math.abs(c - ep); if (d < bestDist) { bestDist = d; bestIdx = i; } });
+                    const isWin = (t.pnl_points || 0) > 0;
                     ctx.beginPath();
-                    ctx.arc(toX(idx), toY(closes[idx]), 5, 0, 2 * Math.PI);
-                    ctx.fillStyle = '#d97706';
+                    ctx.arc(toX(bestIdx), toY(closes[bestIdx]), 5, 0, 2 * Math.PI);
+                    ctx.fillStyle = isWin ? '#16a34a' : '#dc2626';
                     ctx.fill();
                 });
                 // X axis labels

@@ -82,29 +82,106 @@ def api_strategy_test():
         if not rows:
             return jsonify({"error": "No candle data for date", "date": date_str}), 404
 
-        # Step 3: Build DataFrame
+        # Step 3: Build DataFrame (include timestamp for signal bar timestamps)
         df = pd.DataFrame(
             [{"open": r["open"], "high": r["high"], "low": r["low"],
-              "close": r["close"], "volume": r["volume"]} for r in rows],
-            dtype=float,
+              "close": r["close"], "volume": r["volume"],
+              "timestamp": r["timestamp"]} for r in rows],
         )
+        for col in ("open", "high", "low", "close", "volume"):
+            df[col] = df[col].astype(float)
 
-        # Step 4: Run strategy on all bars
-        signals = []
+        # Step 4: Run strategy — collect only ENTER signals
+        enter_signals = []
         for i in range(30, len(df)):
             try:
-                subdf = df.iloc[:i+1]
+                subdf = df.iloc[:i+1].copy()
                 sigs = evaluate(subdf, backtest=True)
                 if sigs:
-                    signals.append(sigs[-1].to_dict())
+                    sig = sigs[-1]
+                    if sig.action == "ENTER":
+                        d = sig.to_dict()
+                        d["_full_idx"] = i  # index in the full df
+                        enter_signals.append(d)
             except Exception:
-                pass  # skip bars that fail evaluation
+                pass
 
-        # Step 5: Return results
+        # Step 5: P&L simulation — walk forward from each entry
+        trades = []
+        for sig in enter_signals:
+            idx = sig.pop("_full_idx")
+            entry_px = sig["entry_price"]
+            sl_pts = sig["sl_points"]
+            tgt_pts = sig["target_points"]
+            direction = sig["direction"]
+
+            if direction == "BULLISH":
+                sl_price = entry_px - sl_pts
+                tgt_price = entry_px + tgt_pts
+            else:
+                sl_price = entry_px + sl_pts
+                tgt_price = entry_px - tgt_pts
+
+            exit_price = None
+            exit_reason = "EOD"
+            exit_time = str(df["timestamp"].iloc[-1]) if "timestamp" in df.columns else ""
+
+            for j in range(idx + 1, len(df)):
+                h = float(df["high"].iloc[j])
+                l = float(df["low"].iloc[j])
+                if direction == "BULLISH":
+                    if l <= sl_price:
+                        exit_price = sl_price
+                        exit_reason = "SL_HIT"
+                        exit_time = str(df["timestamp"].iloc[j]) if "timestamp" in df.columns else ""
+                        break
+                    if h >= tgt_price:
+                        exit_price = tgt_price
+                        exit_reason = "TARGET_HIT"
+                        exit_time = str(df["timestamp"].iloc[j]) if "timestamp" in df.columns else ""
+                        break
+                else:
+                    if h >= sl_price:
+                        exit_price = sl_price
+                        exit_reason = "SL_HIT"
+                        exit_time = str(df["timestamp"].iloc[j]) if "timestamp" in df.columns else ""
+                        break
+                    if l <= tgt_price:
+                        exit_price = tgt_price
+                        exit_reason = "TARGET_HIT"
+                        exit_time = str(df["timestamp"].iloc[j]) if "timestamp" in df.columns else ""
+                        break
+
+            if exit_price is None:
+                exit_price = float(df["close"].iloc[-1])
+
+            pnl = (exit_price - entry_px) if direction == "BULLISH" else (entry_px - exit_price)
+
+            sig["sl_price"] = round(sl_price, 2)
+            sig["target_price"] = round(tgt_price, 2)
+            sig["exit_price"] = round(exit_price, 2)
+            sig["exit_reason"] = exit_reason
+            sig["exit_time"] = exit_time
+            sig["pnl_points"] = round(pnl, 2)
+            trades.append(sig)
+
+        # Step 6: Summary stats
+        wins = [t for t in trades if t["pnl_points"] > 0]
+        losses = [t for t in trades if t["pnl_points"] <= 0]
+        total_pnl = sum(t["pnl_points"] for t in trades)
+        summary = {
+            "total_trades": len(trades),
+            "wins": len(wins),
+            "losses": len(losses),
+            "win_rate": round(len(wins) / len(trades) * 100, 1) if trades else 0,
+            "total_pnl": round(total_pnl, 2),
+            "avg_pnl": round(total_pnl / len(trades), 2) if trades else 0,
+        }
+
         candles = [{"open": r["open"], "high": r["high"], "low": r["low"],
                     "close": r["close"], "volume": r["volume"],
                     "time": r["timestamp"]} for r in rows]
-        return jsonify({"candles": candles, "signals": signals})
+        return jsonify(_sanitize({"candles": candles, "signals": trades, "summary": summary}))
 
     except Exception as exc:
         tb = traceback.format_exc()
