@@ -36,6 +36,7 @@ jobs:
           RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
             "https://angelonetradingbot.vercel.app/api/autotrade/scan" \
             -H "Content-Type: application/json" \
+            -H "User-Agent: github-actions" \
             --max-time 25)
 
           HTTP_CODE=$(echo "$RESPONSE" | tail -1)
