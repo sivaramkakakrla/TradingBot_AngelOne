@@ -103,57 +103,6 @@ def api_strategy_test():
                 "close": r["close"], "volume": r["volume"],
                 "time": r["timestamp"]} for r in rows]
     return jsonify({"candles": candles, "signals": signals})
-"""
-dashboard/server.py — Flask web dashboard for Project Candles.
-
-Endpoints:
-    GET /                   — Main chart UI
-    GET /api/candles        — OHLCV data  (?date=YYYY-MM-DD&timeframe=1m)
-    GET /api/dates          — List of dates that have candle data
-    GET /api/pnl            — Today's PnL summary
-"""
-
-import datetime
-import json
-import os
-import threading
-import csv
-from zoneinfo import ZoneInfo
-
-from flask import Flask, jsonify, render_template, request
-from flask_cors import CORS
-
-import uuid
-
-import numpy as np
-import pandas as pd
-
-from trading_bot import config
-from trading_bot.data.store import (
-    close_trade, fetch_candles, fetch_candles_by_date,
-    get_cursor, get_open_trades, get_today_pnl, init_db,
-    insert_order, insert_trade,
-    get_portfolio, init_portfolio, update_portfolio_after_trade, reset_portfolio,
-    get_pnl_between, get_weekly_pnl_breakdown,
-)
-from trading_bot.indicators import sma, linear_regression
-from trading_bot.candles import detect_all, scan_signals
-from trading_bot.strategy import evaluate, evaluate_latest, evaluate_historical
-from trading_bot.market import get_latest_tick, get_latest_sensex_tick, start_feed, stop_feed, fetch_option_ltp, fetch_live_once
-from trading_bot.options import (
-    build_option_chain, get_available_expiries, get_weekly_expiries,
-    load_options, get_option_ltp as _opt_ltp,
-)
-from trading_bot.utils.logger import get_logger
-from trading_bot.utils.time_utils import now_ist
-from trading_bot.cache import get_cached, set_cached
-
-log = get_logger(__name__)
-
-IST = ZoneInfo(config.TIMEZONE)
-_HERE = os.path.dirname(os.path.abspath(__file__))
-app = Flask(__name__, template_folder=os.path.join(_HERE, "templates"))
-CORS(app)
 
 
 # ─── Numpy-safe JSON helper ───────────────────────────────────────────────────
