@@ -118,7 +118,7 @@ PCR_BEARISH = 0.8
 # Excludes choppy midday zone (11:30–13:30) and pre-close noise (14:45+)
 TRADE_WINDOWS = [
     ("09:20", "11:30"),   # morning momentum — strong directional moves
-    ("13:30", "14:45"),   # afternoon trend resumption
+    ("13:30", "15:00"),   # afternoon trend resumption (extended from 14:45)
 ]
 FORCE_EXIT_TIME = "15:00"
 
@@ -129,7 +129,7 @@ NO_TRADE_ZONE_START = "11:30"
 NO_TRADE_ZONE_END   = "13:30"
 
 # Duplicate signal cooldown (seconds) — also enforced via Redis on Vercel
-DUPLICATE_SIGNAL_COOLDOWN = 900   # 15 minutes (was 300)
+DUPLICATE_SIGNAL_COOLDOWN = 600   # 10 minutes (was 900 → Balanced profile)
 
 # Post-SL block: block same direction for this many seconds after a SL hit
 SL_BLOCK_DURATION = 1200          # 20 minutes
@@ -164,7 +164,7 @@ MAX_DAILY_TRADES = 3          # hard cap: no more than 3 auto-trades per day
 # ═══════════════════════════════════════════════════════════════════════════════
 # ADX-based chop filter — skip all signals when market is sideways
 ADX_PERIOD = 14
-ADX_SIDEWAYS_THRESHOLD = 20      # ADX < 20 → choppy/sideways → NO TRADE
+ADX_SIDEWAYS_THRESHOLD = 18      # ADX < 18 → choppy/sideways → NO TRADE (was 20 → Balanced)
 ADX_STRONG_TREND = 25            # ADX ≥ 25 → confirmed trend → prefer trading
 
 # Higher-timeframe bias (15m EMA cross) — 1m signal must align
@@ -173,7 +173,11 @@ HTF_EMA_FAST = 9                 # 15m fast EMA
 HTF_EMA_SLOW = 21                # 15m slow EMA
 
 # Entry signal quality floor
-MIN_SIGNAL_STRENGTH = 50         # discard signals below this composite score
+MIN_SIGNAL_STRENGTH = 45         # discard signals below this composite score (was 50 → Balanced)
+
+# Confirmation candle minimum body ratio (rejects dojis/spinning tops)
+# Doji < 0.10, spinning top 0.10–0.20, normal candle > 0.25
+CONFIRM_CANDLE_MIN_BODY_RATIO = 0.18  # was 0.25 hardcoded → Balanced profile
 
 # Opening range breakout quality filter (avoid random midday micro-breaks)
 OPENING_RANGE_FILTER_ENABLED = True

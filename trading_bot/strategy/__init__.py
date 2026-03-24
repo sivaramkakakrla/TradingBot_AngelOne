@@ -402,20 +402,21 @@ def evaluate(df: pd.DataFrame, backtest: bool = False,
             c_range = c_high - c_low if c_high != c_low else 1e-9
             body_ratio = c_body / c_range
 
+            min_body = getattr(config, 'CONFIRM_CANDLE_MIN_BODY_RATIO', 0.18)
             if direction == "BULLISH":
                 if c_close <= c_open:
                     confirmation_ok = False
                     confirmation_reason = "confirmation candle is red (bearish)"
-                elif body_ratio < 0.25:
+                elif body_ratio < min_body:
                     confirmation_ok = False
-                    confirmation_reason = "confirmation candle is a doji/weak body"
+                    confirmation_reason = f"confirmation candle is a doji/weak body (ratio={body_ratio:.2f}<{min_body})"
             else:  # BEARISH
                 if c_close >= c_open:
                     confirmation_ok = False
                     confirmation_reason = "confirmation candle is green (bullish)"
-                elif body_ratio < 0.25:
+                elif body_ratio < min_body:
                     confirmation_ok = False
-                    confirmation_reason = "confirmation candle is a doji/weak body"
+                    confirmation_reason = f"confirmation candle is a doji/weak body (ratio={body_ratio:.2f}<{min_body})"
         else:
             # No next candle yet — cannot confirm
             confirmation_ok = False
