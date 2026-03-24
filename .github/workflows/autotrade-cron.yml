@@ -28,23 +28,29 @@ jobs:
             echo "skip=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Trigger Auto-Trade Scan
+      - name: Trigger Auto-Trade Scan (4x per minute, every 15s)
         if: steps.market.outputs.skip != 'true'
         run: |
-          echo "Scanning at $(TZ=Asia/Kolkata date '+%Y-%m-%d %H:%M:%S IST')"
+          do_scan() {
+            echo "Scanning at $(TZ=Asia/Kolkata date '+%Y-%m-%d %H:%M:%S IST')"
+            RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+              "https://angelonetradingbot.vercel.app/api/autotrade/scan" \
+              -H "Content-Type: application/json" \
+              -H "User-Agent: github-actions" \
+              --max-time 12)
+            HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+            BODY=$(echo "$RESPONSE" | head -n -1)
+            echo "  Status: $HTTP_CODE | Response: $BODY"
+            if [ "$HTTP_CODE" -ne 200 ]; then
+              echo "::warning::Scan returned HTTP $HTTP_CODE"
+            fi
+          }
 
-          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
-            "https://angelonetradingbot.vercel.app/api/autotrade/scan" \
-            -H "Content-Type: application/json" \
-            -H "User-Agent: github-actions" \
-            --max-time 25)
-
-          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-          BODY=$(echo "$RESPONSE" | head -n -1)
-
-          echo "Status: $HTTP_CODE"
-          echo "Response: $BODY"
-
-          if [ "$HTTP_CODE" -ne 200 ]; then
-            echo "::warning::Scan returned HTTP $HTTP_CODE"
-          fi
+          # Scan 4 times in this 1-minute job window (~15s apart)
+          do_scan
+          sleep 15
+          do_scan
+          sleep 15
+          do_scan
+          sleep 15
+          do_scan
