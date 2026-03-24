@@ -306,17 +306,6 @@
             height: 100%;
         }
 
-        .equity-chart {
-            width: 100%;
-            height: 200px;
-            position: relative;
-        }
-
-        .equity-chart canvas {
-            width: 100%;
-            height: 100%;
-        }
-
         .signal-box {
             padding: 12px;
             border-radius: 10px;
@@ -706,92 +695,6 @@
             </div>
         </div>
 
-        <!-- Portfolio Summary -->
-        <div class="card">
-            <div class="title">Portfolio — 20-Day Avg Strategy (₹30,000 Investment)</div>
-            <div class="row grid-5">
-                <div class="pill">
-                    <div class="k">Investment</div>
-                    <div class="v">₹30,000</div>
-                </div>
-                <div class="pill">
-                    <div class="k">Current Balance</div>
-                    <div class="v" id="currentBal">₹30,000.00</div>
-                </div>
-                <div class="pill">
-                    <div class="k">Total P&L (20d)</div>
-                    <div class="v" id="totalPnl">₹0.00</div>
-                </div>
-                <div class="pill">
-                    <div class="k">Return %</div>
-                    <div class="v" id="returnPct">0.00%</div>
-                </div>
-                <div class="pill">
-                    <div class="k">Avg Daily P&L</div>
-                    <div class="v" id="avgDaily">₹0.00</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Performance Metrics -->
-        <div class="card">
-            <div class="title">Performance Metrics</div>
-            <div class="row grid-5">
-                <div class="pill">
-                    <div class="k">Total Trades</div>
-                    <div class="v" id="totalTrades">0</div>
-                </div>
-                <div class="pill">
-                    <div class="k">Wins / Losses</div>
-                    <div class="v" id="winLoss">0 / 0</div>
-                </div>
-                <div class="pill">
-                    <div class="k">Win Rate</div>
-                    <div class="v" id="winRate">0.0%</div>
-                </div>
-                <div class="pill">
-                    <div class="k">Best Day</div>
-                    <div class="v good" id="bestDay">₹0.00</div>
-                </div>
-                <div class="pill">
-                    <div class="k">Worst Day</div>
-                    <div class="v bad" id="worstDay">₹0.00</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Equity Curve -->
-        <div class="card">
-            <div class="title">Equity Curve (20 Days)</div>
-            <div class="equity-chart">
-                <canvas id="equityCanvas"></canvas>
-            </div>
-        </div>
-
-        <!-- Daily Breakdown Table -->
-        <div class="card">
-            <div class="title">Daily P&L Breakdown (Last 20 Trading Days)</div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Trades</th>
-                        <th>Wins</th>
-                        <th>Losses</th>
-                        <th>Win Rate</th>
-                        <th>Day P&L</th>
-                        <th>Cumulative</th>
-                        <th>Balance</th>
-                    </tr>
-                </thead>
-                <tbody id="dailyBody">
-                    <tr>
-                        <td colspan="8" class="hint">Loading...</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-
         <!-- Daily Close Table -->
         <div class="card">
             <div class="title">NIFTY Daily Closes (20-Day Window)</div>
@@ -816,18 +719,7 @@
     </div>
 
     <script>
-        const RS = '₹';
-        const INVESTMENT = 30000;
         let autoOn = true;
-
-        function fmt(v) {
-            const n = Number(v || 0);
-            return (n >= 0 ? '+' : '-') + RS + Math.abs(n).toFixed(2);
-        }
-        function pctFmt(v) {
-            const n = Number(v || 0);
-            return (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
-        }
 
         function setColor(el, val) {
             el.className = el.className.replace(/\b(good|bad|warn)\b/g, '').trim();
@@ -917,126 +809,7 @@
             ctx.fillStyle = '#d97706'; ctx.fillText('- - 20-Day SMA', pad.l + 110, pad.t + 16);
         }
 
-        // ── Draw equity curve ──────────────────────────────────────
-        function drawEquity(days) {
-            const canvas = document.getElementById('equityCanvas');
-            if (!canvas || !days.length) return;
-            const ctx = canvas.getContext('2d');
-            const dpr = window.devicePixelRatio || 1;
-            const rect = canvas.parentElement.getBoundingClientRect();
-            canvas.width = rect.width * dpr;
-            canvas.height = rect.height * dpr;
-            ctx.scale(dpr, dpr);
-            const W = rect.width, H = rect.height;
 
-            const vals = days.map(d => d.balance);
-            const mn = Math.min(...vals, INVESTMENT) - 500;
-            const mx = Math.max(...vals, INVESTMENT) + 500;
-            const pad = { l: 60, r: 20, t: 10, b: 30 };
-            const cw = W - pad.l - pad.r, ch = H - pad.t - pad.b;
-
-            ctx.clearRect(0, 0, W, H);
-
-            // Grid
-            ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 0.5;
-            for (let i = 0; i <= 4; i++) {
-                const y = pad.t + (ch / 4) * i;
-                ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W - pad.r, y); ctx.stroke();
-                const label = mx - ((mx - mn) / 4) * i;
-                ctx.fillStyle = '#94a3b8'; ctx.font = '10px Inter';
-                ctx.textAlign = 'right';
-                ctx.fillText(RS + label.toFixed(0), pad.l - 6, y + 4);
-            }
-
-            // Baseline
-            const baseY = pad.t + ((mx - INVESTMENT) / (mx - mn)) * ch;
-            ctx.setLineDash([4, 4]); ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1;
-            ctx.beginPath(); ctx.moveTo(pad.l, baseY); ctx.lineTo(W - pad.r, baseY); ctx.stroke();
-            ctx.setLineDash([]);
-
-            // Line
-            if (vals.length < 2) return;
-            ctx.beginPath();
-            ctx.strokeStyle = vals[vals.length - 1] >= INVESTMENT ? '#16a34a' : '#dc2626';
-            ctx.lineWidth = 2;
-            for (let i = 0; i < vals.length; i++) {
-                const x = pad.l + (i / (vals.length - 1)) * cw;
-                const y = pad.t + ((mx - vals[i]) / (mx - mn)) * ch;
-                i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-            }
-            ctx.stroke();
-
-            for (let i = 0; i < vals.length; i++) {
-                const x = pad.l + (i / (vals.length - 1)) * cw;
-                const y = pad.t + ((mx - vals[i]) / (mx - mn)) * ch;
-                ctx.beginPath();
-                ctx.fillStyle = vals[i] >= INVESTMENT ? '#16a34a' : '#dc2626';
-                ctx.arc(x, y, 3, 0, Math.PI * 2);
-                ctx.fill();
-            }
-
-            ctx.fillStyle = '#94a3b8'; ctx.font = '9px Inter'; ctx.textAlign = 'center';
-            const step = Math.max(1, Math.floor(vals.length / 6));
-            for (let i = 0; i < days.length; i += step) {
-                const x = pad.l + (i / (vals.length - 1)) * cw;
-                ctx.fillText(days[i].date.substring(5), x, H - 8);
-            }
-        }
-
-        // ── Fetch P&L ──────────────────────────────────────────────
-        async function fetchPnl() {
-            try {
-                const r = await fetch('/api/scoring/pnl');
-                const d = await r.json();
-
-                const bal = INVESTMENT + Number(d.total_pnl || 0);
-                const el = (id) => document.getElementById(id);
-                el('currentBal').textContent = RS + bal.toFixed(2);
-                setColor(el('currentBal'), d.total_pnl);
-                el('totalPnl').textContent = fmt(d.total_pnl);
-                setColor(el('totalPnl'), d.total_pnl);
-                const ret = ((d.total_pnl || 0) / INVESTMENT * 100);
-                el('returnPct').textContent = pctFmt(ret);
-                setColor(el('returnPct'), ret);
-                el('avgDaily').textContent = fmt(d.avg_daily_pnl);
-                setColor(el('avgDaily'), d.avg_daily_pnl);
-
-                el('totalTrades').textContent = d.total_trades || 0;
-                el('winLoss').textContent = `${d.wins || 0} / ${d.losses || 0}`;
-                const wr = d.total_trades ? ((d.wins / d.total_trades) * 100) : 0;
-                el('winRate').textContent = wr.toFixed(1) + '%';
-                setColor(el('winRate'), wr >= 50 ? 1 : -1);
-                el('bestDay').textContent = fmt(d.best_day);
-                el('worstDay').textContent = fmt(d.worst_day);
-
-                const days = d.daily || [];
-                const body = el('dailyBody');
-                if (!days.length) {
-                    body.innerHTML = '<tr><td colspan="8" class="hint">No trading data yet</td></tr>';
-                } else {
-                    body.innerHTML = days.map(r => {
-                        const wr2 = r.trades ? ((r.wins / r.trades) * 100).toFixed(0) + '%' : '--';
-                        const cls = Number(r.day_pnl) >= 0 ? 'good' : 'bad';
-                        const bCls = Number(r.balance) >= INVESTMENT ? 'good' : 'bad';
-                        return `<tr>
-                            <td>${r.date}</td>
-                            <td>${r.trades}</td>
-                            <td class="good">${r.wins}</td>
-                            <td class="bad">${r.losses}</td>
-                            <td>${wr2}</td>
-                            <td class="${cls}" style="font-weight:700">${fmt(r.day_pnl)}</td>
-                            <td class="${cls}" style="font-weight:700">${fmt(r.cumulative)}</td>
-                            <td class="${bCls}" style="font-weight:700">${RS}${Number(r.balance).toFixed(2)}</td>
-                        </tr>`;
-                    }).join('');
-                }
-
-                drawEquity(days);
-                el('lastTs').textContent = 'P&L: ' + (d.time || '--');
-            } catch (e) {
-                console.error('fetchPnl error:', e);
-            }
-        }
 
         // ── Fetch live 20-day avg state ────────────────────────────
         async function fetchLive() {
@@ -1158,7 +931,7 @@
         // ── Auto refresh ────────────────────────────────────────────
         let timer;
         function startTimer() {
-            timer = setInterval(() => { fetchLive(); fetchPnl(); }, 30000);
+            timer = setInterval(() => { fetchLive(); }, 30000);
         }
         function toggleAuto() {
             autoOn = !autoOn;
@@ -1167,12 +940,10 @@
         }
         function refresh() {
             fetchLive();
-            fetchPnl();
         }
 
         // ── Init ────────────────────────────────────────────────────
         fetchLive();
-        fetchPnl();
         startTimer();
     </script>
 </body>
