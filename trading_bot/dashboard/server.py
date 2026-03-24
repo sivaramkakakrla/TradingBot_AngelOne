@@ -60,6 +60,24 @@ def api_strategy_test():
         date_str = now_ist().strftime("%Y-%m-%d")
     # Fetch candles for the date from DB
     rows = fetch_candles_by_date(config.UNDERLYING, timeframe, date_str)
+
+    # If DB has no data, try fetching live from AngelOne API
+    if not rows:
+        try:
+            from trading_bot.data.historical import fetch_candles_for_day
+            from trading_bot.data.store import upsert_candles
+            from trading_bot.auth.login import get_session
+            from datetime import date as _date
+            session = get_session()
+            if session:
+                trade_date = _date.fromisoformat(date_str)
+                api_rows = fetch_candles_for_day(session, trade_date, timeframe)
+                if api_rows:
+                    upsert_candles(api_rows)
+                    rows = fetch_candles_by_date(config.UNDERLYING, timeframe, date_str)
+        except Exception as e:
+            log.warning("Live candle fetch for backtest failed: %s", e)
+
     if not rows:
         return jsonify({"error": "No candle data for date", "date": date_str}), 404
     # Build DataFrame from DB rows
