@@ -436,11 +436,13 @@
         <script>
             // --- Tab Toggle Logic ---
             const testCard = document.getElementById('testCard');
-            const mainCards = Array.from(document.querySelectorAll('.wrap > .card')).filter(c => c !== testCard);
-            const tabToggle = testCard.previousElementSibling; // tab-toggle div
+            // Compute mainCards lazily so all DOM cards are available
+            function getMainCards() {
+                return Array.from(document.querySelectorAll('.wrap > .card')).filter(c => c !== testCard);
+            }
             function showLiveTab() {
                 testCard.style.display = 'none';
-                mainCards.forEach(c => c.style.display = '');
+                getMainCards().forEach(c => c.style.display = '');
                 document.getElementById('liveTabBtn').style.background = 'var(--accent)';
                 document.getElementById('liveTabBtn').style.color = '#fff';
                 document.getElementById('liveTabBtn').style.borderColor = 'var(--accent)';
@@ -450,7 +452,7 @@
             }
             function showTestTab() {
                 testCard.style.display = '';
-                mainCards.forEach(c => c.style.display = 'none');
+                getMainCards().forEach(c => c.style.display = 'none');
                 document.getElementById('testTabBtn').style.background = 'var(--accent)';
                 document.getElementById('testTabBtn').style.color = '#fff';
                 document.getElementById('testTabBtn').style.borderColor = 'var(--accent)';
