@@ -306,6 +306,56 @@
     .conn-dot.err {
       background: var(--red);
     }
+
+    @media (max-width: 900px) {
+      body {
+        height: auto;
+        min-height: 100dvh;
+      }
+
+      .topbar {
+        height: auto;
+        padding: 10px 12px;
+        flex-wrap: wrap;
+        row-gap: 8px;
+      }
+
+      .topbar nav {
+        order: 3;
+        margin-left: 0;
+        width: 100%;
+        overflow-x: auto;
+        white-space: nowrap;
+        padding-bottom: 2px;
+      }
+
+      .topbar nav a {
+        display: inline-block;
+      }
+
+      .main {
+        padding: 20px 12px;
+      }
+
+      .cards {
+        width: 100%;
+        gap: 14px;
+      }
+
+      .price-card {
+        width: 100%;
+        min-width: 0;
+        padding: 20px 16px;
+      }
+
+      .pc-ltp {
+        font-size: 2rem;
+      }
+
+      .status-bar {
+        padding: 6px 12px;
+      }
+    }
   </style>
 </head>
 
@@ -322,6 +372,7 @@
       <a href="/chat">AI Chat</a>
       <a href="/180-rule">180 Rule</a>
       <a href="/orb-strategy">ORB Strategy</a>
+      <a href="/20-day-avg">20-Day Avg</a>
     </nav>
     <div class="badge-area">
       <div class="market-badge connecting" id="market-badge">

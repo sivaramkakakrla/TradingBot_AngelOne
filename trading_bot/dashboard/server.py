@@ -131,6 +131,11 @@ def orb_strategy_page():
     return render_template("orb_strategy.html")
 
 
+@app.route("/20-day-avg")
+def scoring_page():
+    return render_template("scoring.html")
+
+
 @app.route("/api/candles")
 def api_candles():
     """
@@ -1272,6 +1277,113 @@ DUPLICATE_SIGNAL_COOLDOWN (300-3600s), SL_BLOCK_DURATION (300-7200s),
 MAX_OPEN_TRADES (1-5), MAX_DAILY_LOSS (500-10000),
 VOLUME_EXPANSION_MULT (1.0-3.0), INITIAL_SL_POINTS (5-60)
 
+## STRICT INTRADAY ANALYSIS MODE (ORB + VWAP + MA + PREMIUM)
+When user asks for market analysis or trade decision, behave as an expert intraday trader and risk manager.
+
+Non-negotiable principles:
+- Rule-based only. No assumptions or predictions.
+- Capital protection over trading frequency.
+- React to price action, do not forecast.
+- One trade per day maximum.
+- Follow VWAP direction strictly.
+
+### 1) PRE-MARKET FILTER (09:15-09:25)
+Required checks:
+- Opening range >= 45 points
+- Strong candle bodies (avoid long wicks)
+- Clear direction (not sideways)
+- No random CE/PE premium spikes
+- Avoid gap-up near resistance
+
+Output fields:
+- Trade decision: TRADE / NO TRADE
+- Direction bias: BULLISH / BEARISH / SIDEWAYS
+- Reason: strict and rule-based
+
+### 2) ENTRY CONFIRMATION (09:25-09:35)
+Required checks:
+- Strong breakout candle (large body, small wicks)
+- Structure confirmation: HH/HL for bullish, LH/LL for bearish
+- Reject fake breakouts (no follow-through)
+- Trade only in VWAP direction
+
+Output fields:
+- Entry: BUY CE / BUY PE / NO TRADE
+- Confidence: HIGH / MEDIUM / LOW
+- Reason: max 2 lines
+
+### 3) 180 PREMIUM BREAKOUT STRATEGY
+Rules:
+- Active only after 09:25
+- BUY CE only if bullish and above VWAP
+- BUY PE only if bearish and below VWAP
+- Premium must cross 180 with sustained momentum (not one-candle spike)
+
+Output fields:
+- Action: BUY CE / BUY PE / NO TRADE
+- Target: 30-40 points
+- Stop loss: 20 points
+- Short reason
+
+### 4) NO-TRADE DETECTION (CAPITAL PROTECTION)
+If any of these are true, bias strongly to NO TRADE:
+- Range < 45 points
+- Multiple wicks / indecision candles
+- VWAP frequent back-and-forth touches
+- No HH/HL or LH/LL structure
+
+Output fields:
+- Decision: NO TRADE / TRADE OK
+- Strict reason
+
+### 5) EDGE DETECTION (ADVANCED)
+Look for confluence:
+- Candle compression (4-8 small candles)
+- Liquidity sweep / fake move
+- Strong reclaim of 20 MA
+- First strong breakout candle
+- Volume expansion
+
+Output fields:
+- Setup detected: YES / NO
+- Direction
+- Entry timing suggestion
+
+### 6) POST-TRADE ANALYSIS
+Always evaluate:
+1. Was trend clear?
+2. Was entry correct or early/late?
+3. Any rule violations?
+4. Was trade avoidable?
+
+Output fields:
+- Mistake (if any)
+- Improvement for next trade
+- Confidence score: 0-100
+
+### GLOBAL TRADE GATES
+At least 4 conditions must align before TRADE:
+- Trend + Structure + Momentum + Support/Resistance
+
+Avoid trading when:
+- 09:15-09:20 opening volatility
+- Sideways market
+- Flat moving averages
+- After large spikes
+
+If user input misses required variables, do NOT assume values.
+Ask for only missing fields, then evaluate.
+
+### FINAL OUTPUT FORMAT (STRICT)
+Always end decision with:
+- Final decision: TRADE / NO TRADE
+- If TRADE:
+    - Direction: CE / PE
+    - Entry timing
+    - Confidence
+- If NO TRADE:
+    - Clear reason
+
 ## ACTION FORMAT
 When you want to apply a config change, append EXACTLY this line at the end — nothing after it:
 %%ACTION:config_change:PARAM_NAME:NEW_VALUE:one-sentence reason%%
@@ -1283,6 +1395,342 @@ Include at most ONE action. Only suggest a change when the user explicitly asks 
 - Use actual numbers from the config above when helpful
 - If asked for code changes beyond the 8 parameters, explain you can only modify those 8
 - ₹ for rupees, answer in plain English"""
+
+
+def _norm_text(v) -> str:
+    if v is None:
+        return ""
+    return str(v).strip().lower()
+
+
+def _is_strong_candle_desc(desc: str) -> bool:
+    d = _norm_text(desc)
+    if not d:
+        return False
+    weak_terms = ["long wick", "wicks", "doji", "indecision", "choppy"]
+    if any(t in d for t in weak_terms):
+        return False
+    return True
+
+
+def _has_clear_direction(pre_vwap: str, trend: str, candle_desc: str) -> bool:
+    v = _norm_text(pre_vwap)
+    t = _norm_text(trend)
+    c = _norm_text(candle_desc)
+    if "sideways" in t or "sideways" in c:
+        return False
+    if "near" in v:
+        return False
+    if any(x in t for x in ["flat", "mixed", "no trend"]):
+        return False
+    return True
+
+
+def _direction_bias(pre_vwap: str, trend: str, candle_desc: str) -> str:
+    v = _norm_text(pre_vwap)
+    t = _norm_text(trend)
+    c = _norm_text(candle_desc)
+    bull_hits = sum([
+        "above" in v,
+        "bull" in t or "up" in t,
+        "bull" in c,
+    ])
+    bear_hits = sum([
+        "below" in v,
+        "bear" in t or "down" in t,
+        "bear" in c,
+    ])
+    if bull_hits > bear_hits and bull_hits >= 1:
+        return "BULLISH"
+    if bear_hits > bull_hits and bear_hits >= 1:
+        return "BEARISH"
+    return "SIDEWAYS"
+
+
+def _safe_float(v, default=0.0) -> float:
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return float(default)
+
+
+def _contains_any(txt: str, keys: list[str]) -> bool:
+    t = _norm_text(txt)
+    return any(k in t for k in keys)
+
+
+@app.route("/api/rule-analysis", methods=["POST"])
+def api_rule_analysis():
+    """
+    Deterministic, strict intraday rule engine.
+
+    Request JSON supports these sections:
+      pre_market, entry_confirmation, premium_180, no_trade, edge, post_trade
+    """
+    body = request.get_json(force=True) or {}
+
+    pre = body.get("pre_market") or {}
+    ent = body.get("entry_confirmation") or {}
+    p180 = body.get("premium_180") or {}
+    nt = body.get("no_trade") or {}
+    edge = body.get("edge") or {}
+    post = body.get("post_trade") or {}
+
+    # ── 1) PRE-MARKET FILTER ─────────────────────────────────────────────
+    range_points = _safe_float(pre.get("range_points"))
+    candle_desc = str(pre.get("candle_description", ""))
+    pre_vwap = str(pre.get("vwap_position", ""))
+    trend = str(pre.get("trend", ""))
+    premiums_state = str(pre.get("option_premiums", ""))
+    gap_sr = str(pre.get("gap_sr_details", ""))
+
+    pm_checks = {
+        "range_ok": range_points >= 45,
+        "candle_quality_ok": _is_strong_candle_desc(candle_desc),
+        "direction_clear_ok": _has_clear_direction(pre_vwap, trend, candle_desc),
+        "premium_stability_ok": not _contains_any(premiums_state, ["spiky", "random spike", "unstable"]),
+        "gap_resistance_ok": not (_contains_any(gap_sr, ["gap up", "gap-up"]) and _contains_any(gap_sr, ["resistance", "near resistance"])),
+    }
+    pm_bias = _direction_bias(pre_vwap, trend, candle_desc)
+    pm_trade_decision = "TRADE" if all(pm_checks.values()) else "NO TRADE"
+    pm_failed = [k for k, v in pm_checks.items() if not v]
+
+    # ── 2) ENTRY CONFIRMATION ────────────────────────────────────────────
+    current_price = _safe_float(ent.get("current_price"))
+    breakout_level = _safe_float(ent.get("breakout_level"))
+    ent_vwap = str(ent.get("vwap_position", ""))
+    mkt_structure = str(ent.get("market_structure", ""))
+    latest_candles = str(ent.get("latest_candles", ""))
+    volume_state = str(ent.get("volume", ""))
+
+    bullish_structure = _contains_any(mkt_structure, ["hh/hl", "hh hl", "higher high", "higher low"])
+    bearish_structure = _contains_any(mkt_structure, ["lh/ll", "lh ll", "lower high", "lower low"])
+    strong_breakout_candle = _contains_any(latest_candles, ["strong", "large body", "marubozu", "breakout"]) and not _contains_any(latest_candles, ["doji", "long wick", "weak"])
+    follow_through_ok = not _contains_any(latest_candles, ["fake breakout", "no follow", "rejected immediately"])
+    volume_ok = _contains_any(volume_state, ["increasing", "expanding", "high", "surge"])
+
+    entry_action = "NO TRADE"
+    entry_reason = []
+    if strong_breakout_candle and follow_through_ok and volume_ok:
+        if bullish_structure and _contains_any(ent_vwap, ["above"]) and current_price > breakout_level:
+            entry_action = "BUY CE"
+        elif bearish_structure and _contains_any(ent_vwap, ["below"]) and current_price < breakout_level:
+            entry_action = "BUY PE"
+
+    if entry_action == "NO TRADE":
+        if not strong_breakout_candle:
+            entry_reason.append("breakout candle not strong")
+        if not follow_through_ok:
+            entry_reason.append("fake breakout / no follow-through")
+        if not volume_ok:
+            entry_reason.append("volume not supportive")
+        if bullish_structure is False and bearish_structure is False:
+            entry_reason.append("structure not HH/HL or LH/LL")
+
+    entry_score = sum([
+        1 if strong_breakout_candle else 0,
+        1 if follow_through_ok else 0,
+        1 if volume_ok else 0,
+        1 if (bullish_structure or bearish_structure) else 0,
+        1 if ((_contains_any(ent_vwap, ["above"]) and entry_action == "BUY CE") or (_contains_any(ent_vwap, ["below"]) and entry_action == "BUY PE")) else 0,
+    ])
+    if entry_score >= 5:
+        entry_conf = "HIGH"
+    elif entry_score >= 3:
+        entry_conf = "MEDIUM"
+    else:
+        entry_conf = "LOW"
+
+    # ── 3) 180 PREMIUM BREAKOUT ──────────────────────────────────────────
+    ce_prem = _safe_float(p180.get("ce_premium"))
+    pe_prem = _safe_float(p180.get("pe_premium"))
+    nifty_dir = str(p180.get("nifty_direction", ""))
+    p180_vwap = str(p180.get("vwap_position", ""))
+    p180_momentum = str(p180.get("momentum", ""))
+    analysis_time = str(p180.get("time", body.get("time", "")))
+
+    after_925 = _contains_any(analysis_time, ["09:25", "09:26", "09:27", "09:28", "09:29", "09:3", "09:4", "09:5", "10:", "11:", "12:", "13:", "14:", "15:"])
+    action_180 = "NO TRADE"
+    reason_180 = "conditions not aligned"
+    if after_925:
+        if _contains_any(nifty_dir, ["bull"]) and _contains_any(p180_vwap, ["above"]) and _contains_any(p180_momentum, ["strong"]) and ce_prem >= 180:
+            action_180 = "BUY CE"
+            reason_180 = "bullish direction, above VWAP, CE premium crossed 180 with momentum"
+        elif _contains_any(nifty_dir, ["bear"]) and _contains_any(p180_vwap, ["below"]) and _contains_any(p180_momentum, ["strong"]) and pe_prem >= 180:
+            action_180 = "BUY PE"
+            reason_180 = "bearish direction, below VWAP, PE premium crossed 180 with momentum"
+        else:
+            reason_180 = "180 premium crossover lacks full directional confirmation"
+    else:
+        reason_180 = "trade allowed only after 09:25"
+
+    # ── 4) NO-TRADE DETECTION ────────────────────────────────────────────
+    nt_range = _safe_float(nt.get("range_points", range_points))
+    nt_candle = str(nt.get("candle_structure", candle_desc))
+    nt_vwap = str(nt.get("vwap_behavior", pre_vwap))
+    nt_price_action = str(nt.get("price_action", ""))
+    nt_structure = str(nt.get("market_structure", mkt_structure))
+
+    no_trade_hits = {
+        "range_lt_45": nt_range < 45,
+        "indecision_wicks": _contains_any(nt_candle, ["wicks", "indecision", "choppy", "doji"]),
+        "vwap_frequent_touches": _contains_any(nt_vwap, ["frequent", "repeated", "back and forth", "touches"]),
+        "no_clear_structure": not (_contains_any(nt_structure, ["hh/hl", "higher high", "higher low"]) or _contains_any(nt_structure, ["lh/ll", "lower high", "lower low"])),
+        "sideways_or_volatile": _contains_any(nt_price_action, ["sideways", "volatile", "whipsaw"]),
+    }
+    no_trade_triggered = any(no_trade_hits.values())
+    no_trade_decision = "NO TRADE" if no_trade_triggered else "TRADE OK"
+
+    # ── 5) EDGE DETECTION ────────────────────────────────────────────────
+    compression = str(edge.get("compression", ""))
+    sweep = str(edge.get("liquidity_sweep", ""))
+    reclaim20 = str(edge.get("reclaim_20ma", ""))
+    first_break = str(edge.get("first_breakout_candle", ""))
+    vol_exp = str(edge.get("volume_expansion", ""))
+    edge_dir = str(edge.get("direction", pm_bias))
+
+    edge_checks = {
+        "compression_4_8": _contains_any(compression, ["yes", "true", "4", "5", "6", "7", "8", "small candles"]),
+        "liquidity_sweep": _contains_any(sweep, ["yes", "true", "fake", "sweep"]),
+        "reclaim_20ma": _contains_any(reclaim20, ["yes", "true", "reclaim", "strong"]),
+        "first_breakout": _contains_any(first_break, ["yes", "true", "strong", "breakout"]),
+        "volume_expansion": _contains_any(vol_exp, ["yes", "true", "expansion", "increasing", "surge"]),
+    }
+    edge_score = sum(1 for v in edge_checks.values() if v)
+    edge_detected = "YES" if edge_score >= 4 else "NO"
+    edge_timing = "Enter on first retest after breakout close" if edge_detected == "YES" else "No advanced edge setup"
+
+    # ── Global alignment + final decision ────────────────────────────────
+    trend_aligned = pm_bias in ("BULLISH", "BEARISH")
+    structure_aligned = entry_action in ("BUY CE", "BUY PE")
+    momentum_aligned = volume_ok and _contains_any(str(p180_momentum), ["strong"]) and action_180 in ("BUY CE", "BUY PE")
+    sr_aligned = pm_checks["gap_resistance_ok"] and pm_checks["direction_clear_ok"]
+    alignment_count = sum([1 if trend_aligned else 0, 1 if structure_aligned else 0, 1 if momentum_aligned else 0, 1 if sr_aligned else 0])
+
+    final_decision = "NO TRADE"
+    final_direction = ""
+    final_reason = "capital protection filters not satisfied"
+
+    if no_trade_triggered or pm_trade_decision == "NO TRADE":
+        final_decision = "NO TRADE"
+        final_reason = "pre-market/no-trade filters failed"
+    elif alignment_count >= 4 and entry_action in ("BUY CE", "BUY PE"):
+        final_decision = "TRADE"
+        final_direction = "CE" if entry_action == "BUY CE" else "PE"
+        final_reason = "trend + structure + momentum + S/R aligned"
+    else:
+        final_decision = "NO TRADE"
+        final_reason = "fewer than 4 core conditions aligned"
+
+    # ── 6) POST-TRADE ANALYSIS ────────────────────────────────────────────
+    post_entry = _safe_float(post.get("entry_price"))
+    post_exit = _safe_float(post.get("exit_price"))
+    post_dir = str(post.get("direction", final_direction))
+    post_result = str(post.get("result", ""))
+    post_structure = str(post.get("market_structure", mkt_structure))
+    post_ind = str(post.get("indicators", ""))
+
+    trend_clear = _contains_any(post_structure, ["hh/hl", "lh/ll", "higher high", "lower low"])
+    entry_quality = "correct"
+    if entry_conf == "LOW":
+        entry_quality = "early/low quality"
+    elif entry_conf == "MEDIUM":
+        entry_quality = "slightly early"
+
+    violations = []
+    if final_decision == "TRADE" and no_trade_triggered:
+        violations.append("entered despite no-trade environment")
+    if final_decision == "TRADE" and alignment_count < 4:
+        violations.append("fewer than 4 aligned conditions")
+    if action_180 == "NO TRADE" and _contains_any(post_dir, ["ce", "pe"]):
+        violations.append("180 premium rule not satisfied at entry")
+
+    avoidable = bool(violations) or not trend_clear
+    pnl_pts = 0.0
+    if post_entry > 0 and post_exit > 0 and _contains_any(post_dir, ["ce", "long", "bull"]):
+        pnl_pts = post_exit - post_entry
+    elif post_entry > 0 and post_exit > 0 and _contains_any(post_dir, ["pe", "short", "bear"]):
+        pnl_pts = post_exit - post_entry
+
+    conf_score = 78
+    if not trend_clear:
+        conf_score -= 20
+    if entry_conf == "LOW":
+        conf_score -= 18
+    elif entry_conf == "MEDIUM":
+        conf_score -= 8
+    conf_score -= min(20, 8 * len(violations))
+    if _contains_any(post_result, ["loss"]):
+        conf_score -= 10
+    conf_score = int(max(0, min(100, conf_score)))
+
+    post_mistake = "None"
+    if violations:
+        post_mistake = "; ".join(violations)
+    elif not trend_clear:
+        post_mistake = "trend clarity was weak"
+
+    post_improve = "Wait for full 4-factor alignment and strict VWAP confirmation before entry"
+    if entry_conf == "LOW":
+        post_improve = "Delay entry until strong breakout candle + follow-through + rising volume"
+
+    response = {
+        "pre_market_filter": {
+            "trade_decision": pm_trade_decision,
+            "direction_bias": pm_bias,
+            "checks": pm_checks,
+            "reason": "all checks passed" if pm_trade_decision == "TRADE" else f"failed: {', '.join(pm_failed)}",
+        },
+        "entry_confirmation": {
+            "entry": entry_action,
+            "confidence": entry_conf,
+            "reason": "confirmed breakout with structure and VWAP" if entry_action != "NO TRADE" else "; ".join(entry_reason[:3]) or "entry rules not satisfied",
+        },
+        "premium_180_strategy": {
+            "action": action_180,
+            "target_points": "30-40",
+            "stop_loss_points": 20,
+            "reason": reason_180,
+        },
+        "no_trade_detection": {
+            "decision": no_trade_decision,
+            "checks": no_trade_hits,
+            "reason": "no protection triggers" if no_trade_decision == "TRADE OK" else "one or more no-trade triggers active",
+        },
+        "edge_detection": {
+            "setup_detected": edge_detected,
+            "direction": edge_dir if edge_detected == "YES" else "NONE",
+            "entry_timing_suggestion": edge_timing,
+            "score": edge_score,
+        },
+        "post_trade_analysis": {
+            "trend_clear": trend_clear,
+            "entry_quality": entry_quality,
+            "rule_violations": violations,
+            "trade_avoidable": avoidable,
+            "mistake": post_mistake,
+            "improvement": post_improve,
+            "confidence_score": conf_score,
+            "pnl_points": round(pnl_pts, 2),
+            "indicator_context": post_ind,
+        },
+        "global_alignment": {
+            "trend": trend_aligned,
+            "structure": structure_aligned,
+            "momentum": momentum_aligned,
+            "support_resistance": sr_aligned,
+            "aligned_count": alignment_count,
+            "required_minimum": 4,
+        },
+        "final_summary": {
+            "final_decision": final_decision,
+            "direction": final_direction if final_decision == "TRADE" else "",
+            "entry_timing": "09:25-09:35 breakout follow-through" if final_decision == "TRADE" else "",
+            "confidence": entry_conf if final_decision == "TRADE" else "LOW",
+            "reason": final_reason,
+        },
+    }
+    return jsonify(response)
 
 
 @app.route("/api/chat", methods=["POST"])
@@ -2247,6 +2695,114 @@ def api_autotrade_scan():
     except Exception as e:
         log.error("Scan error: %s", e, exc_info=True)
         return jsonify({"error": str(e)}), 500
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  SCORING ENGINE ENDPOINTS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/api/scoring/pnl")
+def api_scoring_pnl():
+    """Return 20-day P&L summary for the scoring engine with ₹30,000 investment."""
+    import datetime as _dt
+    investment = 30000.0
+    today = now_ist().date()
+
+    # Gather last 20 trading days with data
+    daily: list[dict] = []
+    check_date = today
+    checked = 0
+    while len(daily) < 20 and checked < 40:
+        date_str = check_date.isoformat()
+        # Skip weekends
+        if check_date.weekday() < 5:
+            summary = get_pnl_between(date_str, date_str)
+            if summary["trades"] > 0:
+                daily.append({
+                    "date": date_str,
+                    "trades": summary["trades"],
+                    "wins": summary["wins"],
+                    "losses": summary["losses"],
+                    "day_pnl": summary["total_pnl"],
+                })
+            checked += 1
+        check_date -= _dt.timedelta(days=1)
+
+    daily.reverse()  # oldest first
+
+    # Compute cumulative P&L and balance
+    cumulative = 0.0
+    for d in daily:
+        cumulative += d["day_pnl"]
+        d["cumulative"] = round(cumulative, 2)
+        d["balance"] = round(investment + cumulative, 2)
+
+    total_pnl = cumulative
+    total_trades = sum(d["trades"] for d in daily)
+    wins = sum(d["wins"] for d in daily)
+    losses = sum(d["losses"] for d in daily)
+    trading_days = len(daily) or 1
+    avg_daily = round(total_pnl / trading_days, 2) if daily else 0.0
+
+    day_pnls = [d["day_pnl"] for d in daily] if daily else [0.0]
+    best_day = max(day_pnls)
+    worst_day = min(day_pnls)
+
+    return jsonify(_sanitize({
+        "investment": investment,
+        "total_pnl": round(total_pnl, 2),
+        "avg_daily_pnl": avg_daily,
+        "total_trades": total_trades,
+        "wins": wins,
+        "losses": losses,
+        "best_day": round(best_day, 2),
+        "worst_day": round(worst_day, 2),
+        "trading_days": trading_days,
+        "daily": daily,
+        "time": now_ist().strftime("%Y-%m-%d %H:%M:%S"),
+    }))
+
+
+@app.route("/api/scoring/live")
+def api_scoring_live():
+    """Return live scoring engine state for current 1m + 15m candles."""
+    from trading_bot.scoring import score_signal
+
+    cached = get_cached("scoring_live", ttl=15)
+    if cached:
+        return jsonify(cached)
+
+    try:
+        session = None
+        try:
+            from trading_bot.auth.login import get_session
+            session = get_session()
+        except Exception:
+            pass
+
+        if not session:
+            return jsonify({"error": "no session", "total_score": 0, "should_enter": False})
+
+        from trading_bot.data.historical import fetch_candle_data
+        df_1m = fetch_candle_data(session, "NIFTY", config.NIFTY_TOKEN,
+                                  "ONE_MINUTE", days=2)
+        df_15m = None
+        try:
+            df_15m = fetch_candle_data(session, "NIFTY", config.NIFTY_TOKEN,
+                                       "FIFTEEN_MINUTE", days=5)
+        except Exception:
+            pass
+
+        if df_1m is None or len(df_1m) < 20:
+            return jsonify({"error": "insufficient data", "total_score": 0, "should_enter": False})
+
+        result = score_signal(df_1m, df_15m)
+        data = result.to_dict()
+        set_cached("scoring_live", data, ttl=15)
+        return jsonify(_sanitize(data))
+    except Exception as exc:
+        log.warning("api_scoring_live error: %s", exc)
+        return jsonify({"error": str(exc), "total_score": 0, "should_enter": False})
 
 
 # ─── Start helper ─────────────────────────────────────────────────────────────

@@ -881,6 +881,88 @@
       color: var(--green);
       cursor: default;
     }
+
+    @media (max-width: 980px) {
+      body {
+        height: auto;
+        min-height: 100dvh;
+        overflow-x: hidden;
+      }
+
+      .topbar {
+        height: auto;
+        padding: 10px 12px;
+        flex-wrap: wrap;
+        row-gap: 8px;
+      }
+
+      .topbar nav {
+        order: 3;
+        margin-left: 0;
+        width: 100%;
+        overflow-x: auto;
+        white-space: nowrap;
+        padding-bottom: 2px;
+      }
+
+      .topbar nav a {
+        display: inline-block;
+      }
+
+      .port-strip {
+        padding: 10px 12px;
+        gap: 12px;
+        overflow-x: auto;
+      }
+
+      .port-divider {
+        display: none;
+      }
+
+      .tab-bar {
+        padding: 0 12px;
+        overflow-x: auto;
+        white-space: nowrap;
+      }
+
+      .tab-btn {
+        flex: 0 0 auto;
+        padding: 12px 14px;
+      }
+
+      .tab-content {
+        padding: 12px;
+        overflow: auto;
+      }
+
+      .data-table {
+        min-width: 860px;
+      }
+
+      .pnl-cards {
+        grid-template-columns: 1fr;
+      }
+
+      .pnl-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .source-breakdown {
+        grid-template-columns: 1fr;
+      }
+
+      .source-stats-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .ai-trade-meta {
+        grid-template-columns: 1fr;
+      }
+
+      .statusbar {
+        padding: 6px 12px;
+      }
+    }
   </style>
 </head>
 
@@ -897,7 +979,8 @@
       <a href="/history">History</a>
       <a href="/chat">AI Chat</a>
       <a href="/180-rule">180 Rule</a>
-            <a href="/orb-strategy">ORB Strategy</a>
+      <a href="/orb-strategy">ORB Strategy</a>
+      <a href="/20-day-avg">20-Day Avg</a>
     </nav>
     <div class="market-badge connecting" id="market-badge">
       <span class="dot"></span>

@@ -125,6 +125,17 @@
 
         @media (max-width: 980px) {
 
+            .topbar {
+                height: auto;
+                padding: 10px 12px;
+                flex-wrap: wrap;
+                row-gap: 8px;
+            }
+
+            .badge {
+                margin-left: auto;
+            }
+
             .row.grid-4,
             .row.grid-3,
             .row.grid-5 {
@@ -132,8 +143,15 @@
             }
 
             .topbar nav {
+                order: 3;
+                margin-left: 0;
+                width: 100%;
                 overflow-x: auto;
                 white-space: nowrap;
+            }
+
+            .topbar nav a {
+                display: inline-block;
             }
         }
 
@@ -213,6 +231,52 @@
         .bad {
             color: var(--red);
         }
+
+        .engine-grid {
+            display: grid;
+            grid-template-columns: 1.2fr 1fr;
+            gap: 12px;
+        }
+
+        .engine-box {
+            border: 1px solid var(--border);
+            background: var(--card);
+            border-radius: 10px;
+            padding: 10px 12px;
+        }
+
+        .engine-k {
+            font-size: .66rem;
+            color: var(--txt-dim);
+            text-transform: uppercase;
+        }
+
+        .engine-v {
+            margin-top: 4px;
+            font-size: .95rem;
+            font-weight: 800;
+        }
+
+        .engine-v.trade {
+            color: var(--green);
+        }
+
+        .engine-v.no-trade {
+            color: var(--red);
+        }
+
+        .engine-list {
+            font-size: .74rem;
+            color: var(--txt-dim);
+            line-height: 1.5;
+            margin-top: 6px;
+        }
+
+        @media (max-width: 980px) {
+            .engine-grid {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 
@@ -228,6 +292,7 @@
             <a href="/chat">AI Chat</a>
             <a href="/180-rule">180 Rule</a>
             <a href="/orb-strategy" class="active">ORB Strategy</a>
+            <a href="/20-day-avg">20-Day Avg</a>
         </nav>
         <div class="badge">09:15-09:30 ORB</div>
     </div>
@@ -289,6 +354,25 @@
         </div>
 
         <div class="card">
+            <div class="title">Strict Rule Engine (Live)</div>
+            <div class="engine-grid">
+                <div class="engine-box">
+                    <div class="engine-k">Final Decision</div>
+                    <div id="engineDecision" class="engine-v no-trade">NO TRADE</div>
+                    <div id="engineReason" class="hint">Waiting for runtime data...</div>
+                    <div id="engineMeta" class="hint" style="margin-top:6px;">Direction: -- | Entry: -- | Confidence: --
+                    </div>
+                </div>
+                <div class="engine-box">
+                    <div class="engine-k">Rule Alignment</div>
+                    <div id="engineAlign" class="engine-v">0 / 4</div>
+                    <div id="engineNoTrade" class="engine-list">No-trade status: --</div>
+                    <div id="engineEntry" class="engine-list">Entry check: --</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
             <div class="title">Recent ORB Trades</div>
             <table>
                 <thead>
@@ -322,9 +406,11 @@
         </div>
     </div>
 
+    <script src="/static/js/rule_engine_shared.js"></script>
     <script>
         const RS = '₹';
         let autoOn = true;
+        let latestOrbData = null;
 
         function asMoney(v) {
             const n = Number(v || 0);
@@ -334,6 +420,7 @@
         async function refreshPnl() {
             const r = await fetch('/api/orb/pnl');
             const d = await r.json();
+            latestOrbData = d;
 
             const todayEl = document.getElementById('pnlToday');
             todayEl.textContent = asMoney(d.today_pnl || 0);
@@ -378,8 +465,26 @@
             document.getElementById('lastTs').textContent = 'Last refresh: ' + (d.time || '--');
         }
 
+        async function refreshRuleEngine() {
+            if (!latestOrbData) return;
+            try {
+                if (!window.RuleEngineShared) return;
+                const payload = window.RuleEngineShared.buildOrbPayload(latestOrbData);
+                if (window.RuleEngineShared) {
+                    await window.RuleEngineShared.run(payload);
+                }
+            } catch (e) {
+                if (window.RuleEngineShared) {
+                    window.RuleEngineShared.renderError('Rule engine API unavailable');
+                }
+            }
+        }
+
         async function refreshAll() {
-            try { await refreshPnl(); } catch (e) { console.error(e); }
+            try {
+                await refreshPnl();
+                await refreshRuleEngine();
+            } catch (e) { console.error(e); }
         }
 
         function toggleAuto() {

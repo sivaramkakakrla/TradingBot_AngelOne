@@ -739,6 +739,66 @@
         ::-webkit-scrollbar-thumb:hover {
             background: var(--border-lt);
         }
+
+        @media (max-width: 980px) {
+            body {
+                height: auto;
+                min-height: 100dvh;
+                overflow-x: hidden;
+            }
+
+            .topbar {
+                height: auto;
+                padding: 10px 12px;
+                flex-wrap: wrap;
+                row-gap: 8px;
+            }
+
+            .topbar nav {
+                order: 3;
+                margin-left: 0;
+                width: 100%;
+                overflow-x: auto;
+                white-space: nowrap;
+                padding-bottom: 2px;
+            }
+
+            .topbar nav a {
+                display: inline-block;
+            }
+
+            .controls-bar {
+                padding: 10px 12px;
+                gap: 10px;
+            }
+
+            .summary-strip {
+                overflow-x: auto;
+            }
+
+            .sum-stat {
+                min-width: 140px;
+            }
+
+            .main {
+                grid-template-columns: 1fr;
+                overflow: auto;
+            }
+
+            .signals-panel {
+                border-right: none;
+                border-bottom: 1px solid var(--border);
+                padding: 14px 12px;
+            }
+
+            .context-panel {
+                padding: 14px 12px;
+            }
+
+            .statusbar {
+                padding: 6px 12px;
+            }
+        }
     </style>
 </head>
 
@@ -756,6 +816,7 @@
             <a href="/chat">AI Chat</a>
             <a href="/180-rule">180 Rule</a>
             <a href="/orb-strategy">ORB Strategy</a>
+            <a href="/20-day-avg">20-Day Avg</a>
         </nav>
     </div>
 

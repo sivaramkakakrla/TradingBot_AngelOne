@@ -1,4 +1,18 @@
 {
+  "crons": [
+    {
+      "path": "/api/cron/autotrade",
+      "schedule": "45-59 3 * * 1-5"
+    },
+    {
+      "path": "/api/cron/autotrade",
+      "schedule": "* 4-9 * * 1-5"
+    },
+    {
+      "path": "/api/cron/autotrade",
+      "schedule": "0 10 * * 1-5"
+    }
+  ],
   "rewrites": [
     {
       "source": "/(.*)",

@@ -28,7 +28,8 @@ from trading_bot.data.store import (
     insert_order, insert_trade, update_portfolio_after_trade,
 )
 from trading_bot.market import fetch_option_ltp, get_latest_tick, fetch_live_once
-from trading_bot.strategy import evaluate, is_sideways_market, get_htf_bias
+from trading_bot.strategy import evaluate, is_sideways_market, get_htf_bias, Signal
+from trading_bot.scoring import score_signal
 from trading_bot.utils.logger import get_logger
 from trading_bot.utils.time_utils import now_ist
 
@@ -594,15 +595,76 @@ def _scan_and_trade():
 
     # ── Evaluate strategy (with all gates wired in) ──────────────────────
     signals = evaluate(df, df_15m=df_15m)
-    if not signals:
+
+    # ── Scoring engine (parallel probabilistic path) ─────────────────────
+    scored = score_signal(df, df_15m)
+    _log_event(f"SCORE: {scored.log_line}", console=False)
+
+    enter_signals = [s for s in signals if s.action == "ENTER"] if signals else []
+    skip_signals = [s for s in signals if s.action != "ENTER"] if signals else []
+
+    # If pattern engine produced no ENTER but scoring engine says ENTER,
+    # create a Signal from the scoring engine for the trade pipeline.
+    if not enter_signals and scored.should_enter and scored.direction != "NEUTRAL":
+        from trading_bot.indicators import atr as calc_atr
+        atr_s = calc_atr(df, 14)
+        atr_val = float(atr_s.iloc[-1]) if len(atr_s) > 0 else config.INITIAL_SL_POINTS
+        sl = round(max(atr_val * 1.5, config.INITIAL_SL_POINTS), 2)
+        target = round(sl * 2, 2)
+        score_signal_obj = Signal(
+            direction=scored.direction,
+            strength=min(scored.total_score * 10, 100),
+            patterns=["scoring_engine"],
+            filters={
+                "trend": scored.trend.score > 0,
+                "momentum": scored.momentum.score > 0,
+                "volatility": scored.volatility.score > 0,
+                "efficiency": scored.efficiency.score > 0,
+                "structure": scored.structure.score > 0,
+            },
+            confirmations=sum([
+                scored.trend.score > 0,
+                scored.momentum.score > 0,
+                scored.volatility.score > 0,
+                scored.efficiency.score > 0,
+                scored.structure.score > 0,
+            ]),
+            action="ENTER",
+            reason=f"Scoring engine: score={scored.total_score}/{scored.entry_threshold} | {scored.trend.label}",
+            sl_points=sl,
+            target_points=target,
+            bar_timestamp=scored.bar_timestamp,
+            entry_price=scored.entry_price,
+            pattern_descriptions=["Probabilistic scoring engine entry (pullback/momentum/structure)"],
+            expected_profit_pts=target,
+        )
+        enter_signals.append(score_signal_obj)
+        _log_event(
+            f"SCORING ENGINE ENTRY: {scored.direction} score={scored.total_score} "
+            f"(trend={scored.trend.score} mom={scored.momentum.score} "
+            f"vol={scored.volatility.score} eff={scored.efficiency.score} "
+            f"struct={scored.structure.score} pb={scored.pullback.score})"
+        )
+
+    if not signals and not enter_signals:
         _log_event("No signals found this cycle", console=False)
         return
 
-    _log_event(f"Found {len(signals)} signal(s) after all rule-based gates")
+    _log_event(
+        f"Signals this cycle: total={len(signals)} enter={len(enter_signals)} skip={len(skip_signals)}"
+    )
 
-    for sig in signals:
-        if sig.action != "ENTER":
-            continue
+    if skip_signals:
+        reasons = [s.reason for s in skip_signals[:2] if s.reason]
+        if reasons:
+            _log_event(f"Skip reasons: {' | '.join(reasons)}", console=False)
+
+    if not enter_signals:
+        _log_event("No ENTER signal this cycle — no new position", console=False)
+        return
+
+    placed_trade = False
+    for sig in enter_signals:
 
         # ── Gate 6: Post-SL block ────────────────────────────────────────
         if _is_sl_blocked(sig.direction):
@@ -652,7 +714,11 @@ def _scan_and_trade():
                     "trade_id": trade_id,
                     "time": now_ist().strftime("%H:%M:%S"),
                 }
+            placed_trade = True
             break  # one trade per scan cycle
+
+    if not placed_trade:
+        _log_event("No position opened this scan (all ENTER candidates were blocked)", console=False)
 
 
 def _get_ai_confidence(sig, df: pd.DataFrame) -> int | None:
