@@ -198,3 +198,23 @@ def get_refresh_token() -> str:
 def is_logged_in() -> bool:
     """Check whether we have an active session."""
     return _session is not None
+
+
+def force_reauth() -> SmartConnect:
+    """Force a fresh login by clearing the cached session and Redis token."""
+    global _session, _auth_token, _feed_token, _refresh_token
+    with _lock:
+        _session = None
+        _auth_token = ""
+        _feed_token = ""
+        _refresh_token = ""
+    # Clear the Redis-cached token so authenticate() does a fresh generateSession
+    try:
+        from trading_bot.cache import _get_client
+        r = _get_client()
+        if r:
+            r.delete("angelone:auth")
+    except Exception:
+        pass
+    log.info("force_reauth: cleared session cache — re-authenticating")
+    return authenticate()

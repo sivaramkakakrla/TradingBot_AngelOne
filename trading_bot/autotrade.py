@@ -23,7 +23,7 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 
 from trading_bot import config
-from trading_bot.auth.login import get_session
+from trading_bot.auth.login import get_session, force_reauth
 from trading_bot.data.store import (
     close_trade, get_open_trades, get_today_pnl,
     insert_order, insert_trade, update_portfolio_after_trade,
@@ -645,7 +645,18 @@ def _scan_and_trade():
     df = _fetch_latest_candles(session, timeframe="1m")
     if df is None or len(df) < 10:
         bar_count = 0 if df is None else len(df)
-        _log_event(f"Insufficient candles ({bar_count} bars, need 10) — skip")
+        _log_event(f"Insufficient candles ({bar_count} bars, need 10) — candle strategy skipped")
+        # Candles unavailable (rate limit or token issue) — still attempt 20D
+        if bar_count == 0:
+            # Likely a token error — force fresh login for next cycle
+            try:
+                force_reauth()
+                _log_event("Token refresh triggered due to candle fetch failure")
+            except Exception as _rea:
+                log.warning("force_reauth failed: %s", _rea)
+        tick = get_latest_tick()
+        fallback_px = tick.ltp if tick.ltp > 0 else 0.0
+        _try_20d_trade(session, df_1m=None, live_px=fallback_px)
         return
 
     # ── Fetch 15m candles for HTF bias ───────────────────────────────────
@@ -746,55 +757,75 @@ def _scan_and_trade():
             break  # one trade per scan cycle
 
     # ── 20-Day Avg strategy signal ─────────────────────────────────────────────
-    # Runs every scan cycle. If candle strategy already placed a trade, we skip
-    # to avoid two trades in one cycle on the same direction.
     if not placed_trade:
-        try:
-            live_px = float(df["close"].iloc[-1]) if df is not None and len(df) > 0 else 0.0
-            daily_df = _get_daily_closes(session)
-            if daily_df is not None and len(daily_df) >= 20 and live_px > 0:
-                sig_20d = analyze_live(daily_df, df, live_px)
-                action_tag = "ENTER" if sig_20d.should_enter else "SKIP"
-                skip_info = (f" ({'; '.join(sig_20d.skip_reasons)})"
-                             if not sig_20d.should_enter and sig_20d.skip_reasons else "")
-                _log_event(
-                    f"20D AVG: [{action_tag}] {sig_20d.direction} {sig_20d.option_type} "
-                    f"| SMA={sig_20d.sma_value:.0f} LTP={live_px:.0f} "
-                    f"Dist={sig_20d.distance_pct:+.2f}%{skip_info}",
-                    console=False,
-                )
-                if sig_20d.should_enter:
-                    if _is_duplicate_signal(sig_20d.direction):
-                        _log_event(f"SKIP 20D {sig_20d.direction}: duplicate within cooldown", console=False)
-                    else:
-                        sig_adapter = SimpleNamespace(
-                            direction=sig_20d.direction,
-                            entry_price=live_px,
-                            sl_points=config.INITIAL_SL_POINTS,
-                            patterns=[f"20D-{sig_20d.signal_type}"],
-                            strength=80,
-                        )
-                        tick = get_latest_tick()
-                        nifty_ltp = tick.ltp if tick.ltp > 0 else live_px
-                        trade_id = _place_auto_trade(sig_adapter, nifty_ltp)
-                        if trade_id:
-                            _record_signal(sig_20d.direction)
-                            opt_type = sig_20d.option_type
-                            with _lock:
-                                _status["last_signal"] = {
-                                    "direction": sig_20d.direction,
-                                    "option_type": opt_type,
-                                    "patterns": [f"20D-{sig_20d.signal_type}"],
-                                    "strength": 80,
-                                    "trade_id": trade_id,
-                                    "time": now_ist().strftime("%H:%M:%S"),
-                                }
-                            placed_trade = True
-        except Exception as exc:
-            log.warning("20D signal check failed: %s", exc)
+        live_px = float(df["close"].iloc[-1]) if df is not None and len(df) > 0 else 0.0
+        if live_px <= 0:
+            tick = get_latest_tick()
+            live_px = tick.ltp if tick.ltp > 0 else 0.0
+        placed_trade = _try_20d_trade(session, df_1m=df, live_px=live_px)
 
     if not placed_trade:
         _log_event("No position opened this scan (all ENTER candidates were blocked)", console=False)
+
+
+def _try_20d_trade(session, df_1m, live_px: float) -> bool:
+    """
+    Run the 20-Day Avg strategy analysis and place a trade if the signal fires.
+    Called both from the normal scan path and as a fallback when 1m candles fail.
+    Returns True if a trade was placed.
+    """
+    try:
+        daily_df = _get_daily_closes(session)
+        if daily_df is None or len(daily_df) < 20:
+            _log_event("20D AVG: [SKIP] insufficient daily data", console=False)
+            return False
+        if live_px <= 0:
+            _log_event("20D AVG: [SKIP] no live price", console=False)
+            return False
+
+        sig_20d = analyze_live(daily_df, df_1m, live_px)
+        action_tag = "ENTER" if sig_20d.should_enter else "SKIP"
+        skip_info = (f" ({'; '.join(sig_20d.skip_reasons)})"
+                     if not sig_20d.should_enter and sig_20d.skip_reasons else "")
+        _log_event(
+            f"20D AVG: [{action_tag}] {sig_20d.direction} {sig_20d.option_type} "
+            f"| SMA={sig_20d.sma_value:.0f} LTP={live_px:.0f} "
+            f"Dist={sig_20d.distance_pct:+.2f}%{skip_info}",
+            console=False,
+        )
+
+        if not sig_20d.should_enter:
+            return False
+
+        if _is_duplicate_signal(sig_20d.direction):
+            _log_event(f"SKIP 20D {sig_20d.direction}: duplicate within cooldown", console=False)
+            return False
+
+        sig_adapter = SimpleNamespace(
+            direction=sig_20d.direction,
+            entry_price=live_px,
+            sl_points=config.INITIAL_SL_POINTS,
+            patterns=[f"20D-{sig_20d.signal_type}"],
+            strength=80,
+        )
+        tick = get_latest_tick()
+        nifty_ltp = tick.ltp if tick.ltp > 0 else live_px
+        trade_id = _place_auto_trade(sig_adapter, nifty_ltp)
+        if trade_id:
+            _record_signal(sig_20d.direction)
+            with _lock:
+                _status["last_signal"] = {
+                    "direction": sig_20d.direction,
+                    "option_type": sig_20d.option_type,
+                    "patterns": [f"20D-{sig_20d.signal_type}"],
+                    "strength": 80,
+                    "trade_id": trade_id,
+                    "time": now_ist().strftime("%H:%M:%S"),
+                }
+            return True
+    except Exception as exc:
+        log.warning("20D signal check failed: %s", exc)
+    return False
 
 
 def _get_ai_confidence(sig, df: pd.DataFrame) -> int | None:
