@@ -1167,6 +1167,7 @@
             <th>SL</th>
             <th>Target</th>
             <th>Exit</th>
+            <th>High</th>
             <th>P&amp;L</th>
             <th>Reason</th>
             <th>Time</th>
@@ -1189,6 +1190,7 @@
             <th>SL</th>
             <th>Target</th>
             <th>Exit</th>
+            <th>High</th>
             <th>P&amp;L</th>
             <th>Reason</th>
             <th>Time</th>
@@ -1211,6 +1213,7 @@
             <th>SL</th>
             <th>Target</th>
             <th>Exit</th>
+            <th>High</th>
             <th>P&amp;L</th>
             <th>Reason</th>
             <th>Time</th>
@@ -1522,10 +1525,10 @@
       const tgtCell = t.target != null
         ? '<span class="tgt-tag">T ' + t.target.toFixed(2) + '</span>'
         : '<span style="color:var(--txt-mute);">--</span>';
-      // Show max premium reached during the trade (amber badge)
-      const maxReachedBadge = t.max_price_reached != null
-        ? ' <span title="Max premium reached" style="font-size:.6rem;padding:2px 5px;border-radius:3px;background:rgba(251,191,36,.12);color:#fbbf24;font-weight:600;display:inline-block;margin-top:2px;">↑ ' + t.max_price_reached.toFixed(2) + '</span>'
-        : '';
+      // High column: max premium reached during the trade
+      const highCell = t.max_price_reached != null
+        ? '<span style="color:#fbbf24;font-weight:600;">↑ ' + t.max_price_reached.toFixed(2) + '</span>'
+        : '<span style="color:var(--txt-mute);">--</span>';
       return '<tr>' +
         '<td>' + inst + '</td>' +
         '<td><span class="dir-badge LONG">' + dirLabel + '</span></td>' +
@@ -1533,7 +1536,8 @@
         '<td>' + t.entry_price.toFixed(2) + '</td>' +
         '<td>' + slCell + '</td>' +
         '<td>' + tgtCell + '</td>' +
-        '<td>' + (t.exit_price != null ? t.exit_price.toFixed(2) : '--') + maxReachedBadge + '</td>' +
+        '<td>' + (t.exit_price != null ? t.exit_price.toFixed(2) : '--') + '</td>' +
+        '<td>' + highCell + '</td>' +
         '<td class="' + cls + '" style="font-weight:700;">' + RS + t.pnl.toFixed(2) + '</td>' +
         '<td>' + (t.exit_reason ? '<span class="reason-tag">' + t.exit_reason + '</span>' : '') + '</td>' +
         '<td style="color:var(--txt-dim);font-size:.7rem;">' + exitTime + '</td>' +
@@ -1561,21 +1565,21 @@
         const mTbody = document.getElementById('manual-body');
         mTbody.innerHTML = manual.length
           ? manual.map(_tradeRow).join('')
-          : '<tr><td colspan="11" class="empty-row">No manual trades yet</td></tr>';
+          : '<tr><td colspan="12" class="empty-row">No manual trades yet</td></tr>';
         _setBadge('manual-badge', manual.length);
 
         // Render auto tab
         const aTbody = document.getElementById('auto-body');
         aTbody.innerHTML = auto.length
           ? auto.map(_tradeRow).join('')
-          : '<tr><td colspan="11" class="empty-row">No automatic trades yet</td></tr>';
+          : '<tr><td colspan="12" class="empty-row">No automatic trades yet</td></tr>';
         _setBadge('auto-badge', auto.length);
 
         // Render GPT tab
         const gTbody = document.getElementById('gpt-body');
         gTbody.innerHTML = gpt.length
           ? gpt.map(_tradeRow).join('')
-          : '<tr><td colspan="11" class="empty-row">No GPT trades yet</td></tr>';
+          : '<tr><td colspan="12" class="empty-row">No GPT trades yet</td></tr>';
         _setBadge('gpt-badge', gpt.length);
 
         // Per-source stats
