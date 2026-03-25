@@ -15,17 +15,25 @@
         }
 
         :root {
-            --bg: #f8fafc;
-            --surface: #ffffff;
-            --card: #f1f5f9;
-            --border: #e2e8f0;
-            --txt: #0f172a;
-            --txt-dim: #64748b;
-            --green: #16a34a;
-            --red: #dc2626;
-            --amber: #d97706;
-            --accent: #2563eb;
-            --purple: #7c3aed;
+            --bg: #0f1117;
+            --bg-subtle: #161822;
+            --surface: #1a1d2e;
+            --surface-hover: #1f2337;
+            --card: #141622;
+            --border: rgba(255, 255, 255, .06);
+            --border-lt: rgba(255, 255, 255, .1);
+            --txt: #e8eaed;
+            --txt-dim: #8b8fa3;
+            --txt-mute: #5a5e72;
+            --green: #34d399;
+            --red: #f87171;
+            --amber: #fbbf24;
+            --accent: #818cf8;
+            --accent-dim: #6366f1;
+            --accent-bg: rgba(129, 140, 248, .08);
+            --purple: #a78bfa;
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, .3);
+            --shadow-md: 0 4px 16px rgba(0, 0, 0, .35);
         }
 
         body {
@@ -41,7 +49,9 @@
             gap: 16px;
             height: 48px;
             padding: 0 24px;
-            background: var(--surface);
+            background: rgba(26, 29, 46, .85);
+            backdrop-filter: blur(16px) saturate(1.4);
+            -webkit-backdrop-filter: blur(16px) saturate(1.4);
             border-bottom: 1px solid var(--border);
             position: sticky;
             top: 0;
@@ -51,7 +61,10 @@
         .logo {
             font-size: .95rem;
             font-weight: 700;
-            color: var(--accent);
+            background: linear-gradient(135deg, var(--accent), #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
 
         .topbar nav {
@@ -69,9 +82,14 @@
             border-radius: 8px;
         }
 
+        .topbar nav a:hover {
+            color: var(--txt);
+            background: rgba(255, 255, 255, .04);
+        }
+
         .topbar nav a.active {
             color: var(--accent);
-            background: rgba(37, 99, 235, .1);
+            background: var(--accent-bg);
         }
 
         /* ─ Hamburger menu ─ */
@@ -91,7 +109,7 @@
             display: block;
             width: 20px;
             height: 2px;
-            background: var(--txt);
+            background: var(--txt-dim);
             border-radius: 2px;
             position: absolute;
             left: 6px;
@@ -132,7 +150,7 @@
             right: 0;
             background: var(--surface);
             border-bottom: 1px solid var(--border);
-            box-shadow: 0 8px 24px rgba(0, 0, 0, .12);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, .35);
             z-index: 200;
             padding: 8px 0;
             flex-direction: column;
@@ -153,13 +171,13 @@
         }
 
         .topbar-mobile-menu a:hover {
-            background: rgba(59, 130, 246, .05);
+            background: rgba(255, 255, 255, .03);
             color: var(--txt);
         }
 
         .topbar-mobile-menu a.active {
             color: var(--accent);
-            background: rgba(59, 130, 246, .07);
+            background: var(--accent-bg);
             border-left-color: var(--accent);
         }
 
@@ -168,8 +186,8 @@
             font-size: .72rem;
             font-weight: 700;
             color: var(--purple);
-            background: rgba(124, 58, 237, .12);
-            border: 1px solid rgba(124, 58, 237, .26);
+            background: rgba(167, 139, 250, .12);
+            border: 1px solid rgba(167, 139, 250, .26);
             border-radius: 999px;
             padding: 5px 12px;
         }
@@ -295,7 +313,7 @@
         }
 
         button.secondary {
-            background: #fff;
+            background: var(--surface);
             color: var(--txt);
             border-color: var(--border);
             font-weight: 600;
@@ -361,20 +379,20 @@
 
         .action.buy {
             color: var(--green);
-            background: rgba(22, 163, 74, .08);
-            border-color: rgba(22, 163, 74, .25);
+            background: rgba(52, 211, 153, .08);
+            border-color: rgba(52, 211, 153, .25);
         }
 
         .action.wait {
             color: var(--amber);
-            background: rgba(217, 119, 6, .08);
-            border-color: rgba(217, 119, 6, .25);
+            background: rgba(251, 191, 36, .08);
+            border-color: rgba(251, 191, 36, .25);
         }
 
         .action.skip {
             color: var(--red);
-            background: rgba(220, 38, 38, .08);
-            border-color: rgba(220, 38, 38, .25);
+            background: rgba(248, 113, 113, .08);
+            border-color: rgba(248, 113, 113, .25);
         }
 
         .engine-grid {

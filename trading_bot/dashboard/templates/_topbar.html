@@ -1,5 +1,5 @@
 <style>
-    /* ── Shared Mobile Hamburger Nav ── */
+    /* ── Shared Mobile Hamburger Nav (dark theme) ── */
     .topbar-nav-hamburger {
         display: none;
         background: none;
@@ -16,7 +16,7 @@
         display: block;
         width: 20px;
         height: 2px;
-        background: var(--txt);
+        background: var(--txt-dim);
         border-radius: 2px;
         position: absolute;
         left: 6px;
@@ -57,7 +57,7 @@
         right: 0;
         background: var(--surface);
         border-bottom: 1px solid var(--border);
-        box-shadow: 0 8px 24px rgba(0, 0, 0, .12);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, .4);
         z-index: 200;
         padding: 8px 0;
         flex-direction: column;
@@ -73,18 +73,18 @@
         font-size: .84rem;
         font-weight: 500;
         padding: 11px 20px;
-        transition: background .12s, color .12s;
+        transition: all .15s;
         border-left: 3px solid transparent;
     }
 
     .topbar-mobile-menu a:hover {
-        background: rgba(59, 130, 246, .05);
+        background: rgba(255, 255, 255, .03);
         color: var(--txt);
     }
 
     .topbar-mobile-menu a.active {
         color: var(--accent);
-        background: rgba(59, 130, 246, .07);
+        background: var(--accent-bg);
         border-left-color: var(--accent);
     }
 

@@ -17,25 +17,31 @@
         }
 
         :root {
-            --bg: #f8fafc;
-            --surface: #ffffff;
-            --card: #f1f5f9;
-            --border: #e2e8f0;
-            --border-lt: #cbd5e1;
-            --txt: #0f172a;
-            --txt-dim: #64748b;
-            --txt-mute: #94a3b8;
-            --accent: #3b82f6;
-            --green: #16a34a;
-            --green-bg: rgba(22, 163, 74, .08);
-            --green-bdr: rgba(22, 163, 74, .25);
-            --red: #dc2626;
-            --red-bg: rgba(220, 38, 38, .08);
-            --red-bdr: rgba(220, 38, 38, .25);
-            --amber: #d97706;
-            --amber-bg: rgba(217, 119, 6, .08);
-            --amber-bdr: rgba(217, 119, 6, .25);
-            --purple: #7c3aed;
+            --bg: #0f1117;
+            --bg-subtle: #161822;
+            --surface: #1a1d2e;
+            --surface-hover: #1f2337;
+            --card: #141622;
+            --border: rgba(255,255,255,.06);
+            --border-lt: rgba(255,255,255,.1);
+            --txt: #e8eaed;
+            --txt-dim: #8b8fa3;
+            --txt-mute: #5a5e72;
+            --accent: #818cf8;
+            --accent-dim: #6366f1;
+            --accent-bg: rgba(129,140,248,.08);
+            --green: #34d399;
+            --green-bg: rgba(52,211,153,.08);
+            --green-bdr: rgba(52,211,153,.25);
+            --red: #f87171;
+            --red-bg: rgba(248,113,113,.08);
+            --red-bdr: rgba(248,113,113,.25);
+            --amber: #fbbf24;
+            --amber-bg: rgba(251,191,36,.08);
+            --amber-bdr: rgba(251,191,36,.25);
+            --purple: #a78bfa;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,.3);
+            --shadow-md: 0 4px 16px rgba(0,0,0,.35);
         }
 
         body {
@@ -55,7 +61,9 @@
             align-items: center;
             padding: 0 24px;
             height: 48px;
-            background: var(--surface);
+            background: rgba(26,29,46,.85);
+            backdrop-filter: blur(16px) saturate(1.4);
+            -webkit-backdrop-filter: blur(16px) saturate(1.4);
             border-bottom: 1px solid var(--border);
             flex-shrink: 0;
             gap: 16px;
@@ -65,7 +73,10 @@
         .logo {
             font-size: .95rem;
             font-weight: 700;
-            color: var(--accent);
+            background: linear-gradient(135deg, var(--accent), #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
             letter-spacing: -.3px;
         }
 
@@ -87,12 +98,12 @@
 
         .topbar nav a:hover {
             color: var(--txt);
-            background: rgba(0, 0, 0, .05);
+            background: rgba(255, 255, 255, .04);
         }
 
         .topbar nav a.active {
             color: var(--accent);
-            background: rgba(59, 130, 246, .1);
+            background: var(--accent-bg);
         }
 
         /* ─ Hamburger menu ─ */
@@ -113,7 +124,7 @@
             display: block;
             width: 20px;
             height: 2px;
-            background: var(--txt);
+            background: var(--txt-dim);
             border-radius: 2px;
             position: absolute;
             left: 6px;
@@ -154,7 +165,7 @@
             right: 0;
             background: var(--surface);
             border-bottom: 1px solid var(--border);
-            box-shadow: 0 8px 24px rgba(0, 0, 0, .12);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, .35);
             z-index: 200;
             padding: 8px 0;
             flex-direction: column;
@@ -175,13 +186,13 @@
         }
 
         .topbar-mobile-menu a:hover {
-            background: rgba(59, 130, 246, .05);
+            background: rgba(255, 255, 255, .03);
             color: var(--txt);
         }
 
         .topbar-mobile-menu a.active {
             color: var(--accent);
-            background: rgba(59, 130, 246, .07);
+            background: var(--accent-bg);
             border-left-color: var(--accent);
         }
 
@@ -397,7 +408,7 @@
 
         .signal-card:hover {
             border-color: var(--border-lt);
-            box-shadow: 0 2px 8px rgba(0, 0, 0, .07);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, .25);
         }
 
         .signal-card.bullish {
@@ -466,9 +477,9 @@
         }
 
         .sig-action.ENTER {
-            background: rgba(59, 130, 246, .12);
+            background: var(--accent-bg);
             color: var(--accent);
-            border: 1px solid rgba(59, 130, 246, .3);
+            border: 1px solid rgba(129, 140, 248, .3);
         }
 
         .sig-action.SKIP {
@@ -585,8 +596,8 @@
         .pat-desc-list {
             margin-bottom: 8px;
             padding: 8px 10px;
-            background: rgba(59, 130, 246, .05);
-            border: 1px solid rgba(59, 130, 246, .15);
+            background: var(--accent-bg);
+            border: 1px solid rgba(129, 140, 248, .15);
             border-radius: 8px;
         }
 
@@ -598,7 +609,7 @@
         }
 
         .pat-desc-item:not(:last-child) {
-            border-bottom: 1px solid rgba(59, 130, 246, .1);
+            border-bottom: 1px solid rgba(129, 140, 248, .1);
         }
 
         .strength-bar-wrap {
@@ -665,7 +676,7 @@
         }
 
         .ctx-row:not(:last-child) {
-            border-bottom: 1px solid rgba(30, 42, 58, .1);
+            border-bottom: 1px solid var(--border);
         }
 
         .ctx-key {
@@ -700,12 +711,12 @@
 
         .date-btn:hover {
             border-color: var(--accent);
-            background: rgba(59, 130, 246, .04);
+            background: rgba(129, 140, 248, .04);
         }
 
         .date-btn.active {
             border-color: var(--accent);
-            background: rgba(59, 130, 246, .08);
+            background: var(--accent-bg);
             font-weight: 600;
             color: var(--accent);
         }
