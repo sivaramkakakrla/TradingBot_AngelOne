@@ -1144,6 +1144,8 @@ def api_paper_history():
             "exit_time":   r["exit_time"],
             "exit_reason": r["exit_reason"],
             "source":      src,
+            "target":      r["target"] if "target" in cols else None,
+            "stop_loss":   r["stop_loss"] if "stop_loss" in cols else None,
         })
     return jsonify({"trades": trades})
 

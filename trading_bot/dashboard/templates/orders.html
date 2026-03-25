@@ -1164,6 +1164,7 @@
             <th>Side</th>
             <th>Qty</th>
             <th>Entry</th>
+            <th>Target</th>
             <th>Exit</th>
             <th>P&amp;L</th>
             <th>Reason</th>
@@ -1184,6 +1185,7 @@
             <th>Side</th>
             <th>Qty</th>
             <th>Entry</th>
+            <th>Target</th>
             <th>Exit</th>
             <th>P&amp;L</th>
             <th>Reason</th>
@@ -1204,6 +1206,7 @@
             <th>Side</th>
             <th>Qty</th>
             <th>Entry</th>
+            <th>Target</th>
             <th>Exit</th>
             <th>P&amp;L</th>
             <th>Reason</th>
@@ -1510,11 +1513,15 @@
       let inst = _fmtSym(t.symbol, t.strike, t.option_type);
       const dirLabel = (t.option_type && t.option_type !== 'IDX') ? 'BUY ' + t.option_type : t.direction;
       const exitTime = t.exit_time ? new Date(t.exit_time).toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short' }) : '--';
+      const tgtCell = t.target != null
+        ? '<span class="tgt-tag">T ' + t.target.toFixed(2) + '</span>'
+        : '<span style="color:var(--txt-mute);">--</span>';
       return '<tr>' +
         '<td>' + inst + '</td>' +
         '<td><span class="dir-badge LONG">' + dirLabel + '</span></td>' +
         '<td>' + t.qty + '</td>' +
         '<td>' + t.entry_price.toFixed(2) + '</td>' +
+        '<td>' + tgtCell + '</td>' +
         '<td>' + (t.exit_price != null ? t.exit_price.toFixed(2) : '--') + '</td>' +
         '<td class="' + cls + '" style="font-weight:700;">' + RS + t.pnl.toFixed(2) + '</td>' +
         '<td>' + (t.exit_reason ? '<span class="reason-tag">' + t.exit_reason + '</span>' : '') + '</td>' +
@@ -1543,21 +1550,21 @@
         const mTbody = document.getElementById('manual-body');
         mTbody.innerHTML = manual.length
           ? manual.map(_tradeRow).join('')
-          : '<tr><td colspan="8" class="empty-row">No manual trades yet</td></tr>';
+          : '<tr><td colspan="10" class="empty-row">No manual trades yet</td></tr>';
         _setBadge('manual-badge', manual.length);
 
         // Render auto tab
         const aTbody = document.getElementById('auto-body');
         aTbody.innerHTML = auto.length
           ? auto.map(_tradeRow).join('')
-          : '<tr><td colspan="8" class="empty-row">No automatic trades yet</td></tr>';
+          : '<tr><td colspan="10" class="empty-row">No automatic trades yet</td></tr>';
         _setBadge('auto-badge', auto.length);
 
         // Render GPT tab
         const gTbody = document.getElementById('gpt-body');
         gTbody.innerHTML = gpt.length
           ? gpt.map(_tradeRow).join('')
-          : '<tr><td colspan="8" class="empty-row">No GPT trades yet</td></tr>';
+          : '<tr><td colspan="10" class="empty-row">No GPT trades yet</td></tr>';
         _setBadge('gpt-badge', gpt.length);
 
         // Per-source stats
