@@ -904,13 +904,17 @@
         };
       } else if (_atEnabled && threadAlive) {
         btn.textContent = 'RUNNING'; btn.style.background = 'var(--red)'; btn.disabled = false;
-        label.textContent = 'RUNNING'; label.style.color = 'var(--green)'; label.style.background = 'var(--green-bg)';
+        const bgLabel = d.bg_scanner_active ? ' + BG' : '';
+        label.textContent = 'RUNNING' + bgLabel; label.style.color = 'var(--green)'; label.style.background = 'var(--green-bg)';
       } else if (_atEnabled && !threadAlive) {
         btn.textContent = 'RESTART'; btn.style.background = 'var(--amber)'; btn.disabled = false;
         label.textContent = 'THREAD DEAD'; label.style.color = 'var(--red)'; label.style.background = 'var(--red-bg)';
       } else {
         btn.textContent = 'START'; btn.style.background = 'var(--accent)'; btn.disabled = false;
-        label.textContent = 'DISABLED'; label.style.color = 'var(--txt-dim)'; label.style.background = 'var(--card)';
+        const bgLabel2 = d.bg_scanner_active ? 'BG SCANNER ACTIVE' : 'DISABLED';
+        const bgColor = d.bg_scanner_active ? 'var(--green)' : 'var(--txt-dim)';
+        const bgBg = d.bg_scanner_active ? 'var(--green-bg)' : 'var(--card)';
+        label.textContent = bgLabel2; label.style.color = bgColor; label.style.background = bgBg;
       }
       document.getElementById('at-open').textContent = d.open_positions || 0;
       const pnl = d.pnl_today || 0;

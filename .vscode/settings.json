@@ -1,5 +1,29 @@
 {
     "chat.tools.terminal.autoApprove": {
-        "vercel": true
+        "vercel": true,
+        "/^python -c \"import server; print\\('OK - server\\.py imports clean'\\)\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^python -c \"import ast; ast\\.parse\\(open\\('run_autotrade\\.py'\\)\\.read\\(\\)\\); print\\('OK - run_autotrade\\.py syntax clean'\\)\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^python -c \"from trading_bot\\.autotrade import _place_auto_trade, _monitor_positions, _trade_nifty_high; print\\('OK - autotrade imports clean'\\); from trading_bot\\.data\\.store import close_trade, init_db; import inspect; sig = inspect\\.signature\\(close_trade\\); print\\('close_trade params:', list\\(sig\\.parameters\\.keys\\(\\)\\)\\); print\\('_trade_nifty_high:', _trade_nifty_high\\)\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^python -c \"from trading_bot\\.data\\.store import init_db, get_cursor; init_db\\(\\); cur_ctx = get_cursor\\(\\); cur = cur_ctx\\.__enter__\\(\\); cur\\.execute\\('PRAGMA table_info\\(trades\\)'\\); cols = \\[row\\[1\\] for row in cur\\.fetchall\\(\\)\\]; cur_ctx\\.__exit__\\(None, None, None\\); print\\('nifty_high in trades:', 'nifty_high' in cols\\); print\\('All cols:', cols\\)\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^python -c \"from trading_bot\\.dashboard\\.server import app; print\\('OK - server imports clean'\\)\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^git add -A$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
     }
 }

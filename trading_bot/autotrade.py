@@ -46,6 +46,9 @@ _DAILY_CACHE_TTL = 300                  # 5 minutes
 # Persisted in Redis for Vercel (stateless per invocation)
 _trade_max_price: dict[str, float] = {}
 
+# ── Nifty 50 high tracker: highest Nifty 50 spot value seen during each trade ──
+_trade_nifty_high: dict[str, float] = {}
+
 # ── Module state ──────────────────────────────────────────────────────────────
 _running = False
 _thread: threading.Thread | None = None
@@ -479,8 +482,19 @@ def _place_auto_trade(signal, nifty_ltp: float) -> str | None:
         "target": tgt_price,
         "expiry": opt["expiry_date"],
         "source": "AUTO",
+        "nifty_high": nifty_ltp,
         "created_at": now_str,
     })
+
+    # Initialize nifty_high tracker with the current Nifty 50 spot price at entry
+    _trade_nifty_high[trade_id] = nifty_ltp
+    try:
+        from trading_bot.cache import _get_client as _rc
+        r = _rc()
+        if r:
+            r.set(f"autotrade:nifty_high:{trade_id}", str(nifty_ltp), ex=86400)
+    except Exception:
+        pass
 
     patterns_str = ", ".join(signal.patterns)
     _log_event(
@@ -522,6 +536,41 @@ def _monitor_positions():
     nifty_ltp = tick.ltp
 
     force_exit = _is_past_force_exit()
+
+    # ── Pass 0: track Nifty 50 high for ALL open trades ──
+    if nifty_ltp > 0:
+        for t in open_trades:
+            trade_id = t["trade_id"]
+            _redis_key_nh = f"autotrade:nifty_high:{trade_id}"
+            prev_nh = _trade_nifty_high.get(trade_id, 0.0)
+            try:
+                from trading_bot.cache import _get_client as _rc
+                r = _rc()
+                if r:
+                    v = r.get(_redis_key_nh)
+                    if v:
+                        prev_nh = max(prev_nh, float(v if isinstance(v, str) else v.decode()))
+            except Exception:
+                pass
+            current_nh = max(prev_nh, nifty_ltp)
+            _trade_nifty_high[trade_id] = current_nh
+            try:
+                from trading_bot.cache import _get_client as _rc
+                r = _rc()
+                if r:
+                    r.set(_redis_key_nh, str(current_nh), ex=86400)
+            except Exception:
+                pass
+            # Also persist to DB so dashboard/history can read it
+            try:
+                from trading_bot.data.store import get_cursor
+                with get_cursor() as cur:
+                    cur.execute(
+                        "UPDATE trades SET nifty_high = ? WHERE trade_id = ? AND (nifty_high IS NULL OR nifty_high < ?)",
+                        (current_nh, trade_id, current_nh),
+                    )
+            except Exception:
+                pass
 
     # ── Pass 1: track high-watermark for ALL open trades (AUTO + MANUAL + GPT) ──
     for t in open_trades:
@@ -626,8 +675,9 @@ def _monitor_positions():
 
             now_str = now_ist().isoformat()
             max_px = _trade_max_price.get(trade_id)  # record for all exits
+            nh_px = _trade_nifty_high.get(trade_id)   # Nifty 50 high during trade
             actually_closed = close_trade(trade_id, exit_price, now_str, exit_reason, final_pnl,
-                                          max_price_reached=max_px)
+                                          max_price_reached=max_px, nifty_high=nh_px)
             if actually_closed:
                 update_portfolio_after_trade(final_pnl, final_pnl >= 0)
 
@@ -637,11 +687,13 @@ def _monitor_positions():
 
                 # Clean up high-watermark state for closed trade
                 _trade_max_price.pop(trade_id, None)
+                _trade_nifty_high.pop(trade_id, None)
                 try:
                     from trading_bot.cache import _get_client as _rc
                     r = _rc()
                     if r:
                         r.delete(f"autotrade:max_price:{trade_id}")
+                        r.delete(f"autotrade:nifty_high:{trade_id}")
                 except Exception:
                     pass
 

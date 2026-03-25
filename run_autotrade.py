@@ -61,7 +61,7 @@ def main():
     print("[OK] Market feed started (polling every 3s)")
 
     # 4. Start Flask dashboard
-    from trading_bot.dashboard.server import start_dashboard
+    from trading_bot.dashboard.server import start_dashboard, start_background_scanner
     dash_thread = start_dashboard()
     print("[OK] Dashboard running at http://%s:%d" % (config.DASHBOARD_HOST, config.DASHBOARD_PORT))
 
@@ -69,6 +69,10 @@ def main():
     from trading_bot.autotrade import start as at_start, get_status, stop as at_stop, is_alive
     at_start(scan_interval=60)
     print("[OK] Auto-trade engine STARTED (scanning every 60s)")
+
+    # 6. Start server-side background scanner (scans even if browser is closed)
+    start_background_scanner()
+    print("[OK] Background scanner STARTED (runs every 30s, NO browser needed)")
     print()
     print("Trade Windows: %s" % config.TRADE_WINDOWS)
     print("Max Open Trades: %d" % config.MAX_OPEN_TRADES)

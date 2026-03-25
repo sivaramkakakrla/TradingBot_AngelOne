@@ -13,6 +13,15 @@ if os.getenv("VERCEL"):
         print(f"[server] Cold start: restored {_restored} trades from Redis")
     except Exception as _e:
         print(f"[server] Redis restore error: {_e}")
+else:
+    # Non-Vercel (Railway / local): auto-start the background scanner at boot
+    # This ensures scanning runs even if no browser is ever opened.
+    try:
+        from trading_bot.dashboard.server import start_background_scanner
+        start_background_scanner()
+        print("[server] Background scanner started (no browser needed)")
+    except Exception as _e:
+        print(f"[server] Background scanner start error: {_e}")
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))

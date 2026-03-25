@@ -42,6 +42,67 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 app = Flask(__name__, template_folder=os.path.join(_HERE, "templates"))
 CORS(app)
 
+
+# ─── Server-Side Background Scanner (runs WITHOUT browser) ───────────────────
+# This is the PERMANENT solution: a background thread inside the Flask process
+# that scans every 30s during market hours. Works on Railway, local, Render, etc.
+# No browser tab needed. No external cron needed.
+
+_bg_scanner_started = False
+_bg_scanner_lock = threading.Lock()
+
+
+def _server_side_scanner():
+    """Background thread: triggers autotrade scan every 30s during market hours.
+    Runs independently of any browser connection."""
+    import time as _time
+    _scan_log = get_logger("bg_scanner")
+    _scan_log.info("Server-side background scanner STARTED")
+
+    while True:
+        try:
+            from trading_bot.autotrade import (
+                _is_live_market_hours, _is_in_trade_window,
+                _monitor_positions, _scan_and_trade,
+                is_alive, start as at_start,
+            )
+
+            if _is_live_market_hours():
+                # Auto-restart the engine thread if it died
+                if not is_alive():
+                    _scan_log.warning("Engine thread dead — auto-restarting")
+                    at_start(scan_interval=60)
+
+                _monitor_positions()
+                if _is_in_trade_window():
+                    _scan_and_trade()
+        except Exception as exc:
+            get_logger("bg_scanner").error("BG scan error: %s", exc, exc_info=True)
+
+        _time.sleep(30)
+
+
+def start_background_scanner():
+    """Start the server-side scanner once. Safe to call multiple times."""
+    global _bg_scanner_started
+    if os.getenv("VERCEL"):
+        return  # Vercel is serverless — use cron instead
+    with _bg_scanner_lock:
+        if _bg_scanner_started:
+            return
+        _bg_scanner_started = True
+    t = threading.Thread(target=_server_side_scanner, name="bg_scanner", daemon=True)
+    t.start()
+    log.info("Background scanner thread launched (scans every 30s, no browser needed)")
+
+
+@app.before_request
+def _ensure_background_scanner():
+    """Auto-start the background scanner on the very first request."""
+    if not _bg_scanner_started and not os.getenv("VERCEL"):
+        start_background_scanner()
+
+
 @app.after_request
 def _no_cache_html(response):
     """Prevent browser from caching HTML pages so template changes take effect immediately."""
@@ -250,6 +311,14 @@ def _backtest_20day(date_str: str, timeframe: str):
         if daily_df is None or len(daily_df) < 20:
             return jsonify({"error": "insufficient daily data", "signals": [], "summary": {}})
 
+        # Slice daily_df to only include rows UP TO the test date.
+        # Without this, the SMA/LinReg slope is computed from today's data,
+        # making every historical date show today's bias (FALLING → all SELL).
+        daily_df_as_of = daily_df[daily_df["timestamp"] <= date_str].copy()
+        if len(daily_df_as_of) < 20:
+            # Fall-through: not enough historical rows — use full df (live mode)
+            daily_df_as_of = daily_df
+
         # 2) Fetch 1m candles for the test date
         rows = fetch_candles_by_date(config.UNDERLYING, timeframe, date_str)
         if not rows:
@@ -293,7 +362,7 @@ def _backtest_20day(date_str: str, timeframe: str):
                 except Exception:
                     bar_time = None
 
-                result = analyze_live(daily_df, subdf, live_price, bar_time=bar_time)
+                result = analyze_live(daily_df_as_of, subdf, live_price, bar_time=bar_time)
                 if not result.should_enter:
                     continue
 
@@ -3092,6 +3161,7 @@ def api_autotrade_status():
     status = get_status()
     status["thread_alive"] = is_alive()
     status["is_vercel"] = False
+    status["bg_scanner_active"] = _bg_scanner_started
     return jsonify(status)
 
 
