@@ -78,6 +78,55 @@ def delete_trade_from_redis(trade_id: str) -> bool:
         return False
 
 
+def sync_trades_from_redis():
+    """Lightweight sync: pull all trades from Redis into local SQLite.
+
+    On Vercel, the cron function and dashboard function have SEPARATE /tmp
+    directories. When the cron places or closes a trade, the dashboard's
+    SQLite is stale. This function refreshes trades from Redis (the source
+    of truth) before reading positions, preventing the disappear/reappear
+    flicker.
+    """
+    r = _redis()
+    if not r:
+        return
+    try:
+        raw = r.hgetall(_TRADES_KEY)
+        if not raw:
+            return
+        from trading_bot.data.store import get_cursor
+        for _tid, val in raw.items():
+            if isinstance(val, (bytes, bytearray)):
+                val = val.decode()
+            t = json.loads(val)
+            try:
+                with get_cursor() as cur:
+                    cur.execute("""
+                        INSERT OR REPLACE INTO trades
+                            (trade_id, symbol, token, option_type, strike,
+                             direction, entry_price, exit_price, quantity,
+                             entry_order_id, exit_order_id, entry_time, exit_time,
+                             exit_reason, pnl, status, stop_loss, target,
+                             expiry, source, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        t.get("trade_id", ""), t.get("symbol", ""), t.get("token", ""),
+                        t.get("option_type", ""), t.get("strike", 0),
+                        t.get("direction", "LONG"), t.get("entry_price", 0),
+                        t.get("exit_price"), t.get("quantity", 0),
+                        t.get("entry_order_id", ""), t.get("exit_order_id", ""),
+                        t.get("entry_time", ""), t.get("exit_time"),
+                        t.get("exit_reason"), t.get("pnl"),
+                        t.get("status", "OPEN"), t.get("stop_loss"),
+                        t.get("target"), t.get("expiry"),
+                        t.get("source", "AUTO"), t.get("created_at", ""),
+                    ))
+            except Exception:
+                pass
+    except Exception as e:
+        log.warning("sync_trades_from_redis error: %s", e)
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 #  ORDER SYNC
 # ═══════════════════════════════════════════════════════════════════════════════

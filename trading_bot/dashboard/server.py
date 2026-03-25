@@ -976,6 +976,12 @@ def _check_sl_target(positions_out: list[dict]) -> list[dict]:
 @app.route("/api/paper/positions")
 def api_paper_positions():
     """Return open positions with live P&L, market value, and SL/Target check."""
+    # On Vercel, cron and dashboard are separate functions with separate /tmp.
+    # Sync trades from Redis so this instance sees the latest state.
+    if os.getenv("VERCEL"):
+        from trading_bot.redis_sync import sync_trades_from_redis
+        sync_trades_from_redis()
+
     market_closed = not _is_market_open()
 
     tick = get_latest_tick()
@@ -1059,6 +1065,10 @@ def api_paper_positions():
 @app.route("/api/paper/history")
 def api_paper_history():
     """Return closed paper trades (most recent first). Optional ?source=MANUAL|AUTO|GPT filter."""
+    if os.getenv("VERCEL"):
+        from trading_bot.redis_sync import sync_trades_from_redis
+        sync_trades_from_redis()
+
     source_filter = request.args.get("source", "").upper()
     if source_filter in ("MANUAL", "AUTO", "GPT"):
         sql = "SELECT * FROM trades WHERE status = 'CLOSED' AND (source = ? OR source IS NULL AND ? = 'MANUAL') ORDER BY exit_time DESC LIMIT 200"
@@ -2890,6 +2900,8 @@ def api_autotrade_status():
         from trading_bot.data.store import get_open_trades, get_today_pnl
         from trading_bot.utils.time_utils import now_ist
         from trading_bot.autotrade import _is_live_market_hours
+        from trading_bot.redis_sync import sync_trades_from_redis
+        sync_trades_from_redis()
         open_trades = get_open_trades()
         auto_count = sum(
             1 for t in open_trades
@@ -2955,6 +2967,11 @@ def api_autotrade_scan():
             _is_live_market_hours,
         )
         from trading_bot.data.store import get_open_trades, get_today_pnl
+
+        # Sync trades from Redis so this Vercel instance has the latest state
+        if os.environ.get("VERCEL"):
+            from trading_bot.redis_sync import sync_trades_from_redis
+            sync_trades_from_redis()
 
         result = {"time": now_ist().strftime("%H:%M:%S")}
 
