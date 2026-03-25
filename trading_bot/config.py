@@ -155,8 +155,8 @@ PARTIAL_EXIT_PCT = 0.50       # sell 50% at partial target
 
 MAX_LOTS_PER_TRADE = 2
 MAX_OPEN_TRADES = 1           # 1 auto-trade open at a time
-MAX_DAILY_LOSS = 2000         # ₹2000 daily loss limit
-MAX_DAILY_TRADES = 3          # hard cap: no more than 3 auto-trades per day
+MAX_DAILY_LOSS = 999999       # no daily loss limit
+MAX_DAILY_TRADES = 999        # no daily trade cap
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  MARKET REGIME FILTERS  (sideways / trend detection)
