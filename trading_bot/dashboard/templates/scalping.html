@@ -1,0 +1,1858 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Project Candles — Scalping Bot</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg: #0f1117;
+            --bg-subtle: #161822;
+            --surface: #1a1d2e;
+            --surface-hover: #1f2337;
+            --card: #141622;
+            --border: rgba(255, 255, 255, .06);
+            --border-lt: rgba(255, 255, 255, .1);
+            --txt: #e8eaed;
+            --txt-dim: #8b8fa3;
+            --txt-mute: #5a5e72;
+            --accent: #818cf8;
+            --accent-dim: #6366f1;
+            --accent-bg: rgba(129, 140, 248, .08);
+            --accent-bdr: rgba(129, 140, 248, .25);
+            --green: #34d399;
+            --green-bg: rgba(52, 211, 153, .08);
+            --green-bdr: rgba(52, 211, 153, .25);
+            --red: #f87171;
+            --red-bg: rgba(248, 113, 113, .08);
+            --red-bdr: rgba(248, 113, 113, .25);
+            --amber: #fbbf24;
+            --amber-bg: rgba(251, 191, 36, .08);
+            --amber-bdr: rgba(251, 191, 36, .25);
+            --purple: #a78bfa;
+            --purple-bg: rgba(167, 139, 250, .09);
+            --purple-bdr: rgba(167, 139, 250, .25);
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, .3);
+            --shadow-md: 0 4px 16px rgba(0, 0, 0, .35);
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--txt);
+            font-family: 'Inter', system-ui, sans-serif;
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ── Topbar ── */
+        .topbar {
+            display: flex;
+            align-items: center;
+            padding: 0 24px;
+            height: 48px;
+            background: rgba(26, 29, 46, .9);
+            backdrop-filter: blur(16px) saturate(1.4);
+            -webkit-backdrop-filter: blur(16px) saturate(1.4);
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            gap: 16px;
+        }
+
+        .logo {
+            font-size: .95rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent), #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -.3px;
+            white-space: nowrap;
+            text-decoration: none;
+        }
+
+        .topbar nav {
+            display: flex;
+            gap: 4px;
+            margin-left: 16px;
+        }
+
+        .topbar nav a {
+            color: var(--txt-dim);
+            text-decoration: none;
+            font-size: .8rem;
+            font-weight: 500;
+            padding: 6px 14px;
+            border-radius: 8px;
+            transition: all .15s;
+            white-space: nowrap;
+        }
+
+        .topbar nav a:hover {
+            color: var(--txt);
+            background: rgba(255, 255, 255, .04);
+        }
+
+        .topbar nav a.active {
+            color: var(--accent);
+            background: var(--accent-bg);
+        }
+
+        .badge-area {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* Hamburger */
+        .ham {
+            display: none;
+            background: none;
+            border: none;
+            cursor: pointer;
+            width: 32px;
+            height: 32px;
+            position: relative;
+            padding: 0;
+            flex-shrink: 0;
+        }
+
+        .ham span {
+            display: block;
+            width: 20px;
+            height: 2px;
+            background: var(--txt-dim);
+            border-radius: 2px;
+            position: absolute;
+            left: 6px;
+            transition: all .25s;
+        }
+
+        .ham span:nth-child(1) {
+            top: 8px;
+        }
+
+        .ham span:nth-child(2) {
+            top: 15px;
+        }
+
+        .ham span:nth-child(3) {
+            top: 22px;
+        }
+
+        .ham.open span:nth-child(1) {
+            top: 15px;
+            transform: rotate(45deg);
+        }
+
+        .ham.open span:nth-child(2) {
+            opacity: 0;
+        }
+
+        .ham.open span:nth-child(3) {
+            top: 15px;
+            transform: rotate(-45deg);
+        }
+
+        .mob-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, .35);
+            z-index: 200;
+            padding: 8px 0;
+            flex-direction: column;
+        }
+
+        .mob-menu.show {
+            display: flex;
+        }
+
+        .mob-menu a {
+            color: var(--txt-dim);
+            text-decoration: none;
+            font-size: .84rem;
+            font-weight: 500;
+            padding: 11px 20px;
+            border-left: 3px solid transparent;
+        }
+
+        .mob-menu a:hover {
+            background: rgba(255, 255, 255, .03);
+            color: var(--txt);
+        }
+
+        .mob-menu a.active {
+            color: var(--accent);
+            background: var(--accent-bg);
+            border-left-color: var(--accent);
+        }
+
+        /* Market badge */
+        .market-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: .72rem;
+            font-weight: 600;
+            letter-spacing: .5px;
+            text-transform: uppercase;
+        }
+
+        .market-badge .dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+        }
+
+        .market-badge.live {
+            background: var(--green-bg);
+            color: var(--green);
+            border: 1px solid var(--green-bdr);
+        }
+
+        .market-badge.live .dot {
+            background: var(--green);
+            animation: pulse 1.5s infinite;
+        }
+
+        .market-badge.closed {
+            background: rgba(139, 143, 163, .08);
+            color: var(--txt-dim);
+            border: 1px solid var(--border);
+        }
+
+        .market-badge.closed .dot {
+            background: var(--txt-mute);
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1
+            }
+
+            50% {
+                opacity: .3
+            }
+        }
+
+        /* ── Page Layout ── */
+        .page {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 28px 24px 60px;
+        }
+
+        /* Page header */
+        .page-header {
+            margin-bottom: 28px;
+        }
+
+        .page-title {
+            font-size: 1.35rem;
+            font-weight: 800;
+            letter-spacing: -.4px;
+            background: linear-gradient(135deg, #fff 30%, var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .page-subtitle {
+            font-size: .8rem;
+            color: var(--txt-dim);
+            margin-top: 5px;
+            line-height: 1.5;
+        }
+
+        .page-subtitle span {
+            color: var(--amber);
+            font-weight: 600;
+        }
+
+        /* ── Decision Card ── */
+        .decision-card {
+            background: var(--surface);
+            border: 1px solid var(--border-lt);
+            border-radius: 16px;
+            padding: 28px 32px;
+            margin-bottom: 28px;
+            display: flex;
+            gap: 28px;
+            align-items: flex-start;
+            flex-wrap: wrap;
+        }
+
+        .decision-main {
+            flex: 0 0 auto;
+        }
+
+        .decision-label {
+            font-size: .68rem;
+            font-weight: 600;
+            color: var(--txt-mute);
+            letter-spacing: .8px;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        .decision-value {
+            font-size: 2.2rem;
+            font-weight: 900;
+            letter-spacing: -1px;
+            line-height: 1;
+        }
+
+        .decision-value.BUY_CE {
+            color: var(--green);
+        }
+
+        .decision-value.BUY_PE {
+            color: var(--red);
+        }
+
+        .decision-value.NO_TRADE {
+            color: var(--txt-mute);
+        }
+
+        .decision-sub {
+            font-size: .75rem;
+            color: var(--txt-dim);
+            margin-top: 6px;
+        }
+
+        .decision-grid {
+            flex: 1;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 14px;
+            min-width: 0;
+        }
+
+        .dg-item {
+            background: var(--card);
+            border-radius: 10px;
+            padding: 12px 14px;
+            border: 1px solid var(--border);
+        }
+
+        .dg-k {
+            font-size: .65rem;
+            font-weight: 600;
+            color: var(--txt-mute);
+            letter-spacing: .6px;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .dg-v {
+            font-size: 1rem;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .dg-v.green {
+            color: var(--green);
+        }
+
+        .dg-v.red {
+            color: var(--red);
+        }
+
+        .dg-v.amber {
+            color: var(--amber);
+        }
+
+        .dg-v.accent {
+            color: var(--accent);
+        }
+
+        .confidence-badge {
+            display: inline-block;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: .7rem;
+            font-weight: 700;
+            letter-spacing: .5px;
+            text-transform: uppercase;
+            margin-top: 10px;
+        }
+
+        .confidence-badge.HIGH {
+            background: var(--green-bg);
+            color: var(--green);
+            border: 1px solid var(--green-bdr);
+        }
+
+        .confidence-badge.MEDIUM {
+            background: var(--amber-bg);
+            color: var(--amber);
+            border: 1px solid var(--amber-bdr);
+        }
+
+        .confidence-badge.LOW {
+            background: var(--red-bg);
+            color: var(--red);
+            border: 1px solid var(--red-bdr);
+        }
+
+        /* ── Filter Status Row ── */
+        .filters-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 28px;
+        }
+
+        .filter-chip {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: .72rem;
+            font-weight: 600;
+            border: 1px solid var(--border);
+            background: var(--card);
+            color: var(--txt-dim);
+            transition: all .2s;
+        }
+
+        .filter-chip .chip-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--txt-mute);
+        }
+
+        .filter-chip.pass {
+            background: var(--green-bg);
+            color: var(--green);
+            border-color: var(--green-bdr);
+        }
+
+        .filter-chip.pass .chip-dot {
+            background: var(--green);
+        }
+
+        .filter-chip.fail {
+            background: var(--red-bg);
+            color: var(--red);
+            border-color: var(--red-bdr);
+        }
+
+        .filter-chip.fail .chip-dot {
+            background: var(--red);
+        }
+
+        .filter-chip.warn {
+            background: var(--amber-bg);
+            color: var(--amber);
+            border-color: var(--amber-bdr);
+        }
+
+        .filter-chip.warn .chip-dot {
+            background: var(--amber);
+        }
+
+        /* ── Two-column layout ── */
+        .cols {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 24px;
+            align-items: start;
+        }
+
+        /* ── Section Card ── */
+        .section-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        .section-head {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 14px 20px;
+            border-bottom: 1px solid var(--border);
+            background: var(--card);
+        }
+
+        .section-icon {
+            font-size: 1rem;
+        }
+
+        .section-title {
+            font-size: .82rem;
+            font-weight: 700;
+        }
+
+        .section-badge {
+            margin-left: auto;
+            font-size: .65rem;
+            font-weight: 700;
+            padding: 2px 9px;
+            border-radius: 10px;
+            text-transform: uppercase;
+            letter-spacing: .4px;
+        }
+
+        .section-body {
+            padding: 18px 20px;
+        }
+
+        /* ── Checklist ── */
+        .checklist {
+            display: flex;
+            flex-direction: column;
+            gap: 9px;
+        }
+
+        .check-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 9px 12px;
+            border-radius: 8px;
+            background: var(--card);
+            border: 1px solid var(--border);
+            font-size: .78rem;
+            color: var(--txt-dim);
+            transition: all .15s;
+        }
+
+        .check-item.pass {
+            background: var(--green-bg);
+            color: var(--green);
+            border-color: var(--green-bdr);
+        }
+
+        .check-item.fail {
+            background: var(--red-bg);
+            color: var(--red);
+            border-color: var(--red-bdr);
+        }
+
+        .check-item.warn {
+            background: var(--amber-bg);
+            color: var(--amber);
+            border-color: var(--amber-bdr);
+        }
+
+        .check-item.neutral {
+            color: var(--txt-dim);
+        }
+
+        .check-icon {
+            font-size: .9rem;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        .check-text {
+            flex: 1;
+            line-height: 1.4;
+        }
+
+        .check-text strong {
+            font-weight: 700;
+        }
+
+        /* ── Candle chart container ── */
+        .chart-wrap {
+            border-radius: 10px;
+            overflow: hidden;
+            background: var(--card);
+            border: 1px solid var(--border);
+            margin-top: 16px;
+        }
+
+        canvas#scalp-chart {
+            display: block;
+            width: 100%;
+        }
+
+        /* ── Trade log ── */
+        .trade-log {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .log-item {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 14px;
+            font-size: .76rem;
+        }
+
+        .log-item-head {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+
+        .log-badge {
+            font-size: .65rem;
+            font-weight: 700;
+            padding: 2px 9px;
+            border-radius: 8px;
+            text-transform: uppercase;
+        }
+
+        .log-badge.BUY_CE {
+            background: var(--green-bg);
+            color: var(--green);
+            border: 1px solid var(--green-bdr);
+        }
+
+        .log-badge.BUY_PE {
+            background: var(--red-bg);
+            color: var(--red);
+            border: 1px solid var(--red-bdr);
+        }
+
+        .log-badge.NO_TRADE {
+            background: var(--card);
+            color: var(--txt-mute);
+            border: 1px solid var(--border);
+        }
+
+        .log-time {
+            font-size: .65rem;
+            color: var(--txt-mute);
+            margin-left: auto;
+        }
+
+        .log-reason {
+            color: var(--txt-dim);
+            line-height: 1.5;
+        }
+
+        .log-metrics {
+            display: flex;
+            gap: 12px;
+            margin-top: 6px;
+            flex-wrap: wrap;
+        }
+
+        .log-m {
+            font-size: .7rem;
+        }
+
+        .log-m span {
+            color: var(--txt-mute);
+        }
+
+        /* ── SL/Target display ── */
+        .trade-levels {
+            display: flex;
+            flex-direction: column;
+            gap: 9px;
+            margin-top: 4px;
+        }
+
+        .level-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 9px 14px;
+            border-radius: 8px;
+            background: var(--card);
+            border: 1px solid var(--border);
+        }
+
+        .level-label {
+            font-size: .7rem;
+            font-weight: 600;
+            color: var(--txt-mute);
+            letter-spacing: .5px;
+            min-width: 80px;
+        }
+
+        .level-value {
+            font-size: .9rem;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .level-pts {
+            font-size: .7rem;
+            color: var(--txt-mute);
+            margin-left: auto;
+        }
+
+        /* ── Rule reference ── */
+        .rule-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .rule-item {
+            padding: 12px 14px;
+            border-radius: 8px;
+            background: var(--card);
+            border: 1px solid var(--border);
+        }
+
+        .rule-num {
+            font-size: .62rem;
+            font-weight: 700;
+            color: var(--txt-mute);
+            letter-spacing: .6px;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .rule-text {
+            font-size: .76rem;
+            color: var(--txt-dim);
+            line-height: 1.5;
+        }
+
+        .rule-text strong {
+            color: var(--txt);
+            font-weight: 600;
+        }
+
+        .rule-item.highlight {
+            border-color: var(--accent-bdr);
+            background: var(--accent-bg);
+        }
+
+        .rule-item.highlight .rule-text {
+            color: var(--accent);
+        }
+
+        .rule-item.danger {
+            border-color: var(--red-bdr);
+            background: var(--red-bg);
+        }
+
+        .rule-item.danger .rule-text {
+            color: var(--red);
+        }
+
+        /* ── Scan button / refresh ── */
+        .scan-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .btn-scan {
+            background: linear-gradient(135deg, var(--accent-dim), var(--purple));
+            color: #fff;
+            border: none;
+            padding: 9px 22px;
+            border-radius: 10px;
+            font-size: .8rem;
+            font-weight: 700;
+            cursor: pointer;
+            font-family: inherit;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: opacity .2s, transform .1s;
+            box-shadow: 0 2px 12px rgba(99, 102, 241, .3);
+        }
+
+        .btn-scan:hover {
+            opacity: .88;
+        }
+
+        .btn-scan:active {
+            transform: scale(.97);
+        }
+
+        .btn-scan:disabled {
+            opacity: .45;
+            cursor: not-allowed;
+        }
+
+        .btn-scan .spin {
+            display: inline-block;
+            animation: spin .7s linear infinite;
+        }
+
+        @keyframes spin {
+            from {
+                transform: rotate(0deg)
+            }
+
+            to {
+                transform: rotate(360deg)
+            }
+        }
+
+        .scan-ts {
+            font-size: .72rem;
+            color: var(--txt-mute);
+        }
+
+        .trade-counter {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-left: auto;
+        }
+
+        .tc-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: var(--txt-mute);
+        }
+
+        .tc-dot.full {
+            background: var(--red);
+        }
+
+        .tc-label {
+            font-size: .72rem;
+            color: var(--txt-dim);
+        }
+
+        /* ── Divider ── */
+        .divider {
+            height: 1px;
+            background: var(--border);
+            margin: 20px 0;
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 900px) {
+            .cols {
+                grid-template-columns: 1fr;
+            }
+
+            .decision-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .topbar nav {
+                display: none;
+            }
+
+            .ham {
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+            }
+        }
+
+        @media (max-width: 540px) {
+            .page {
+                padding: 18px 14px 50px;
+            }
+
+            .decision-card {
+                padding: 20px 18px;
+                flex-direction: column;
+                gap: 18px;
+            }
+
+            .decision-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .decision-value {
+                font-size: 1.6rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- ── Topbar ── -->
+    <div class="topbar" id="topbar">
+        <a class="logo" href="/">⚡ Project Candles</a>
+        <nav>
+            <a href="/">Dashboard</a>
+            <a href="/orders">Orders</a>
+            <a href="/opportunities">Signals</a>
+            <a href="/history">History</a>
+            <a href="/scalping" class="active">Scalping</a>
+            <a href="/180-rule">180 Rule</a>
+            <a href="/orb-strategy">ORB</a>
+            <a href="/20-day-avg">20D Avg</a>
+            <a href="/pnl">P&amp;L</a>
+        </nav>
+        <button class="ham" id="hamBtn" aria-label="Menu" onclick="toggleMob()">
+            <span></span><span></span><span></span>
+        </button>
+        <div class="badge-area">
+            <div class="market-badge closed" id="mktBadge">
+                <div class="dot"></div>
+                <span id="mktLabel">CLOSED</span>
+            </div>
+        </div>
+        <!-- Mobile menu -->
+        <div class="mob-menu" id="mobMenu">
+            <a href="/">Dashboard</a>
+            <a href="/orders">Orders</a>
+            <a href="/opportunities">Signals</a>
+            <a href="/history">History</a>
+            <a href="/scalping" class="active">Scalping</a>
+            <a href="/180-rule">180 Rule</a>
+            <a href="/orb-strategy">ORB</a>
+            <a href="/20-day-avg">20D Avg</a>
+            <a href="/pnl">P&amp;L</a>
+            <a href="/chat">AI Chat</a>
+        </div>
+    </div>
+
+    <!-- ── Page ── -->
+    <div class="page">
+
+        <!-- Header -->
+        <div class="page-header">
+            <div class="page-title">NIFTY Options Scalping Bot</div>
+            <div class="page-subtitle">
+                MA Ribbon + PAC + Pivot + ORB180 confluence &nbsp;·&nbsp;
+                <span>Max 1–2 trades/day</span> &nbsp;·&nbsp;
+                Primary window: <span>9:25–9:45 AM</span>
+            </div>
+        </div>
+
+        <!-- Scan controls -->
+        <div class="scan-row">
+            <button class="btn-scan" id="scanBtn" onclick="runScan()">
+                <span>⚡</span> <span id="scanBtnTxt">Analyse Now</span>
+            </button>
+            <span class="scan-ts" id="scanTs">Not yet scanned</span>
+            <div class="trade-counter" id="tradeCounter">
+                <div class="tc-dot" id="tc0"></div>
+                <div class="tc-dot" id="tc1"></div>
+                <span class="tc-label" id="tcLabel">0 / 2 trades today</span>
+            </div>
+        </div>
+
+        <!-- ── Decision Card ── -->
+        <div class="decision-card" id="decisionCard">
+            <div class="decision-main">
+                <div class="decision-label">Trade Decision</div>
+                <div class="decision-value NO_TRADE" id="decValue">–</div>
+                <div class="decision-sub" id="decSub">Run scan to get signal</div>
+                <div id="confBadge"></div>
+            </div>
+            <div class="decision-grid">
+                <div class="dg-item">
+                    <div class="dg-k">NIFTY LTP</div>
+                    <div class="dg-v accent" id="dgNifty">–</div>
+                </div>
+                <div class="dg-item">
+                    <div class="dg-k">VWAP</div>
+                    <div class="dg-v" id="dgVwap">–</div>
+                </div>
+                <div class="dg-item">
+                    <div class="dg-k">Entry</div>
+                    <div class="dg-v green" id="dgEntry">–</div>
+                </div>
+                <div class="dg-item">
+                    <div class="dg-k">ORB Range</div>
+                    <div class="dg-v amber" id="dgOrb">–</div>
+                </div>
+                <div class="dg-item">
+                    <div class="dg-k">Stop Loss</div>
+                    <div class="dg-v red" id="dgSl">–</div>
+                </div>
+                <div class="dg-item">
+                    <div class="dg-k">Target (Cons.)</div>
+                    <div class="dg-v green" id="dgTgt1">–</div>
+                </div>
+                <div class="dg-item">
+                    <div class="dg-k">Target (Trend)</div>
+                    <div class="dg-v green" id="dgTgt2">–</div>
+                </div>
+                <div class="dg-item">
+                    <div class="dg-k">MA Trend</div>
+                    <div class="dg-v" id="dgTrend">–</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Filter chips ── -->
+        <div class="filters-row" id="filtersRow">
+            <div class="filter-chip" id="fc-time">
+                <div class="chip-dot"></div>Time Window
+            </div>
+            <div class="filter-chip" id="fc-trend">
+                <div class="chip-dot"></div>MA Trend
+            </div>
+            <div class="filter-chip" id="fc-vwap">
+                <div class="chip-dot"></div>VWAP
+            </div>
+            <div class="filter-chip" id="fc-orb">
+                <div class="chip-dot"></div>ORB ≥ 45pts
+            </div>
+            <div class="filter-chip" id="fc-candle">
+                <div class="chip-dot"></div>Candle Body
+            </div>
+            <div class="filter-chip" id="fc-scope">
+                <div class="chip-dot"></div>Not Overextended
+            </div>
+            <div class="filter-chip" id="fc-sideways">
+                <div class="chip-dot"></div>Not Sideways
+            </div>
+        </div>
+
+        <!-- ── Main columns ── -->
+        <div class="cols">
+
+            <!-- Left: Checklist + Reason -->
+            <div>
+
+                <!-- Entry Checklist -->
+                <div class="section-card">
+                    <div class="section-head">
+                        <span class="section-icon">✅</span>
+                        <span class="section-title">Entry Checklist</span>
+                        <span class="section-badge" id="checklistBadge"
+                            style="background:var(--card);color:var(--txt-mute);border:1px solid var(--border);">PENDING</span>
+                    </div>
+                    <div class="section-body">
+                        <div class="checklist" id="checklist">
+                            <div class="check-item neutral"><span class="check-icon">○</span><span
+                                    class="check-text"><strong>Time Window</strong> — 9:25–9:45 AM primary | avoid
+                                    10:30–1:30</span></div>
+                            <div class="check-item neutral"><span class="check-icon">○</span><span
+                                    class="check-text"><strong>MA Ribbon</strong> — All EMAs aligned (all red = PE only,
+                                    all black = CE only)</span></div>
+                            <div class="check-item neutral"><span class="check-icon">○</span><span
+                                    class="check-text"><strong>VWAP Position</strong> — Price above VWAP → CE | below
+                                    VWAP → PE</span></div>
+                            <div class="check-item neutral"><span class="check-icon">○</span><span
+                                    class="check-text"><strong>ORB Range ≥ 45 pts</strong> — Small/overlapping candles =
+                                    no-trade day</span></div>
+                            <div class="check-item neutral"><span class="check-icon">○</span><span
+                                    class="check-text"><strong>Pullback into PAC</strong> — Price retracing to channel,
+                                    not chasing</span></div>
+                            <div class="check-item neutral"><span class="check-icon">○</span><span
+                                    class="check-text"><strong>Pivot/S1/R1 Support</strong> — Entry near key level adds
+                                    confluence</span></div>
+                            <div class="check-item neutral"><span class="check-icon">○</span><span
+                                    class="check-text"><strong>Strong Candle Body</strong> — Body &gt; wicks, no doji or
+                                    spinning top</span></div>
+                            <div class="check-item neutral"><span class="check-icon">○</span><span
+                                    class="check-text"><strong>No Overextension</strong> — Not already moved &gt; 30–40
+                                    pts from entry zone</span></div>
+                            <div class="check-item neutral"><span class="check-icon">○</span><span
+                                    class="check-text"><strong>Momentum Follow-through</strong> — Next candle confirms
+                                    direction</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Reason Box -->
+                <div class="section-card">
+                    <div class="section-head">
+                        <span class="section-icon">📋</span>
+                        <span class="section-title">Signal Reasoning</span>
+                    </div>
+                    <div class="section-body">
+                        <div id="reasonText" style="font-size:.8rem;color:var(--txt-dim);line-height:1.7;">
+                            Run the scan to see the full confluence analysis — Trend + VWAP + PAC + Pivot.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chart -->
+                <div class="section-card">
+                    <div class="section-head">
+                        <span class="section-icon">📈</span>
+                        <span class="section-title">1-Min NIFTY Chart</span>
+                        <span id="chartTs" style="margin-left:auto;font-size:.65rem;color:var(--txt-mute);"></span>
+                    </div>
+                    <div class="section-body" style="padding:12px;">
+                        <div class="chart-wrap"><canvas id="scalp-chart" height="200"></canvas></div>
+                        <div style="display:flex;gap:16px;margin-top:10px;flex-wrap:wrap;">
+                            <span
+                                style="font-size:.65rem;color:var(--txt-mute);display:flex;align-items:center;gap:5px;"><span
+                                    style="display:inline-block;width:16px;height:2px;background:#818cf8;border-radius:2px;"></span>SMA20</span>
+                            <span
+                                style="font-size:.65rem;color:var(--amber);display:flex;align-items:center;gap:5px;"><span
+                                    style="display:inline-block;width:16px;height:2px;background:var(--amber);border-radius:2px;"></span>VWAP</span>
+                            <span
+                                style="font-size:.65rem;color:var(--green);display:flex;align-items:center;gap:5px;"><span
+                                    style="display:inline-block;width:3px;height:12px;background:var(--green);border-radius:2px;"></span>Entry</span>
+                            <span
+                                style="font-size:.65rem;color:var(--red);display:flex;align-items:center;gap:5px;"><span
+                                    style="display:inline-block;width:3px;height:12px;background:var(--red);border-radius:2px;"></span>SL</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Trade Log -->
+                <div class="section-card">
+                    <div class="section-head">
+                        <span class="section-icon">📓</span>
+                        <span class="section-title">Today's Trade Log</span>
+                        <span class="section-badge" id="logBadge"
+                            style="background:var(--card);color:var(--txt-mute);border:1px solid var(--border);">0
+                            trades</span>
+                    </div>
+                    <div class="section-body">
+                        <div class="trade-log" id="tradeLog">
+                            <div style="color:var(--txt-mute);font-size:.78rem;padding:8px 4px;">No trades logged yet
+                                today.</div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Right: Rules + Levels -->
+            <div>
+
+                <!-- SL & Target Levels -->
+                <div class="section-card">
+                    <div class="section-head">
+                        <span class="section-icon">🎯</span>
+                        <span class="section-title">Trade Levels</span>
+                    </div>
+                    <div class="section-body">
+                        <div class="trade-levels" id="tradeLevels">
+                            <div class="level-row">
+                                <span class="level-label">Entry</span>
+                                <span class="level-value green" id="lvEntry">–</span>
+                                <span class="level-pts" id="lvEntryNote">awaiting scan</span>
+                            </div>
+                            <div class="level-row" style="border-color:var(--red-bdr);">
+                                <span class="level-label" style="color:var(--red);">Stop Loss</span>
+                                <span class="level-value red" id="lvSl">–</span>
+                                <span class="level-pts" id="lvSlNote">–10 to –12 pts</span>
+                            </div>
+                            <div class="level-row" style="border-color:var(--green-bdr);">
+                                <span class="level-label" style="color:var(--green);">Target 1</span>
+                                <span class="level-value green" id="lvTgt1">–</span>
+                                <span class="level-pts">+15 to +25 pts</span>
+                            </div>
+                            <div class="level-row" style="border-color:var(--green-bdr);">
+                                <span class="level-label" style="color:var(--green);">Target 2</span>
+                                <span class="level-value green" id="lvTgt2">–</span>
+                                <span class="level-pts">+30 to +40 pts (trend)</span>
+                            </div>
+                            <div class="level-row" style="border-color:var(--amber-bdr);">
+                                <span class="level-label" style="color:var(--amber);">Trail SL After</span>
+                                <span class="level-value amber" id="lvTrail">–</span>
+                                <span class="level-pts">+15 pts profit</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Trap Detection -->
+                <div class="section-card">
+                    <div class="section-head">
+                        <span class="section-icon">⚠️</span>
+                        <span class="section-title">Trap Detection</span>
+                        <span class="section-badge" id="trapBadge"
+                            style="background:var(--green-bg);color:var(--green);border:1px solid var(--green-bdr);">CLEAR</span>
+                    </div>
+                    <div class="section-body">
+                        <div class="rule-grid" id="trapGrid">
+                            <div class="rule-item" id="trap-gap">
+                                <div class="rule-num">Gap Trap</div>
+                                <div class="rule-text">Big gap-up near resistance → wait for reversal confirmation
+                                    before entry</div>
+                            </div>
+                            <div class="rule-item" id="trap-fakeout">
+                                <div class="rule-num">Fake Breakout</div>
+                                <div class="rule-text">Long wick with no follow-through → skip; require second candle
+                                    confirmation</div>
+                            </div>
+                            <div class="rule-item" id="trap-reversal">
+                                <div class="rule-num">Single-Candle Reversal</div>
+                                <div class="rule-text">Never trade on one candle alone — require 2-candle confirmation
+                                    pattern</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sideways Filter -->
+                <div class="section-card">
+                    <div class="section-head">
+                        <span class="section-icon">🚫</span>
+                        <span class="section-title">Sideways Filter</span>
+                        <span class="section-badge" id="swBadge"
+                            style="background:var(--card);color:var(--txt-mute);border:1px solid var(--border);">CHECKING</span>
+                    </div>
+                    <div class="section-body">
+                        <div class="rule-grid">
+                            <div class="rule-item" id="sw-ribbon">
+                                <div class="rule-num">EMA Ribbon</div>
+                                <div class="rule-text"><strong>Price inside EMA ribbon</strong> → no trade (flat,
+                                    tangled MAs = choppy)</div>
+                            </div>
+                            <div class="rule-item" id="sw-candles">
+                                <div class="rule-num">Candle Overlap</div>
+                                <div class="rule-text"><strong>Candles overlapping</strong> → wait for breakout with
+                                    volume expand</div>
+                            </div>
+                            <div class="rule-item" id="sw-premiums">
+                                <div class="rule-num">Premium Spikes</div>
+                                <div class="rule-text"><strong>Both CE &amp; PE premiums spiking randomly</strong> → IV
+                                    spike, avoid</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Golden Rules -->
+                <div class="section-card">
+                    <div class="section-head">
+                        <span class="section-icon">🏆</span>
+                        <span class="section-title">Golden Rules</span>
+                    </div>
+                    <div class="section-body">
+                        <div class="rule-grid">
+                            <div class="rule-item highlight">
+                                <div class="rule-num">Rule 1</div>
+                                <div class="rule-text"><strong>Trend first, entry later.</strong> Never enter against
+                                    the MA ribbon direction.</div>
+                            </div>
+                            <div class="rule-item highlight">
+                                <div class="rule-num">Rule 2</div>
+                                <div class="rule-text"><strong>No confirmation = no trade.</strong> Patience is the
+                                    edge.</div>
+                            </div>
+                            <div class="rule-item danger">
+                                <div class="rule-num">Rule 3 — Max Loss</div>
+                                <div class="rule-text"><strong>2 SL hits in a day → STOP trading.</strong> Capital
+                                    protection over profit chasing.</div>
+                            </div>
+                            <div class="rule-item">
+                                <div class="rule-num">Rule 4</div>
+                                <div class="rule-text">Avoid trades <strong>9:15–9:20</strong> (opening noise) and
+                                    <strong>10:30–1:30</strong> (choppy midday).</div>
+                            </div>
+                        </div>
+
+                        <!-- Daily loss guard -->
+                        <div class="divider"></div>
+                        <div
+                            style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;background:var(--card);border:1px solid var(--border);">
+                            <div style="font-size:1.2rem;">🛑</div>
+                            <div>
+                                <div
+                                    style="font-size:.72rem;font-weight:700;color:var(--txt-mute);letter-spacing:.5px;text-transform:uppercase;margin-bottom:3px;">
+                                    Daily SL Hit Counter</div>
+                                <div style="display:flex;align-items:center;gap:8px;">
+                                    <span id="slHit0"
+                                        style="width:28px;height:28px;border-radius:50%;background:rgba(248,113,113,.15);border:2px solid var(--red-bdr);display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:700;color:var(--red);">0</span>
+                                    <span style="font-size:.72rem;color:var(--txt-dim);">SL hits today</span>
+                                    <span class="section-badge" id="slHitStatus"
+                                        style="background:var(--green-bg);color:var(--green);border:1px solid var(--green-bdr);">ACTIVE</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Loss Learning -->
+                <div class="section-card">
+                    <div class="section-head">
+                        <span class="section-icon">📚</span>
+                        <span class="section-title">Loss Learning Log</span>
+                    </div>
+                    <div class="section-body">
+                        <div class="rule-grid" id="lossChecklist">
+                            <div class="rule-item" id="lc-sideways">
+                                <div class="rule-num">Was market sideways?</div>
+                                <div class="rule-text" id="lca-sideways" style="color:var(--txt-mute);">—</div>
+                            </div>
+                            <div class="rule-item" id="lc-late">
+                                <div class="rule-num">Was entry late?</div>
+                                <div class="rule-text" id="lca-late" style="color:var(--txt-mute);">—</div>
+                            </div>
+                            <div class="rule-item" id="lc-vwap">
+                                <div class="rule-num">Was VWAP ignored?</div>
+                                <div class="rule-text" id="lca-vwap" style="color:var(--txt-mute);">—</div>
+                            </div>
+                            <div class="rule-item" id="lc-weak">
+                                <div class="rule-num">Was breakout weak?</div>
+                                <div class="rule-text" id="lca-weak" style="color:var(--txt-mute);">—</div>
+                            </div>
+                        </div>
+                        <div id="lossNote" style="margin-top:12px;font-size:.73rem;color:var(--txt-mute);">After a SL
+                            hit, this section auto-fills with analysis.</div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Floating AI Chat -->
+    <a href="/chat" title="AI Assistant"
+        style="position:fixed;bottom:24px;right:24px;width:52px;height:52px;border-radius:50%;background:#7c3aed;color:#fff;display:flex;align-items:center;justify-content:center;text-decoration:none;font-size:1.4rem;box-shadow:0 4px 20px rgba(124,58,237,.45);z-index:999;transition:transform .2s;"
+        onmouseover="this.style.transform='scale(1.12)'" onmouseout="this.style.transform='scale(1)'">🤖</a>
+
+    <script>
+        // ── State ────────────────────────────────────────────────────────────
+        const _IST = 'Asia/Kolkata';
+        let _niftyLtp = 0;
+        let _vwap = 0;
+        let _orb = { high: 0, low: 0, range: 0, done: false };
+        let _candles = [];
+        let _tradeLog = JSON.parse(localStorage.getItem('scalpTrades_' + _today()) || '[]');
+        let _slHits = parseInt(localStorage.getItem('scalpSL_' + _today()) || '0', 10);
+        let _lastSignal = null;
+
+        function _today() { return new Date().toLocaleDateString('en-CA', { timeZone: _IST }); }
+
+        function _nowIST() {
+            const d = new Date();
+            return d.toLocaleTimeString('en-GB', { timeZone: _IST, hour: '2-digit', minute: '2-digit' });
+        }
+
+        function _istHM() {
+            const parts = new Date().toLocaleString('en-GB', { timeZone: _IST, hour12: false }).split(' ');
+            const [h, m] = (parts[1] || '00:00').split(':').map(Number);
+            return h * 60 + m;
+        }
+
+        // ── Time Window Detection ─────────────────────────────────────────────
+        function _timeStatus() {
+            const hm = _istHM();
+            if (hm < 9 * 60 + 15) return { status: 'neutral', label: 'Pre-market' };
+            if (hm < 9 * 60 + 20) return { status: 'fail', label: '9:15–9:20 BLOCKED' };
+            if (hm <= 9 * 60 + 45) return { status: 'pass', label: '✓ Primary 9:25–9:45' };
+            if (hm < 10 * 60 + 30) return { status: 'warn', label: '9:45–10:30 secondary' };
+            if (hm < 13 * 60 + 30) return { status: 'fail', label: '10:30–1:30 CHOPPY ZONE' };
+            if (hm <= 15 * 60 + 15) return { status: 'warn', label: '1:30–3:15 late session' };
+            return { status: 'fail', label: 'Market closed' };
+        }
+
+        // ── Market badge ──────────────────────────────────────────────────────
+        function _updateMarketBadge(isLive) {
+            const b = document.getElementById('mktBadge');
+            const l = document.getElementById('mktLabel');
+            if (isLive) { b.className = 'market-badge live'; l.textContent = 'LIVE'; }
+            else { b.className = 'market-badge closed'; l.textContent = 'CLOSED'; }
+        }
+
+        // ── VWAP calculation from candles ─────────────────────────────────────
+        function _calcVwap(candles) {
+            // SOD VWAP: cumulative (typical price × volume) / cumulative volume
+            let cumTV = 0, cumV = 0;
+            for (const c of candles) {
+                const tp = (c.high + c.low + c.close) / 3;
+                const v = c.volume || 1;
+                cumTV += tp * v;
+                cumV += v;
+            }
+            return cumV > 0 ? cumTV / cumV : 0;
+        }
+
+        // ── ORB (9:15–9:30) ───────────────────────────────────────────────────
+        function _calcOrb(candles) {
+            const orbCandles = candles.filter(c => {
+                const t = c.ist || c.time;
+                return t >= '09:15' && t < '09:31';
+            });
+            if (!orbCandles.length) return { high: 0, low: 0, range: 0, done: false };
+            const high = Math.max(...orbCandles.map(c => c.high));
+            const low = Math.min(...orbCandles.map(c => c.low));
+            const hm = _istHM();
+            return { high, low, range: +(high - low).toFixed(2), done: hm >= 9 * 60 + 31 };
+        }
+
+        // ── MA Trend from last N candles ──────────────────────────────────────
+        function _maTrend(candles) {
+            if (candles.length < 9) return { trend: 'FLAT', label: 'Insufficient data', aligned: false };
+            const ema = (arr, n) => {
+                const k = 2 / (n + 1);
+                let e = arr.slice(0, n).reduce((a, b) => a + b, 0) / n;
+                for (let i = n; i < arr.length; i++) e = arr[i] * k + e * (1 - k);
+                return e;
+            };
+            const cls = candles.map(c => c.close);
+            const n = Math.min(candles.length, 50);
+            const sub = cls.slice(-n);
+            const e5 = ema(sub, Math.min(5, sub.length));
+            const e9 = ema(sub, Math.min(9, sub.length));
+            const e21 = ema(sub, Math.min(21, sub.length));
+            const ltp = cls[cls.length - 1];
+
+            if (e5 > e9 && e9 > e21 && ltp > e5) return { trend: 'BULLISH', label: '▲ All MAs BLACK (CE)', aligned: true };
+            if (e5 < e9 && e9 < e21 && ltp < e5) return { trend: 'BEARISH', label: '▼ All MAs RED (PE)', aligned: true };
+            if (Math.abs(e5 - e9) / ltp < 0.002) return { trend: 'FLAT', label: '↔ MAs FLAT — No Trade', aligned: false };
+            return { trend: 'MIXED', label: '~ Mixed MAs — No Trade', aligned: false };
+        }
+
+        // ── Candle body strength ──────────────────────────────────────────────
+        function _candleStrength(c) {
+            const body = Math.abs(c.close - c.open);
+            const range = c.high - c.low;
+            if (!range) return 0;
+            return body / range;
+        }
+
+        // ── Pivot levels (classic) ────────────────────────────────────────────
+        function _pivots(prev) {
+            if (!prev) return null;
+            const pp = (prev.high + prev.low + prev.close) / 3;
+            return {
+                pp: +pp.toFixed(2),
+                r1: +(2 * pp - prev.low).toFixed(2),
+                r2: +(pp + (prev.high - prev.low)).toFixed(2),
+                s1: +(2 * pp - prev.high).toFixed(2),
+                s2: +(pp - (prev.high - prev.low)).toFixed(2),
+            };
+        }
+
+        // ── Core analyse function ─────────────────────────────────────────────
+        function analyse(candles, ltp) {
+            if (!candles.length || !ltp) return null;
+
+            const vwap = _calcVwap(candles);
+            const orb = _calcOrb(candles);
+            const maTrend = _maTrend(candles);
+            const lastC = candles[candles.length - 1];
+            const prevDay = candles.length > 2 ? { high: Math.max(...candles.slice(0, -1).map(c => c.high)), low: Math.min(...candles.slice(0, -1).map(c => c.low)), close: candles[candles.length - 2].close } : null;
+            const pivs = _pivots(prevDay);
+            const timeS = _timeStatus();
+            const bodyRatio = _candleStrength(lastC);
+
+            // Filter results
+            const orbPass = orb.range >= 45;
+            const vwapAbove = vwap > 0 ? ltp > vwap : null;
+            const timePass = timeS.status === 'pass' || timeS.status === 'warn';
+            const maAligned = maTrend.aligned;
+            const bodyStrong = bodyRatio >= 0.60;
+            const notOverExt = orb.done ? Math.abs(ltp - (orb.high + orb.low) / 2) < 60 : true;
+
+            // Direction from MA trend
+            const maBull = maTrend.trend === 'BULLISH';
+            const maBear = maTrend.trend === 'BEARISH';
+
+            // VWAP direction agreement
+            const vwapAgrees = vwapAbove !== null
+                ? (maBull && vwapAbove) || (maBear && !vwapAbove)
+                : false;
+
+            // Sideways check
+            const sideways = !maAligned || maTrend.trend === 'FLAT' || maTrend.trend === 'MIXED';
+
+            // Decision
+            let decision = 'NO_TRADE';
+            let confidence = 'LOW';
+            let reasons = [];
+            let failReasons = [];
+
+            if (!timePass) failReasons.push('Outside primary time window (' + timeS.label + ')');
+            if (sideways) failReasons.push('Market sideways / mixed MAs — no trade');
+            if (!orbPass && orb.done) failReasons.push('ORB too tight (' + orb.range.toFixed(1) + ' pts < 45 pts required)');
+            if (!vwapAgrees && maAligned) failReasons.push('VWAP and MA trend do not agree');
+
+            if (failReasons.length === 0 && maAligned) {
+                if (maBull && vwapAbove) {
+                    decision = 'BUY_CE';
+                    reasons.push('Trend: All MAs bullish (black alignment)');
+                    reasons.push('VWAP: Price above intraday average → CE bias');
+                    if (orbPass) reasons.push('ORB range ' + orb.range.toFixed(1) + ' pts ≥ 45 pts ✓');
+                    if (bodyStrong) reasons.push('Candle body ratio ' + (bodyRatio * 100).toFixed(0) + '% — strong impulse');
+                    if (pivs) reasons.push('Near Pivot S1=' + pivs.s1 + ' / PP=' + pivs.pp + ' support zone');
+                    confidence = bodyStrong && orbPass ? 'HIGH' : 'MEDIUM';
+                } else if (maBear && !vwapAbove) {
+                    decision = 'BUY_PE';
+                    reasons.push('Trend: All MAs bearish (red alignment)');
+                    reasons.push('VWAP: Price below intraday average → PE bias');
+                    if (orbPass) reasons.push('ORB range ' + orb.range.toFixed(1) + ' pts ≥ 45 pts ✓');
+                    if (bodyStrong) reasons.push('Candle body ratio ' + (bodyRatio * 100).toFixed(0) + '% — strong impulse');
+                    if (pivs) reasons.push('Near Pivot R1=' + pivs.r1 + ' / PP=' + pivs.pp + ' resistance zone');
+                    confidence = bodyStrong && orbPass ? 'HIGH' : 'MEDIUM';
+                } else {
+                    failReasons.push('MA trend (' + maTrend.trend + ') and VWAP position disagree');
+                }
+            }
+
+            if (failReasons.length && decision === 'NO_TRADE') {
+                reasons = failReasons;
+                confidence = 'LOW';
+            }
+
+            return {
+                decision, confidence, vwap: +vwap.toFixed(2), orb, maTrend, timeS,
+                pivs, bodyRatio, bodyStrong, orbPass, vwapAbove, maAligned, sideways,
+                reasons, failReasons,
+                checks: { time: timePass, trend: maAligned, vwap: vwapAgrees, orb: orbPass, body: bodyStrong, scope: notOverExt, sideways: !sideways },
+            };
+        }
+
+        // ── Update UI from analysis ───────────────────────────────────────────
+        function _renderResult(sig, ltp, candles) {
+            if (!sig) return;
+            _lastSignal = sig;
+
+            // Decision
+            const dv = document.getElementById('decValue');
+            dv.textContent = sig.decision.replace('_', ' ');
+            dv.className = 'decision-value ' + sig.decision;
+
+            document.getElementById('decSub').textContent = sig.decision === 'NO_TRADE'
+                ? 'WAIT — conditions not met'
+                : sig.decision === 'BUY_CE' ? 'BUY CALL OPTION (CE)' : 'BUY PUT OPTION (PE)';
+
+            const cb = document.getElementById('confBadge');
+            cb.innerHTML = `<div class="confidence-badge ${sig.confidence}">${sig.confidence} CONFIDENCE</div>`;
+
+            // Decision grid
+            document.getElementById('dgNifty').textContent = ltp ? ltp.toFixed(2) : '–';
+            document.getElementById('dgVwap').textContent = sig.vwap ? sig.vwap.toFixed(2) : '–';
+            document.getElementById('dgOrb').textContent = sig.orb.range ? sig.orb.range.toFixed(1) + ' pts' : '–';
+            document.getElementById('dgTrend').textContent = sig.maTrend.trend;
+            document.getElementById('dgTrend').style.color = sig.maTrend.trend === 'BULLISH' ? 'var(--green)' : sig.maTrend.trend === 'BEARISH' ? 'var(--red)' : 'var(--txt-mute)';
+
+            // Trade levels (based on option premium 180 rule)
+            const baseEntry = 180;  // ₹180 base premium per strategy
+            if (sig.decision !== 'NO_TRADE') {
+                const sl = baseEntry - 11;
+                const tgt1 = baseEntry + 20;
+                const tgt2 = baseEntry + 35;
+                const trail = baseEntry + 15;
+                document.getElementById('dgEntry').textContent = '~₹' + baseEntry;
+                document.getElementById('dgSl').textContent = '₹' + sl;
+                document.getElementById('dgTgt1').textContent = '₹' + tgt1;
+                document.getElementById('dgTgt2').textContent = '₹' + tgt2;
+                document.getElementById('lvEntry').textContent = '₹' + baseEntry + ' (ATM option)';
+                document.getElementById('lvEntryNote').textContent = sig.decision;
+                document.getElementById('lvSl').textContent = '₹' + sl;
+                document.getElementById('lvTgt1').textContent = '₹' + tgt1;
+                document.getElementById('lvTgt2').textContent = '₹' + tgt2;
+                document.getElementById('lvTrail').textContent = '₹' + trail;
+            } else {
+                ['dgEntry', 'dgSl', 'dgTgt1', 'dgTgt2'].forEach(id => document.getElementById(id).textContent = '–');
+                ['lvEntry', 'lvSl', 'lvTgt1', 'lvTgt2', 'lvTrail'].forEach(id => document.getElementById(id).textContent = '–');
+                document.getElementById('lvEntryNote').textContent = 'awaiting scan';
+            }
+
+            // Filter chips
+            _setChip('fc-time', sig.checks.time ? 'pass' : 'fail', sig.timeS.label);
+            _setChip('fc-trend', sig.checks.trend ? 'pass' : 'fail', sig.maTrend.label.split('(')[0].trim());
+            _setChip('fc-vwap', sig.checks.vwap ? 'pass' : 'fail', sig.vwapAbove !== null ? (sig.vwapAbove ? 'Above VWAP' : 'Below VWAP') : 'No data');
+            _setChip('fc-orb', sig.checks.orb ? 'pass' : 'fail', 'ORB ' + (sig.orb.range || 0).toFixed(1) + ' pts');
+            _setChip('fc-candle', sig.checks.body ? 'pass' : 'warn', (sig.bodyRatio * 100).toFixed(0) + '% body');
+            _setChip('fc-scope', sig.checks.scope ? 'pass' : 'fail', 'Extension OK');
+            _setChip('fc-sideways', sig.checks.sideways ? 'pass' : 'fail', sig.sideways ? 'SIDEWAYS' : 'Trending');
+
+            // Checklist
+            const cl = document.querySelectorAll('#checklist .check-item');
+            const states = [
+                sig.checks.time, sig.checks.trend, sig.checks.vwap,
+                sig.checks.orb, true, !!sig.pivs, sig.checks.body,
+                sig.checks.scope, true
+            ];
+            const icons = ['✓', '✓', '✓', '✓', '○', '✓', '✓', '✓', '○'];
+            cl.forEach((el, i) => {
+                const s = states[i];
+                el.className = 'check-item ' + (s === true ? 'pass' : s === false ? 'fail' : 'neutral');
+                el.querySelector('.check-icon').textContent = s === true ? '✓' : s === false ? '✗' : icons[i];
+            });
+
+            // Checklist badge
+            const passing = states.filter(s => s === true).length;
+            const cb2 = document.getElementById('checklistBadge');
+            const pct = (passing / states.filter(s => s !== undefined).length * 100).toFixed(0);
+            cb2.textContent = passing + '/' + states.length + ' PASS (' + pct + '%)';
+            cb2.style.background = passing >= 7 ? 'var(--green-bg)' : passing >= 5 ? 'var(--amber-bg)' : 'var(--red-bg)';
+            cb2.style.color = passing >= 7 ? 'var(--green)' : passing >= 5 ? 'var(--amber)' : 'var(--red)';
+            cb2.style.borderColor = passing >= 7 ? 'var(--green-bdr)' : passing >= 5 ? 'var(--amber-bdr)' : 'var(--red-bdr)';
+
+            // Reason box
+            const rt = document.getElementById('reasonText');
+            const allReasons = [...sig.reasons, ...sig.failReasons];
+            rt.innerHTML = allReasons.map(r => `<div style="padding:3px 0;border-bottom:1px solid var(--border);">• ${r}</div>`).join('') || '<span style="color:var(--txt-mute);">No specific reasoning generated.</span>';
+
+            // Sideways badge
+            const swB = document.getElementById('swBadge');
+            if (sig.sideways) {
+                swB.textContent = 'SIDEWAYS — NO TRADE';
+                swB.style.background = 'var(--red-bg)'; swB.style.color = 'var(--red)'; swB.style.borderColor = 'var(--red-bdr)';
+                ['sw-ribbon', 'sw-candles', 'sw-premiums'].forEach(id => { const el = document.getElementById(id); el.className = 'rule-item danger'; });
+            } else {
+                swB.textContent = 'TRENDING — OK';
+                swB.style.background = 'var(--green-bg)'; swB.style.color = 'var(--green)'; swB.style.borderColor = 'var(--green-bdr)';
+                ['sw-ribbon', 'sw-candles', 'sw-premiums'].forEach(id => { const el = document.getElementById(id); el.className = 'rule-item'; });
+            }
+        }
+
+        function _setChip(id, cls, label) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.className = 'filter-chip ' + cls;
+            const txt = el.childNodes[1] || el.lastChild;
+            if (txt) txt.textContent = ' ' + label;
+        }
+
+        // ── Draw mini chart ───────────────────────────────────────────────────
+        function _drawChart(candles, vwap, entryPx, slPx) {
+            const cvs = document.getElementById('scalp-chart');
+            const ctx = cvs.getContext('2d');
+            const W = cvs.width = cvs.parentElement.offsetWidth;
+            const H = cvs.height = 200;
+            ctx.clearRect(0, 0, W, H);
+
+            if (!candles.length) return;
+
+            const n = Math.min(candles.length, 80);
+            const sub = candles.slice(-n);
+            const highs = sub.map(c => c.high);
+            const lows = sub.map(c => c.low);
+            const allPrice = [].concat(highs, lows);
+            if (entryPx) allPrice.push(entryPx, slPx || entryPx - 20);
+            const minP = Math.min(...allPrice) - 5;
+            const maxP = Math.max(...allPrice) + 5;
+            const rangeP = maxP - minP || 1;
+
+            const pad = { l: 8, r: 8, t: 8, b: 8 };
+            const cW = (W - pad.l - pad.r) / n;
+            const toY = p => pad.t + (1 - (p - minP) / rangeP) * (H - pad.t - pad.b);
+            const toX = i => pad.l + (i + 0.5) * cW;
+
+            // Background
+            ctx.fillStyle = '#141622';
+            ctx.fillRect(0, 0, W, H);
+
+            // VWAP line
+            if (vwap > 0) {
+                const vy = toY(vwap);
+                ctx.strokeStyle = 'rgba(251,191,36,.5)'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 3]);
+                ctx.beginPath(); ctx.moveTo(pad.l, vy); ctx.lineTo(W - pad.r, vy); ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.fillStyle = 'rgba(251,191,36,.8)'; ctx.font = '9px Inter,sans-serif';
+                ctx.fillText('VWAP ' + vwap.toFixed(0), W - pad.r - 60, vy - 3);
+            }
+
+            // SMA20
+            if (sub.length >= 5) {
+                ctx.strokeStyle = 'rgba(129,140,248,.6)'; ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                let smS = false;
+                for (let i = 0; i < sub.length; i++) {
+                    const period = Math.min(i + 1, 20);
+                    const slice = sub.slice(Math.max(0, i - 19), i + 1);
+                    const sm = slice.reduce((a, c) => a + c.close, 0) / slice.length;
+                    const x = toX(i), y = toY(sm);
+                    if (!smS) { ctx.moveTo(x, y); smS = true; } else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+            }
+
+            // Candles
+            sub.forEach((c, i) => {
+                const x = toX(i);
+                const cw = Math.max(cW * 0.65, 1);
+                const isBull = c.close >= c.open;
+                const col = isBull ? '#34d399' : '#f87171';
+
+                // Wick
+                ctx.strokeStyle = col; ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(x, toY(c.high)); ctx.lineTo(x, toY(c.low));
+                ctx.stroke();
+
+                // Body
+                const cy1 = toY(Math.max(c.open, c.close));
+                const cy2 = toY(Math.min(c.open, c.close));
+                ctx.fillStyle = col;
+                ctx.fillRect(x - cw / 2, cy1, cw, Math.max(cy2 - cy1, 1));
+            });
+
+            // Entry / SL lines
+            if (entryPx) {
+                const ey = toY(entryPx);
+                ctx.strokeStyle = 'rgba(52,211,153,.8)'; ctx.lineWidth = 1.5; ctx.setLineDash([3, 2]);
+                ctx.beginPath(); ctx.moveTo(pad.l, ey); ctx.lineTo(W - pad.r, ey); ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.fillStyle = 'rgba(52,211,153,.9)'; ctx.font = '9px Inter,sans-serif';
+                ctx.fillText('Entry', pad.l + 4, ey - 3);
+            }
+            if (slPx) {
+                const sy = toY(slPx);
+                ctx.strokeStyle = 'rgba(248,113,113,.6)'; ctx.lineWidth = 1; ctx.setLineDash([3, 2]);
+                ctx.beginPath(); ctx.moveTo(pad.l, sy); ctx.lineTo(W - pad.r, sy); ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.fillStyle = 'rgba(248,113,113,.8)'; ctx.font = '9px Inter,sans-serif';
+                ctx.fillText('SL', pad.l + 4, sy - 3);
+            }
+
+            document.getElementById('chartTs').textContent = sub.length + ' bars shown';
+        }
+
+        // ── Trade log UI ──────────────────────────────────────────────────────
+        function _renderTradeLog() {
+            const el = document.getElementById('tradeLog');
+            const lb = document.getElementById('logBadge');
+            lb.textContent = _tradeLog.length + ' trade' + (_tradeLog.length !== 1 ? 's' : '');
+            if (!_tradeLog.length) { el.innerHTML = '<div style="color:var(--txt-mute);font-size:.78rem;padding:8px 4px;">No trades logged yet today.</div>'; return; }
+            el.innerHTML = _tradeLog.map(t => `
+        <div class="log-item">
+            <div class="log-item-head">
+                <span class="log-badge ${t.decision}">${t.decision.replace('_', ' ')}</span>
+                <span class="log-time">${t.time}</span>
+            </div>
+            <div class="log-reason">${(t.reasons || []).slice(0, 3).map(r => '• ' + r).join('<br>')}</div>
+            <div class="log-metrics">
+                <span class="log-m"><span>Conf: </span>${t.confidence}</span>
+                <span class="log-m"><span>Trend: </span>${t.trend}</span>
+                <span class="log-m"><span>VWAP: </span>${t.vwapAbove === true ? 'Above' : t.vwapAbove === false ? 'Below' : '–'}</span>
+                <span class="log-m"><span>ORB: </span>${t.orbRange || '–'} pts</span>
+            </div>
+        </div>
+    `).join('');
+        }
+
+        function _updateSlCounter() {
+            document.getElementById('slHit0').textContent = _slHits;
+            const ss = document.getElementById('slHitStatus');
+            if (_slHits >= 2) {
+                ss.textContent = 'STOP TRADING';
+                ss.style.background = 'var(--red-bg)'; ss.style.color = 'var(--red)'; ss.style.borderColor = 'var(--red-bdr)';
+                ['tc0', 'tc1'].forEach(id => document.getElementById(id).className = 'tc-dot full');
+            } else if (_slHits === 1) {
+                ss.textContent = '1 SL HIT';
+                ss.style.background = 'var(--amber-bg)'; ss.style.color = 'var(--amber)'; ss.style.borderColor = 'var(--amber-bdr)';
+                document.getElementById('tc0').className = 'tc-dot full';
+            } else {
+                ss.textContent = 'ACTIVE';
+                ss.style.background = 'var(--green-bg)'; ss.style.color = 'var(--green)'; ss.style.borderColor = 'var(--green-bdr)';
+            }
+        }
+
+        function _updateTradeCounter() {
+            const realTrades = _tradeLog.filter(t => t.decision !== 'NO_TRADE');
+            document.getElementById('tcLabel').textContent = realTrades.length + ' / 2 trades today';
+            const ids = ['tc0', 'tc1'];
+            ids.forEach((id, i) => {
+                document.getElementById(id).className = 'tc-dot' + (i < realTrades.length ? ' full' : '');
+            });
+        }
+
+        // ── Main scan ─────────────────────────────────────────────────────────
+        async function runScan() {
+            const btn = document.getElementById('scanBtn');
+            const txt = document.getElementById('scanBtnTxt');
+            btn.disabled = true;
+            txt.innerHTML = '<span class="spin">⟳</span> Scanning...';
+
+            try {
+                // Fetch live NIFTY tick
+                const live = await fetch('/api/live').then(r => r.json()).catch(() => ({}));
+                _niftyLtp = live.ltp || live.nifty?.ltp || 0;
+                _updateMarketBadge(live.market_open || false);
+
+                // Fetch today's 1m candles
+                const today = _today();
+                const cd = await fetch('/api/candles?date=' + today + '&timeframe=1m').then(r => r.json()).catch(() => ({}));
+                _candles = (cd.candles || []).map(c => ({
+                    open: c.open, high: c.high, low: c.low, close: c.close,
+                    volume: c.volume || 0, ist: (c.ist || '').slice(11, 16), time: c.time,
+                }));
+
+                // Use ltp from candles if no live tick
+                if (!_niftyLtp && _candles.length) _niftyLtp = _candles[_candles.length - 1].close;
+
+                // Run analysis
+                const sig = analyse(_candles, _niftyLtp);
+                if (!sig) { document.getElementById('scanTs').textContent = 'No candle data available.'; return; }
+
+                _vwap = sig.vwap;
+                _orb = sig.orb;
+
+                // Render
+                _renderResult(sig, _niftyLtp, _candles);
+                _drawChart(_candles, _vwap,
+                    sig.decision !== 'NO_TRADE' ? _niftyLtp : 0,
+                    sig.decision !== 'NO_TRADE' ? _niftyLtp - 20 : 0
+                );
+
+                // Log the signal
+                const entry = {
+                    decision: sig.decision,
+                    confidence: sig.confidence,
+                    reasons: sig.reasons,
+                    time: _nowIST(),
+                    trend: sig.maTrend.trend,
+                    vwapAbove: sig.vwapAbove,
+                    orbRange: sig.orb.range,
+                };
+                _tradeLog.unshift(entry);
+                if (_tradeLog.length > 10) _tradeLog.pop();
+                localStorage.setItem('scalpTrades_' + today, JSON.stringify(_tradeLog));
+                _renderTradeLog();
+                _updateTradeCounter();
+
+                document.getElementById('scanTs').textContent = 'Last scan: ' + _nowIST();
+
+            } catch (e) {
+                document.getElementById('scanTs').textContent = 'Scan error: ' + e.message;
+            } finally {
+                btn.disabled = false;
+                txt.textContent = 'Analyse Now';
+            }
+        }
+
+        // ── Mobile hamburger ──────────────────────────────────────────────────
+        function toggleMob() {
+            const btn = document.getElementById('hamBtn');
+            const menu = document.getElementById('mobMenu');
+            btn.classList.toggle('open');
+            menu.classList.toggle('show');
+        }
+        document.addEventListener('click', e => {
+            const tb = document.getElementById('topbar');
+            if (!tb.contains(e.target)) {
+                document.getElementById('hamBtn').classList.remove('open');
+                document.getElementById('mobMenu').classList.remove('show');
+            }
+        });
+
+        // ── Init ──────────────────────────────────────────────────────────────
+        (function init() {
+            _renderTradeLog();
+            _updateSlCounter();
+            _updateTradeCounter();
+            // Auto-scan on load
+            runScan();
+            // Auto-refresh every 60s
+            setInterval(runScan, 60000);
+        })();
+    </script>
+
+</body>
+
+</html>

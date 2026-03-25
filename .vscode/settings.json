@@ -24,6 +24,26 @@
         "/^git add -A$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^git commit -m \"feat: server-side background scanner \\(30s\\), nifty_high tracking during trades, fix 20d SMA slope using pre-test-date slice\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^git push$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^cd \"c:\\\\Users\\\\Sushma\\\\Desktop\\\\AngelOne\"; python -c \"\nimport os, re\n\ntemplates_dir = r'trading_bot\\\\dashboard\\\\templates'\nfiles = \\[f for f in os\\.listdir\\(templates_dir\\) if f\\.endswith\\('\\.html'\\) and not f\\.endswith\\('\\.bak'\\) and f != 'scalping\\.html'\\]\n\n# Pattern: any <a href=\\\\\"/pnl\\\\\"\\.\\.\\.>P&L</a> line, possibly with class='active'\npattern = re\\.compile\\(r'\\(<a href=\\\\\"/pnl\\\\\"\\[\\^>\\]\\*>P&amp;L</a>\\)'\\)\n\nadded = \\[\\]\nfor fname in files:\n    path = os\\.path\\.join\\(templates_dir, fname\\)\n    with open\\(path, 'r', encoding='utf-8'\\) as f:\n        content = f\\.read\\(\\)\n    \n    # Check if scalping link already exists\n    if 'href=\\\\\"/scalping\\\\\"' in content:\n        print\\(f'  SKIP \\{fname\\} \\(already has scalping link\\)'\\)\n        continue\n    \n    # Add scalping link after each P&L link, preserving indentation\n    lines = content\\.split\\('\\\\n'\\)\n    new_lines = \\[\\]\n    changes = 0\n    for line in lines:\n        new_lines\\.append\\(line\\)\n        m = pattern\\.search\\(line\\)\n        if m:\n            # Detect leading whitespace\n            indent = len\\(line\\) - len\\(line\\.lstrip\\(\\)\\)\n            ws = ' ' \\* indent\n            new_lines\\.append\\(ws \\+ '<a href=\\\\\"/scalping\\\\\">Scalping</a>'\\)\n            changes \\+= 1\n    \n    if changes:\n        with open\\(path, 'w', encoding='utf-8'\\) as f:\n            f\\.write\\('\\\\n'\\.join\\(new_lines\\)\\)\n        print\\(f'  UPDATED \\{fname\\}: \\+\\{changes\\} Scalping links'\\)\n        added\\.append\\(fname\\)\n    else:\n        print\\(f'  NO CHANGE \\{fname\\}'\\)\n\nprint\\(f'\\\\nDone\\. Updated \\{len\\(added\\)\\} files\\.'\\)\n\"\n$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^python -c \"\nimport os\npath = r'trading_bot\\\\dashboard\\\\templates\\\\history\\.html'\nwith open\\(path, encoding='utf-8'\\) as f:\n    lines = f\\.readlines\\(\\)\nfor i, l in enumerate\\(lines\\[908:930\\], start=909\\):\n    print\\(i, repr\\(l\\.rstrip\\(\\)\\)\\)\n\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^python _add_scalping_nav\\.py$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     }
 }

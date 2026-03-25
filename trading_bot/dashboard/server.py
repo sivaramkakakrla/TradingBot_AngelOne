@@ -546,6 +546,11 @@ def pnl_page():
     return render_template("pnl.html")
 
 
+@app.route("/scalping")
+def scalping_page():
+    return render_template("scalping.html")
+
+
 @app.route("/api/candles")
 def api_candles():
     """
