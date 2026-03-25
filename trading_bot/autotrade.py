@@ -42,6 +42,10 @@ IST = ZoneInfo(config.TIMEZONE)
 _daily_df_cache: tuple = (None, 0.0)   # (DataFrame | None, epoch_of_last_fetch)
 _DAILY_CACHE_TTL = 300                  # 5 minutes
 
+# ── High-watermark tracker: max option LTP seen since entry ──────────────────────
+# Persisted in Redis for Vercel (stateless per invocation)
+_trade_max_price: dict[str, float] = {}
+
 # ── Module state ──────────────────────────────────────────────────────────────
 _running = False
 _thread: threading.Thread | None = None
@@ -534,6 +538,29 @@ def _monitor_positions():
         if trade_ltp <= 0:
             continue
 
+        # Track high watermark (max price reached since entry)
+        _redis_key = f"autotrade:max_price:{trade_id}"
+        prev_max = _trade_max_price.get(trade_id, 0.0)
+        # Also restore from Redis (for Vercel stateless invocations)
+        try:
+            from trading_bot.cache import _get_client as _rc
+            r = _rc()
+            if r:
+                v = r.get(_redis_key)
+                if v:
+                    prev_max = max(prev_max, float(v if isinstance(v, str) else v.decode()))
+        except Exception:
+            pass
+        current_max = max(prev_max, trade_ltp)
+        _trade_max_price[trade_id] = current_max
+        try:
+            from trading_bot.cache import _get_client as _rc
+            r = _rc()
+            if r:
+                r.set(_redis_key, str(current_max), ex=86400)  # expire after 1 day
+        except Exception:
+            pass
+
         # All trades are LONG (bought options) — P&L = (LTP - entry) * qty
         pnl = (trade_ltp - entry) * qty
 
@@ -583,12 +610,25 @@ def _monitor_positions():
             final_pnl = round((exit_price - entry) * qty, 2)
 
             now_str = now_ist().isoformat()
-            actually_closed = close_trade(trade_id, exit_price, now_str, exit_reason, final_pnl)
+            max_px = _trade_max_price.get(trade_id) if exit_reason == "SL_HIT" else None
+            actually_closed = close_trade(trade_id, exit_price, now_str, exit_reason, final_pnl,
+                                          max_price_reached=max_px)
             if actually_closed:
                 update_portfolio_after_trade(final_pnl, final_pnl >= 0)
 
                 if exit_reason != "EOD_EXIT":
-                    _log_event(f"{exit_reason} {trade_id} @ {exit_price:.2f} PnL={final_pnl:.2f}")
+                    max_note = f" MaxReached={max_px:.2f}" if max_px else ""
+                    _log_event(f"{exit_reason} {trade_id} @ {exit_price:.2f} PnL={final_pnl:.2f}{max_note}")
+
+                # Clean up high-watermark state for closed trade
+                _trade_max_price.pop(trade_id, None)
+                try:
+                    from trading_bot.cache import _get_client as _rc
+                    r = _rc()
+                    if r:
+                        r.delete(f"autotrade:max_price:{trade_id}")
+                except Exception:
+                    pass
 
                 # SL hit logged — direction block intentionally disabled; re-entry allowed immediately
 

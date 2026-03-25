@@ -194,10 +194,11 @@ def init_db() -> None:
 def _migrate() -> None:
     """Add columns that may be missing in older databases."""
     migrations = [
-        ("trades", "stop_loss", "REAL"),
-        ("trades", "target",    "REAL"),
-        ("trades", "expiry",    "TEXT"),
-        ("trades", "source",    "TEXT DEFAULT 'MANUAL'"),
+        ("trades", "stop_loss",         "REAL"),
+        ("trades", "target",            "REAL"),
+        ("trades", "expiry",            "TEXT"),
+        ("trades", "source",            "TEXT DEFAULT 'MANUAL'"),
+        ("trades", "max_price_reached", "REAL"),
     ]
     with get_cursor() as cur:
         for table, col, col_type in migrations:
@@ -318,6 +319,7 @@ def close_trade(
     exit_reason: str,
     pnl: float,
     exit_order_id: str = "",
+    max_price_reached: float | None = None,
 ) -> bool:
     """Mark a trade as closed with exit details.
 
@@ -327,11 +329,13 @@ def close_trade(
     sql = """
         UPDATE trades
         SET exit_price = ?, exit_time = ?, exit_reason = ?,
-            pnl = ?, status = 'CLOSED', exit_order_id = ?
+            pnl = ?, status = 'CLOSED', exit_order_id = ?,
+            max_price_reached = COALESCE(?, max_price_reached)
         WHERE trade_id = ? AND status = 'OPEN'
     """
     with get_cursor() as cur:
-        cur.execute(sql, (exit_price, exit_time, exit_reason, pnl, exit_order_id, trade_id))
+        cur.execute(sql, (exit_price, exit_time, exit_reason, pnl, exit_order_id,
+                          max_price_reached, trade_id))
         if cur.rowcount == 0:
             return False  # already closed — skip PnL update
     # Sync closed trade to Redis
