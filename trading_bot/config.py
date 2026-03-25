@@ -163,7 +163,7 @@ MAX_DAILY_TRADES = 999        # no daily trade cap
 # ═══════════════════════════════════════════════════════════════════════════════
 # ADX-based chop filter — skip all signals when market is sideways
 ADX_PERIOD = 14
-ADX_SIDEWAYS_THRESHOLD = 18      # ADX < 18 → choppy/sideways → NO TRADE (was 20 → Balanced)
+ADX_SIDEWAYS_THRESHOLD = 14      # ADX < 14 → choppy/sideways → NO TRADE (was 18, too strict on 1m)
 ADX_STRONG_TREND = 25            # ADX ≥ 25 → confirmed trend → prefer trading
 
 # Higher-timeframe bias (15m EMA cross) — 1m signal must align
@@ -172,16 +172,16 @@ HTF_EMA_FAST = 9                 # 15m fast EMA
 HTF_EMA_SLOW = 21                # 15m slow EMA
 
 # Entry signal quality floor
-MIN_SIGNAL_STRENGTH = 45         # discard signals below this composite score (was 50 → Balanced)
+MIN_SIGNAL_STRENGTH = 25         # discard signals below this composite score (was 45, blocked everything)
 
 # Confirmation candle minimum body ratio (rejects dojis/spinning tops)
 # Doji < 0.10, spinning top 0.10–0.20, normal candle > 0.25
-CONFIRM_CANDLE_MIN_BODY_RATIO = 0.18  # was 0.25 hardcoded → Balanced profile
+CONFIRM_CANDLE_MIN_BODY_RATIO = 0.10  # was 0.18, too strict on 1m candles
 
 # Opening range breakout quality filter (avoid random midday micro-breaks)
 OPENING_RANGE_FILTER_ENABLED = True
 OPENING_RANGE_END = "09:30"      # build OR from 09:15 to 09:30 on 1m bars
-OPENING_RANGE_BUFFER = 8.0        # points beyond OR high/low required to validate breakout
+OPENING_RANGE_BUFFER = 4.0        # points beyond OR high/low required (was 8, too wide)
 
 # Candle quality: reject stretched bars that often mean late entry/chasing
 MAX_ENTRY_BAR_ATR_MULT = 2.2      # if (bar range / ATR) > this, skip as over-extended
@@ -191,7 +191,7 @@ MAX_ENTRY_BAR_ATR_MULT = 2.2      # if (bar range / ATR) > this, skip as over-ex
 # ═══════════════════════════════════════════════════════════════════════════════
 # AI is used as a FILTER after rule-based ENTER is confirmed, not as a trigger
 # If AI confidence score (0–100) is below this threshold, the trade is skipped
-AI_FILTER_ENABLED = True
+AI_FILTER_ENABLED = False         # disabled until rule engine generates enough trades to evaluate
 AI_MIN_CONFIDENCE = 55           # skip trade if AI rates it below 55/100
 AI_FILTER_TIMEOUT = 8            # seconds — if AI takes longer, fall through
 
