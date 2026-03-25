@@ -117,10 +117,13 @@ def _daily_loss_reached() -> bool:
 
 
 def _is_duplicate_signal(direction: str) -> bool:
-    """Prevent same-direction signal within cooldown period.
+    """Check if same-direction signal was recently acted upon.
 
     On Vercel, in-memory _recent_signals resets on every cold start, so we
-    also check/set a Redis key with a TTL equal to the cooldown period.
+    also check a Redis key with a TTL equal to the cooldown period.
+
+    NOTE: This function ONLY checks — it does NOT record the signal.
+    Call _record_signal() after a trade is successfully placed.
     """
     now_ts = time.time()
     last = _recent_signals.get(direction, 0)
@@ -140,8 +143,13 @@ def _is_duplicate_signal(direction: str) -> bool:
 
     if now_ts - last < config.DUPLICATE_SIGNAL_COOLDOWN:
         return True
+    return False
 
-    # Record in both memory and Redis
+
+def _record_signal(direction: str):
+    """Record that a signal was acted upon (trade placed).
+    Call this AFTER successful trade placement, not before."""
+    now_ts = time.time()
     _recent_signals[direction] = now_ts
     try:
         from trading_bot.cache import _get_client
@@ -151,7 +159,6 @@ def _is_duplicate_signal(direction: str) -> bool:
                   ex=config.DUPLICATE_SIGNAL_COOLDOWN)
     except Exception:
         pass
-    return False
 
 
 def _is_sl_blocked(direction: str) -> bool:
@@ -650,6 +657,8 @@ def _scan_and_trade():
 
         trade_id = _place_auto_trade(sig, nifty_ltp)
         if trade_id:
+            # Record signal ONLY after successful trade placement
+            _record_signal(sig.direction)
             opt_type = "CE" if sig.direction == "BULLISH" else "PE"
             with _lock:
                 _status["last_signal"] = {
