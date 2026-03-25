@@ -141,7 +141,7 @@ MAX_TRADES_PER_15MIN = 10         # effectively unlimited within 15 minutes
 
 # Hard safety brakes
 MAX_CONSECUTIVE_SL = 2            # pause trading after this many SL hits in a row
-MAX_INTRADAY_DRAWDOWN = 1200      # stop new entries if peak-to-trough drawdown exceeds this
+MAX_INTRADAY_DRAWDOWN = 5000      # stop new entries if peak-to-trough drawdown exceeds this (₹5000)
 
 # Option premium quality band (avoid deep OTM junk and over-expensive contracts)
 # Widened: ATM premiums range ₹50-₹400+ depending on DTE and volatility.
