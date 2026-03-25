@@ -29,11 +29,11 @@ log = get_logger(__name__)
 SMA_PERIOD = 20
 SLOPE_LOOKBACK = 5
 FLAT_SLOPE_THRESH = 0.005        # ±0.5%  for SMA slope
-CROSSOVER_LOOKBACK = 5
-BOUNCE_BAND_PCT = 2.0            # ±2% of SMA
+CROSSOVER_LOOKBACK = 2               # ±2 days for fresh crossovers
+BOUNCE_BAND_PCT = 4.0            # ±4% of SMA (wider catch zone)
 STRETCH_BLOCK_PCT = 10.0
 STRETCH_WARN_PCT = 5.0
-MOMENTUM_BODY_RATIO = 0.15
+MOMENTUM_BODY_RATIO = 0.05       # relaxed — dojis/small candles OK
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -401,12 +401,12 @@ def _linreg_1m_confirmation(df_1m: pd.DataFrame) -> tuple[str, float, str]:
 def _theta_filter(sma_label: str, linreg_daily_dir: str,
                   linreg_1m_dir: str, bar_time=None) -> tuple[str, str, bool]:
     """
-    Time-based theta filter for option buyers.
+    Relaxed time-based theta filter for option buyers.
 
     Morning   (09:30–11:30): Full confidence — no extra gate
-    Midday    (11:30–13:30): Both SMA + LinReg daily must agree
-    Afternoon (13:30–14:45): All three (SMA + LinReg daily + LinReg 1m) must agree
-    EOD       (14:45–15:30): Block all new entries — theta too punishing
+    Midday    (11:30–13:30): SMA slope must not be FLAT
+    Afternoon (13:30–15:15): SMA + LinReg daily must agree
+    EOD       (15:15–15:30): Block all new entries
 
     bar_time: Optional datetime for backtesting (defaults to now_ist())
 
@@ -422,24 +422,17 @@ def _theta_filter(sma_label: str, linreg_daily_dir: str,
         return "MORNING", "Morning session — full confidence, no theta adjustment", True
 
     if hhmm <= config.THETA_MIDDAY_END:
-        if sma_label == linreg_daily_dir and sma_label != "FLAT":
-            return "MIDDAY", f"Midday — SMA({sma_label}) + LinReg({linreg_daily_dir}) aligned", True
-        note = f"Midday — need SMA + LinReg agreement (SMA={sma_label}, LR={linreg_daily_dir})"
-        return "MIDDAY", note, False
+        if sma_label != "FLAT":
+            return "MIDDAY", f"Midday — SMA trend clear ({sma_label})", True
+        return "MIDDAY", "Midday — SMA is FLAT, no clear trend", False
 
     if hhmm <= config.THETA_BLOCK_HOUR:
-        sma_dir = "BULLISH" if sma_label == "RISING" else ("BEARISH" if sma_label == "FALLING" else "FLAT")
-        lr_daily_m = "BULLISH" if linreg_daily_dir == "RISING" else ("BEARISH" if linreg_daily_dir == "FALLING" else "FLAT")
-        lr_1m_m = "BULLISH" if linreg_1m_dir == "RISING" else ("BEARISH" if linreg_1m_dir == "FALLING" else "FLAT")
-
-        all_agree = (sma_dir == lr_daily_m == lr_1m_m) and sma_dir != "FLAT"
-        if all_agree:
-            return "AFTERNOON", f"Afternoon — all slopes agree ({sma_dir})", True
-        note = (f"Afternoon — theta high, need all slopes aligned "
-                f"(SMA={sma_label}, LR_D={linreg_daily_dir}, LR_1m={linreg_1m_dir})")
+        if sma_label == linreg_daily_dir and sma_label != "FLAT":
+            return "AFTERNOON", f"Afternoon — SMA({sma_label}) + LinReg({linreg_daily_dir}) aligned", True
+        note = f"Afternoon — need SMA + LinReg daily agreement (SMA={sma_label}, LR_D={linreg_daily_dir})"
         return "AFTERNOON", note, False
 
-    return "EOD", "After 14:45 — theta too punishing, no new entries", False
+    return "EOD", f"After {config.THETA_BLOCK_HOUR} — no new entries", False
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -590,13 +583,11 @@ def analyze_live(daily_df: pd.DataFrame, df_1m: pd.DataFrame | None = None,
     elif sig.direction == "BEARISH":
         sig.option_type = "PE"
 
-    # ── STEP H: Final entry decision (ALL gates must pass) ───────────────
+    # ── STEP H: Final entry decision (relaxed gates for higher win-rate) ──
     sig.should_enter = (
         sig.direction != "NEUTRAL"
         and sig.signal_type != "NONE"
         and avg.slope_label != "FLAT"
-        and timing_confirmed
-        and lr_1m_ok
         and theta_passed
         and abs(sig.distance_pct) <= STRETCH_BLOCK_PCT
         and not (intra_bias != "NEUTRAL" and intra_bias != sig.direction)

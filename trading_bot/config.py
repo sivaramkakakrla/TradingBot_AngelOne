@@ -204,7 +204,7 @@ LINREG_1M_FLAT_SLOPE_THRESH = 0.1 # 1m LinReg flat threshold (smaller scale)
 THETA_MORNING_END = "11:30"       # full confidence zone ends
 THETA_MIDDAY_END = "13:30"        # midday zone ends (need stronger signals)
 THETA_STRONG_SIGNAL_HOUR = "13:30"  # after this, require both slopes strongly aligned
-THETA_BLOCK_HOUR = "14:45"       # after this, no new entries (theta too punishing)
+THETA_BLOCK_HOUR = "15:15"       # after this, no new entries (theta too punishing)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  PAPER TRADING PORTFOLIO

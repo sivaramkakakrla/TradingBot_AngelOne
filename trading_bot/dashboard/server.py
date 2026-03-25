@@ -247,8 +247,8 @@ def _backtest_20day(date_str: str, timeframe: str):
 
         # 3) Walk through 1m bars — find entries and simulate P&L
         trades = []
-        SL_PTS = 30.0
-        TGT_PTS = 60.0
+        SL_PTS = 40.0
+        TGT_PTS = 25.0
         step = 5
         scan_from = 14  # skip first 14 bars (LinReg warmup)
 
