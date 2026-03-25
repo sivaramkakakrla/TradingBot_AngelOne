@@ -586,25 +586,36 @@ def analyze_live(daily_df: pd.DataFrame, df_1m: pd.DataFrame | None = None,
     # ── STEP H-pre: Intraday VWAP alignment ──────────────────────────────
     # BEARISH entry only allowed when price is AT or BELOW intraday VWAP.
     # BULLISH entry only allowed when price is AT or ABOVE intraday VWAP.
-    # This prevents selling into an intraday uptrend (main cause of Mar-25 losses).
+    # Prevents selling into an intraday uptrend (root cause of Mar-25 losses).
+    #
+    # NIFTY index has zero volume → calc_vwap() returns NaN.
+    # Fallback: equal-weight typical-price average (HLC/3 cumulative mean) works
+    # identically to VWAP for indices and is volume-independent.
     vwap_aligned = True
     if df_1m is not None and len(df_1m) >= 5:
         try:
+            # Try volume-weighted first
             vwap_series = calc_vwap(df_1m)
             vwap_now = float(vwap_series.iloc[-1])
-            if not np.isnan(vwap_now) and vwap_now > 0:
+
+            # Fallback for zero-volume index data (NIFTY, BANKNIFTY)
+            if np.isnan(vwap_now) or vwap_now <= 0:
+                typical = (df_1m["high"] + df_1m["low"] + df_1m["close"]) / 3
+                vwap_now = float(typical.mean())   # cumulative equal-weight mean = SOD avg
+
+            if vwap_now > 0:
                 if sig.direction == "BEARISH" and live_price > vwap_now * 1.001:
                     vwap_aligned = False
                     sig.skip_reasons.append(
-                        f"VWAP gate: BEARISH signal but price {live_price:.2f} > VWAP {vwap_now:.2f} (intraday uptrend)"
+                        f"VWAP gate: BEARISH but price {live_price:.2f} > intraday avg {vwap_now:.2f}"
                     )
                 elif sig.direction == "BULLISH" and live_price < vwap_now * 0.999:
                     vwap_aligned = False
                     sig.skip_reasons.append(
-                        f"VWAP gate: BULLISH signal but price {live_price:.2f} < VWAP {vwap_now:.2f} (intraday downtrend)"
+                        f"VWAP gate: BULLISH but price {live_price:.2f} < intraday avg {vwap_now:.2f}"
                     )
         except Exception:
-            pass  # VWAP unavailable — don't block
+            pass  # gate bypassed only on unexpected error
 
     # ── STEP H: Final entry decision ─────────────────────────────────────────
     # timing_confirmed = LinReg(14) daily agrees with SMA(20) slope direction.
