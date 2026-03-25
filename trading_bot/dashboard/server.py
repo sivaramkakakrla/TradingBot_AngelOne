@@ -926,6 +926,59 @@ def api_paper_sell():
     })
 
 
+# ── Helper: compute max premium reached during a trade's lifetime ──────────
+def _get_max_price_reached(trade_id: str, token: str, entry_time_str: str,
+                           entry_price: float, exit_price: float) -> float | None:
+    """
+    Return the peak option premium between entry and now.
+    1. Check Redis watermark (fast, from autotrade monitor)
+    2. Fallback: fetch 1-min option candles from AngelOne and compute max high
+    """
+    max_px = None
+
+    # Step 1: try Redis
+    try:
+        from trading_bot.cache import _get_client as _rc
+        r = _rc()
+        if r:
+            v = r.get(f"autotrade:max_price:{trade_id}")
+            if v:
+                max_px = float(v if isinstance(v, str) else v.decode())
+    except Exception:
+        pass
+
+    # Step 2: fallback — fetch 1-min candles for the option token
+    if max_px is None and token and token != config.NIFTY_TOKEN:
+        try:
+            from trading_bot.auth.login import get_session
+            from trading_bot.data.historical import _fetch_raw
+            session = get_session()
+            # Parse entry time → "YYYY-MM-DD HH:MM" format for API
+            if entry_time_str:
+                entry_dt = datetime.datetime.fromisoformat(entry_time_str)
+            else:
+                entry_dt = now_ist().replace(hour=9, minute=15)
+            from_str = entry_dt.strftime("%Y-%m-%d %H:%M")
+            to_str = now_ist().strftime("%Y-%m-%d %H:%M")
+            bars = _fetch_raw(session, config.EXCHANGE, token, "ONE_MINUTE",
+                              from_str, to_str)
+            if bars:
+                # Each bar: [timestamp, open, high, low, close, volume]
+                max_px = max(float(b[2]) for b in bars)
+                log.info("Max price from candles for %s: %.2f (%d bars)", trade_id, max_px, len(bars))
+        except Exception as e:
+            log.warning("Failed to fetch candles for max_price %s: %s", trade_id, e)
+
+    # Ensure max_px is at least the higher of entry/exit
+    if max_px is not None:
+        max_px = max(max_px, entry_price, exit_price)
+    else:
+        # Last resort: use max of entry and exit (we know it was at least entry)
+        max_px = max(entry_price, exit_price)
+
+    return max_px
+
+
 @app.route("/api/paper/exit", methods=["POST"])
 def api_paper_exit():
     """Exit (close) an open paper trade at current LTP or custom price."""
@@ -972,22 +1025,9 @@ def api_paper_exit():
 
     now_str = now_ist().isoformat()
 
-    # Retrieve max-price watermark from Redis (tracked by autotrade monitor)
-    max_px = None
-    try:
-        from trading_bot.cache import _get_client as _rc
-        r = _rc()
-        if r:
-            v = r.get(f"autotrade:max_price:{trade_id}")
-            if v:
-                max_px = float(v if isinstance(v, str) else v.decode())
-    except Exception:
-        pass
-    # LTP at close time could also be the max
-    if max_px is not None:
-        max_px = max(max_px, exit_price)
-    elif exit_price > entry_price:
-        max_px = exit_price
+    # Compute max premium reached during the trade lifetime
+    max_px = _get_max_price_reached(trade_id, token, trade.get("entry_time", ""),
+                                    entry_price, exit_price)
 
     actually_closed = close_trade(trade_id, exit_price, now_str, exit_reason, pnl,
                                   max_price_reached=max_px)
@@ -1030,18 +1070,9 @@ def _check_sl_target(positions_out: list[dict]) -> list[dict]:
             qty = p["qty"]
             pnl = round((ltp - entry) * qty, 2)
             now_str = now_ist().isoformat()
-            # Retrieve max-price watermark from Redis
-            max_px = None
-            try:
-                from trading_bot.cache import _get_client as _rc
-                r = _rc()
-                if r:
-                    v = r.get(f"autotrade:max_price:{trade_id}")
-                    if v:
-                        max_px = float(v if isinstance(v, str) else v.decode())
-                        max_px = max(max_px, ltp)
-            except Exception:
-                pass
+            token = p.get("token", "")
+            max_px = _get_max_price_reached(trade_id, token,
+                                            p.get("entry_time", ""), entry, ltp)
             actually_closed = close_trade(trade_id, ltp, now_str, triggered, pnl,
                                           max_price_reached=max_px)
             if actually_closed:
