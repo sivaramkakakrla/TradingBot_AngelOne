@@ -306,6 +306,17 @@ def _intraday_drawdown() -> float:
         return 0.0
 
 
+def _load_dynamic_config() -> dict:
+    """Read config/auto_config.json — updated daily by analysis scripts. Returns {} on any error."""
+    import json
+    from pathlib import Path
+    cfg_path = Path(__file__).parent.parent / "config" / "auto_config.json"
+    try:
+        return json.loads(cfg_path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
 def _count_today_losses() -> int:
     """Count total closing-loss AUTO trades today (for MAX_DAILY_LOSSES cap)."""
     today = now_ist().strftime("%Y-%m-%d")
@@ -348,9 +359,13 @@ def risk_manager() -> tuple[bool, str]:
     if recent_count >= config.MAX_TRADES_PER_15MIN:
         return False, f"per-15min cap hit ({recent_count}/{config.MAX_TRADES_PER_15MIN})"
 
-    sl_streak = _consecutive_sl_losses()
-    if sl_streak >= config.MAX_CONSECUTIVE_SL:
-        return False, f"consecutive SL streak {sl_streak} >= {config.MAX_CONSECUTIVE_SL}"
+    # Dynamic config: honour tighter maxConsecutiveLoss if set in auto_config.json
+    dyn = _load_dynamic_config()
+    dyn_max_losses = dyn.get("maxConsecutiveLoss", getattr(config, 'MAX_DAILY_LOSSES', 999))
+    effective_max = min(getattr(config, 'MAX_DAILY_LOSSES', 999), dyn_max_losses)
+    losses_dyn = _count_today_losses()
+    if losses_dyn >= effective_max:
+        return False, f"daily losses {losses_dyn}/{effective_max} reached (config+dynamic)"
 
     dd = _intraday_drawdown()
     if dd >= config.MAX_INTRADAY_DRAWDOWN:
@@ -575,11 +590,7 @@ def _monitor_positions():
                 if exit_reason != "EOD_EXIT":
                     _log_event(f"{exit_reason} {trade_id} @ {exit_price:.2f} PnL={final_pnl:.2f}")
 
-                # After SL hit, block same direction to prevent immediate re-entry
-                if exit_reason == "SL_HIT":
-                    opt_type = t.get("option_type", "CE")
-                    block_dir = "BULLISH" if opt_type == "CE" else "BEARISH"
-                    _set_sl_block(block_dir)
+                # SL hit logged — direction block intentionally disabled; re-entry allowed immediately
 
 
 def _update_trade_sl(trade_id: str, new_sl: float):
@@ -688,11 +699,6 @@ def _scan_and_trade():
 
     placed_trade = False
     for sig in enter_signals:
-        # ── Gate 6: Post-SL block ────────────────────────────────────────
-        if _is_sl_blocked(sig.direction):
-            _log_event(f"SKIP {sig.direction}: SL-blocked (cooling off after recent SL hit)", console=False)
-            continue
-
         # ── Gate 7: Duplicate signal cooldown ───────────────────────────
         if _is_duplicate_signal(sig.direction):
             _log_event(f"SKIP {sig.direction}: duplicate within cooldown window", console=False)
@@ -758,9 +764,7 @@ def _scan_and_trade():
                     console=False,
                 )
                 if sig_20d.should_enter:
-                    if _is_sl_blocked(sig_20d.direction):
-                        _log_event(f"SKIP 20D {sig_20d.direction}: SL-blocked", console=False)
-                    elif _is_duplicate_signal(sig_20d.direction):
+                    if _is_duplicate_signal(sig_20d.direction):
                         _log_event(f"SKIP 20D {sig_20d.direction}: duplicate within cooldown", console=False)
                     else:
                         sig_adapter = SimpleNamespace(

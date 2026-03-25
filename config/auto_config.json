@@ -1,0 +1,10 @@
+{
+    "allowCounterTrend": false,
+    "maxConsecutiveLoss": 3,
+    "allowAfternoonTrading": false,
+    "maxMoveThreshold": 45,
+    "_last_updated": "2026-03-25",
+    "_reason": "initial config — will be updated daily by scripts/daily_pipeline.py",
+    "_sample_size": 0,
+    "_audit_log": []
+}
