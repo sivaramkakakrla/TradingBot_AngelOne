@@ -198,6 +198,34 @@ def get_portfolio_from_redis() -> dict | None:
         return json.loads(raw)
     except Exception as e:
         log.warning("Redis get_portfolio error: %s", e)
+
+
+def sync_portfolio_from_redis():
+    """Pull portfolio from Redis into local SQLite (Vercel cross-function sync)."""
+    portfolio = get_portfolio_from_redis()
+    if not portfolio:
+        return
+    try:
+        from trading_bot.data.store import get_cursor
+        with get_cursor() as cur:
+            cur.execute("DELETE FROM portfolio")
+            cur.execute("""
+                INSERT INTO portfolio
+                    (initial_capital, current_balance, total_pnl,
+                     total_trades, wins, losses, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                portfolio.get("initial_capital", 30000),
+                portfolio.get("current_balance", 30000),
+                portfolio.get("total_pnl", 0),
+                portfolio.get("total_trades", 0),
+                portfolio.get("wins", 0),
+                portfolio.get("losses", 0),
+                portfolio.get("created_at", ""),
+                portfolio.get("updated_at", ""),
+            ))
+    except Exception as e:
+        log.warning("sync_portfolio_from_redis error: %s", e)
         return None
 
 

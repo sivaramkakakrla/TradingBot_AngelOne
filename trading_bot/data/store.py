@@ -318,16 +318,22 @@ def close_trade(
     exit_reason: str,
     pnl: float,
     exit_order_id: str = "",
-) -> None:
-    """Mark a trade as closed with exit details."""
+) -> bool:
+    """Mark a trade as closed with exit details.
+
+    Returns True if the trade was actually closed, False if it was already closed.
+    This prevents double-counting PnL when multiple processes try to close the same trade.
+    """
     sql = """
         UPDATE trades
         SET exit_price = ?, exit_time = ?, exit_reason = ?,
             pnl = ?, status = 'CLOSED', exit_order_id = ?
-        WHERE trade_id = ?
+        WHERE trade_id = ? AND status = 'OPEN'
     """
     with get_cursor() as cur:
         cur.execute(sql, (exit_price, exit_time, exit_reason, pnl, exit_order_id, trade_id))
+        if cur.rowcount == 0:
+            return False  # already closed — skip PnL update
     # Sync closed trade to Redis
     try:
         from trading_bot.redis_sync import sync_trade_to_redis
@@ -339,6 +345,7 @@ def close_trade(
                 sync_trade_to_redis(dict(row))
     except Exception:
         pass
+    return True
 
 
 def get_open_trades() -> list[dict]:

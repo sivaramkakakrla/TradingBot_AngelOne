@@ -128,13 +128,13 @@ NO_TRADE_ZONE_START = "11:30"
 NO_TRADE_ZONE_END   = "13:30"
 
 # Duplicate signal cooldown (seconds) — also enforced via Redis on Vercel
-DUPLICATE_SIGNAL_COOLDOWN = 600   # 10 minutes (was 900 → Balanced profile)
+DUPLICATE_SIGNAL_COOLDOWN = 120   # 2 minutes (short cooldown, allow frequent trades)
 
 # Post-SL block: block same direction for this many seconds after a SL hit
-SL_BLOCK_DURATION = 1200          # 20 minutes
+SL_BLOCK_DURATION = 300           # 5 minutes (was 20 min — too restrictive)
 
 # Per-period overtrading cap (max new auto-trades in a rolling window)
-MAX_TRADES_PER_15MIN = 1          # at most 1 new trade every 15 minutes
+MAX_TRADES_PER_15MIN = 10         # effectively unlimited within 15 minutes
 
 # Hard safety brakes
 MAX_CONSECUTIVE_SL = 2            # pause trading after this many SL hits in a row
@@ -156,7 +156,7 @@ PARTIAL_EXIT_POINTS = 30      # take 50% off at 30 pts profit (75% of target)
 PARTIAL_EXIT_PCT = 0.50       # sell 50% at partial target
 
 MAX_LOTS_PER_TRADE = 2
-MAX_OPEN_TRADES = 1           # 1 auto-trade open at a time
+MAX_OPEN_TRADES = 5           # allow multiple concurrent trades
 MAX_DAILY_LOSS = 999999       # no daily loss limit
 MAX_DAILY_TRADES = 999        # no daily trade cap
 

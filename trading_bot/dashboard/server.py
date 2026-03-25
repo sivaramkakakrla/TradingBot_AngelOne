@@ -530,6 +530,9 @@ def api_dates():
 @app.route("/api/pnl")
 def api_pnl():
     """Return today's PnL and open-trade count."""
+    if os.getenv("VERCEL"):
+        from trading_bot.redis_sync import sync_trades_from_redis
+        sync_trades_from_redis()
     today       = now_ist().strftime("%Y-%m-%d")
     pnl         = get_today_pnl(today)
     open_trades = len(get_open_trades())
@@ -692,6 +695,9 @@ def api_feed_stop():
 @app.route("/api/portfolio")
 def api_portfolio():
     """Return portfolio state (initialise if needed)."""
+    if os.getenv("VERCEL"):
+        from trading_bot.redis_sync import sync_portfolio_from_redis
+        sync_portfolio_from_redis()
     p = get_portfolio()
     if not p:
         p = init_portfolio(config.PAPER_INITIAL_CAPITAL)
@@ -932,8 +938,9 @@ def api_paper_exit():
     pnl = round(pnl, 2)
 
     now_str = now_ist().isoformat()
-    close_trade(trade_id, exit_price, now_str, exit_reason, pnl)
-    update_portfolio_after_trade(pnl, pnl >= 0)
+    actually_closed = close_trade(trade_id, exit_price, now_str, exit_reason, pnl)
+    if actually_closed:
+        update_portfolio_after_trade(pnl, pnl >= 0)
     log.info("Paper EXIT %s  exit=%.2f  pnl=%.2f  reason=%s", trade_id, exit_price, pnl, exit_reason)
     return jsonify({"trade_id": trade_id, "exit_price": exit_price, "pnl": pnl})
 
@@ -963,13 +970,14 @@ def _check_sl_target(positions_out: list[dict]) -> list[dict]:
             qty = p["qty"]
             pnl = round((ltp - entry) * qty, 2)
             now_str = now_ist().isoformat()
-            close_trade(trade_id, ltp, now_str, triggered, pnl)
-            update_portfolio_after_trade(pnl, pnl >= 0)
-            log.info("Auto %s %s  exit=%.2f  pnl=%.2f", triggered, trade_id, ltp, pnl)
-            auto_closed.append({
-                "trade_id": trade_id, "reason": triggered,
-                "exit_price": ltp, "pnl": pnl,
-            })
+            actually_closed = close_trade(trade_id, ltp, now_str, triggered, pnl)
+            if actually_closed:
+                update_portfolio_after_trade(pnl, pnl >= 0)
+                log.info("Auto %s %s  exit=%.2f  pnl=%.2f", triggered, trade_id, ltp, pnl)
+                auto_closed.append({
+                    "trade_id": trade_id, "reason": triggered,
+                    "exit_price": ltp, "pnl": pnl,
+                })
     return auto_closed
 
 

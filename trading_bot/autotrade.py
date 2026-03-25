@@ -496,43 +496,44 @@ def _monitor_positions():
                 exit_reason = "TARGET_HIT"
                 exit_price = tgt
 
-        # 4. Smart exit: trailing SL & unachievable target detection
+        # 4. Smart exit: early profit-taking at 65% of target & trailing SL
         if not exit_reason and sl and tgt:
             total_move = abs(tgt - entry)
             if total_move > 0:
                 progress = (trade_ltp - entry) / total_move
 
-                # If premium moved 50%+ toward target, trail SL to breakeven + 5
-                if progress >= 0.5:
+                # EARLY PROFIT EXIT: sell at 65-70% of target — don't chase full target
+                if progress >= 0.65:
+                    exit_reason = "EARLY_PROFIT"
+                    _log_event(
+                        f"EARLY PROFIT {trade_id} @ ₹{exit_price:.2f} | "
+                        f"Progress={progress:.0%} PnL=₹{pnl:.2f} (65%+ of target reached)"
+                    )
+
+                # If premium moved 40%+ but not yet 65%, trail SL to breakeven + 5
+                elif progress >= 0.4:
                     new_sl = entry + 5
                     if sl is None or new_sl > sl:
                         _update_trade_sl(trade_id, new_sl)
-                        _log_event(f"TRAIL SL {trade_id} → ₹{new_sl:.2f} (50% progress)")
-
-                # Smart exit: premium was profitable but now stalling
-                if 0.1 < progress < 0.3 and pnl > 0:
-                    exit_reason = "SMART_EXIT"
-                    _log_event(
-                        f"SMART EXIT {trade_id} @ ₹{exit_price:.2f} | "
-                        f"Progress={progress:.0%} PnL=₹{pnl:.2f} (target looks unachievable)"
-                    )
+                        _log_event(f"TRAIL SL {trade_id} → ₹{new_sl:.2f} ({progress:.0%} progress)")
 
         if exit_reason:
             # All trades are LONG — P&L = (exit - entry) * qty
             final_pnl = round((exit_price - entry) * qty, 2)
 
             now_str = now_ist().isoformat()
-            close_trade(trade_id, exit_price, now_str, exit_reason, final_pnl)
-            update_portfolio_after_trade(final_pnl, final_pnl >= 0)
+            actually_closed = close_trade(trade_id, exit_price, now_str, exit_reason, final_pnl)
+            if actually_closed:
+                update_portfolio_after_trade(final_pnl, final_pnl >= 0)
 
-            if exit_reason != "EOD_EXIT":
-                _log_event(f"{exit_reason} {trade_id} @ {exit_price:.2f} PnL={final_pnl:.2f}")
+                if exit_reason != "EOD_EXIT":
+                    _log_event(f"{exit_reason} {trade_id} @ {exit_price:.2f} PnL={final_pnl:.2f}")
 
-            # After SL hit, block same direction to prevent immediate re-entry
-            if exit_reason == "SL_HIT":
-                opt_type = t.get("option_type", "CE")
-                block_dir = "BULLISH" if opt_type == "CE" else "BEARISH"
-                _set_sl_block(block_dir)
+                # After SL hit, block same direction to prevent immediate re-entry
+                if exit_reason == "SL_HIT":
+                    opt_type = t.get("option_type", "CE")
+                    block_dir = "BULLISH" if opt_type == "CE" else "BEARISH"
+                    _set_sl_block(block_dir)
 
 
 def _update_trade_sl(trade_id: str, new_sl: float):
