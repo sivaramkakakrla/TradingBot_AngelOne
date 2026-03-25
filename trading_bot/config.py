@@ -179,7 +179,9 @@ MIN_SIGNAL_STRENGTH = 25         # discard signals below this composite score (w
 CONFIRM_CANDLE_MIN_BODY_RATIO = 0.10  # was 0.18, too strict on 1m candles
 
 # Opening range breakout quality filter (avoid random midday micro-breaks)
-OPENING_RANGE_FILTER_ENABLED = True
+# DISABLED: on 1m NIFTY this blocks 09:15-09:30 entirely and requires breakout
+# beyond OR high/low which is too strict for index candle trading.
+OPENING_RANGE_FILTER_ENABLED = False
 OPENING_RANGE_END = "09:30"      # build OR from 09:15 to 09:30 on 1m bars
 OPENING_RANGE_BUFFER = 4.0        # points beyond OR high/low required (was 8, too wide)
 

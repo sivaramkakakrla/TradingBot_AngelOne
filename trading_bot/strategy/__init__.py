@@ -341,10 +341,13 @@ def evaluate(df: pd.DataFrame, backtest: bool = False,
         return []
 
     # ── Gate G2: Sideways / chop filter ───────────────────────────────────
-    if not backtest and is_sideways_market(df):
-        log.info("evaluate: SIDEWAYS market (ADX < %d) — skipping all signals",
-                 config.ADX_SIDEWAYS_THRESHOLD)
-        return []
+    # DISABLED on 1m: ADX(14) is unreliable on 1-minute candles — frequently
+    # reads below threshold even during strong trends, blocking all signals.
+    # TODO: re-enable with higher timeframe ADX or higher threshold if needed.
+    # if not backtest and is_sideways_market(df):
+    #     log.info("evaluate: SIDEWAYS market (ADX < %d) — skipping all signals",
+    #              config.ADX_SIDEWAYS_THRESHOLD)
+    #     return []
 
     # ── Gate G3: Higher-timeframe bias ────────────────────────────────────
     htf_bias: str | None = None
@@ -355,6 +358,7 @@ def evaluate(df: pd.DataFrame, backtest: bool = False,
     # ── Step 1: Detect candle patterns ────────────────────────────────────
     raw_signals = scan_signals(df)
     if not raw_signals:
+        log.info("evaluate: no candlestick patterns detected in last 3 bars")
         return []
 
     # ── Step 2: Compute indicators on the full DF (once) ─────────────────
@@ -406,9 +410,12 @@ def evaluate(df: pd.DataFrame, backtest: bool = False,
                 confirmation_ok = False
                 confirmation_reason = f"confirmation candle is a doji/weak body (ratio={body_ratio:.2f}<{min_body})"
         else:
-            # No next candle yet — cannot confirm
-            confirmation_ok = False
-            confirmation_reason = "no confirmation candle yet"
+            # No next candle yet — skip confirmation check for the most
+            # recent bar.  The pattern's own confirmation logic (e.g.
+            # engulfing body-engulfs-prior, shift(-1) for hammer) is
+            # sufficient.  Blocking here caused every fresh signal to be
+            # rejected with "no confirmation candle yet".
+            pass
 
         # ── Step 4: Run indicator filters at the reference bar ───────
         rsi_val = rsi_s.iloc[ref_idx]
@@ -433,7 +440,11 @@ def evaluate(df: pd.DataFrame, backtest: bool = False,
             "volume": bool(vol_ok),
         }
 
-        confirmations = sum(filters.values())
+        # When NIFTY index has no volume data, exclude volume from the
+        # denominator so we need MIN_CONFIRMATIONS out of 4 (not 5).
+        active_filters = {k: v for k, v in filters.items()
+                          if k != "volume" or has_volume}
+        confirmations = sum(active_filters.values())
         strength = _calc_strength(pattern_names, confirmations, vol_ok)
         sl, target = _calc_sl_target(atr_val)
 
@@ -617,7 +628,10 @@ def evaluate_historical(df: pd.DataFrame) -> list[Signal]:
             "volume": bool(vol_ok),
         }
 
-        confirmations = sum(filters.values())
+        # Exclude volume from denominator when no volume data (index)
+        active_filters = {k: v for k, v in filters.items()
+                          if k != "volume" or has_volume}
+        confirmations = sum(active_filters.values())
         strength = _calc_strength(pattern_names, confirmations, vol_ok)
         sl, target = _calc_sl_target(atr_val)
 
