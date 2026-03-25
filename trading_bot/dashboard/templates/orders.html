@@ -1522,9 +1522,9 @@
       const tgtCell = t.target != null
         ? '<span class="tgt-tag">T ' + t.target.toFixed(2) + '</span>'
         : '<span style="color:var(--txt-mute);">--</span>';
-      // For SL_HIT: show max premium reached before SL was hit
-      const maxReachedBadge = (t.exit_reason === 'SL_HIT' && t.max_price_reached != null)
-        ? ' <span title="Max premium reached before SL hit" style="font-size:.6rem;padding:2px 5px;border-radius:3px;background:rgba(251,191,36,.12);color:#fbbf24;font-weight:600;display:inline-block;margin-top:2px;">↑ ' + t.max_price_reached.toFixed(2) + '</span>'
+      // Show max premium reached during the trade (amber badge)
+      const maxReachedBadge = t.max_price_reached != null
+        ? ' <span title="Max premium reached" style="font-size:.6rem;padding:2px 5px;border-radius:3px;background:rgba(251,191,36,.12);color:#fbbf24;font-weight:600;display:inline-block;margin-top:2px;">↑ ' + t.max_price_reached.toFixed(2) + '</span>'
         : '';
       return '<tr>' +
         '<td>' + inst + '</td>' +

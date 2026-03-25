@@ -494,6 +494,7 @@ def _place_auto_trade(signal, nifty_ltp: float) -> str | None:
 def _monitor_positions():
     """
     Check open AUTO positions for SL/target hit, trailing SL, and smart exit.
+    Also tracks max_price_reached for ALL open trades (AUTO, MANUAL, GPT).
     All positions are LONG options (BUY CE or PE) — exit = sell back.
 
     Smart exit logic:
@@ -504,15 +505,15 @@ def _monitor_positions():
     open_trades = get_open_trades()
     auto_trades = [t for t in open_trades if (t.get("source") or t["trade_id"][:2]) in ("AUTO", "AT")]
 
-    if not auto_trades:
+    if not open_trades:
         return
 
-    # Batch-fetch option LTPs for all open positions
-    option_tokens = [t["token"] for t in auto_trades if t.get("token")]
+    # Batch-fetch option LTPs for ALL open positions (including manual) for high-watermark
+    all_tokens = list({t["token"] for t in open_trades if t.get("token")})
     option_ltps = {}
-    if option_tokens:
+    if all_tokens:
         try:
-            option_ltps = fetch_option_ltp(option_tokens)
+            option_ltps = fetch_option_ltp(all_tokens)
         except Exception as e:
             log.warning("Monitor: option LTP fetch failed: %s", e)
 
@@ -522,26 +523,20 @@ def _monitor_positions():
 
     force_exit = _is_past_force_exit()
 
-    for t in auto_trades:
+    # ── Pass 1: track high-watermark for ALL open trades (AUTO + MANUAL + GPT) ──
+    for t in open_trades:
         trade_id = t["trade_id"]
-        entry = t["entry_price"]
-        direction = t["direction"]
-        qty = t["quantity"]
-        sl = t.get("stop_loss")
-        tgt = t.get("target")
-        token = t["token"]
-
-        # Get LTP for this option
+        token = t.get("token")
+        if not token:
+            continue
         trade_ltp = option_ltps.get(token, 0)
         if trade_ltp <= 0 and token == config.NIFTY_TOKEN:
-            trade_ltp = nifty_ltp  # legacy IDX fallback
+            trade_ltp = nifty_ltp
         if trade_ltp <= 0:
             continue
 
-        # Track high watermark (max price reached since entry)
         _redis_key = f"autotrade:max_price:{trade_id}"
         prev_max = _trade_max_price.get(trade_id, 0.0)
-        # Also restore from Redis (for Vercel stateless invocations)
         try:
             from trading_bot.cache import _get_client as _rc
             r = _rc()
@@ -557,9 +552,29 @@ def _monitor_positions():
             from trading_bot.cache import _get_client as _rc
             r = _rc()
             if r:
-                r.set(_redis_key, str(current_max), ex=86400)  # expire after 1 day
+                r.set(_redis_key, str(current_max), ex=86400)
         except Exception:
             pass
+
+    if not auto_trades:
+        return
+
+    # ── Pass 2: SL / target / smart-exit logic — AUTO trades only ──
+    for t in auto_trades:
+        trade_id = t["trade_id"]
+        entry = t["entry_price"]
+        direction = t["direction"]
+        qty = t["quantity"]
+        sl = t.get("stop_loss")
+        tgt = t.get("target")
+        token = t["token"]
+
+        # Get LTP for this option
+        trade_ltp = option_ltps.get(token, 0)
+        if trade_ltp <= 0 and token == config.NIFTY_TOKEN:
+            trade_ltp = nifty_ltp  # legacy IDX fallback
+        if trade_ltp <= 0:
+            continue
 
         # All trades are LONG (bought options) — P&L = (LTP - entry) * qty
         pnl = (trade_ltp - entry) * qty
@@ -610,7 +625,7 @@ def _monitor_positions():
             final_pnl = round((exit_price - entry) * qty, 2)
 
             now_str = now_ist().isoformat()
-            max_px = _trade_max_price.get(trade_id) if exit_reason == "SL_HIT" else None
+            max_px = _trade_max_price.get(trade_id)  # record for all exits
             actually_closed = close_trade(trade_id, exit_price, now_str, exit_reason, final_pnl,
                                           max_price_reached=max_px)
             if actually_closed:
