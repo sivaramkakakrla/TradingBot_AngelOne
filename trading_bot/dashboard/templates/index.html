@@ -945,26 +945,46 @@
 
     let _vercelCountdown = 30;
     let _vercelAutoScanActive = false;
+    let _scanWorker = null;
+
+    function _doScanRequest() {
+      fetch('/api/autotrade/scan', { method: 'POST' }).then(r => r.json()).then(res => {
+        const logEl = document.getElementById('at-log');
+        if (logEl && res.scanned) {
+          const entry = '<div style="color:var(--txt-dim);">\u27f3 Auto-scan ' + (res.time || '') + ' | Pos: ' + (res.open_positions || 0) + ' | PnL: \u20b9' + (res.pnl_today || 0).toFixed(2) + '</div>';
+          logEl.innerHTML = entry + logEl.innerHTML;
+          const children = logEl.querySelectorAll('div'); for (let i = 20; i < children.length; i++) children[i].remove();
+        }
+        if (!res.market_live) { const el = document.getElementById('at-countdown'); if (el) el.textContent = '(paused - market closed)'; }
+        pollAutoTradeStatus();
+      }).catch(() => { });
+    }
+
     function startVercelAutoScan() {
       if (_vercelAutoScanActive) return; _vercelAutoScanActive = true;
-      setInterval(() => {
+
+      // Use a Web Worker so the timer survives when the tab is backgrounded
+      const workerCode = 'let c=30;setInterval(()=>{c--;postMessage(c);if(c<=0)c=30;},1000);';
+      const blob = new Blob([workerCode], { type: 'application/javascript' });
+      _scanWorker = new Worker(URL.createObjectURL(blob));
+      _scanWorker.onmessage = function (e) {
+        _vercelCountdown = e.data;
         if (!_vercelMarketLive) { const el = document.getElementById('at-countdown'); if (el) el.textContent = '(market closed)'; return; }
-        _vercelCountdown--;
         const el = document.getElementById('at-countdown'); if (el) el.textContent = '(next in ' + _vercelCountdown + 's)';
-        if (_vercelCountdown <= 0) {
+        if (_vercelCountdown <= 0) { _doScanRequest(); }
+      };
+
+      // Also scan immediately when tab regains focus (covers long background gaps)
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && _vercelMarketLive) {
           _vercelCountdown = 30;
-          fetch('/api/autotrade/scan', { method: 'POST' }).then(r => r.json()).then(res => {
-            const logEl = document.getElementById('at-log');
-            if (logEl && res.scanned) {
-              const entry = '<div style="color:var(--txt-dim);">\u27f3 Auto-scan ' + (res.time || '') + ' | Pos: ' + (res.open_positions || 0) + ' | PnL: \u20b9' + (res.pnl_today || 0).toFixed(2) + '</div>';
-              logEl.innerHTML = entry + logEl.innerHTML;
-              const children = logEl.querySelectorAll('div'); for (let i = 20; i < children.length; i++) children[i].remove();
-            }
-            if (!res.market_live) { const el = document.getElementById('at-countdown'); if (el) el.textContent = '(paused - market closed)'; }
-            pollAutoTradeStatus();
-          }).catch(() => { });
+          if (_scanWorker) { _scanWorker.postMessage('reset'); }
+          _doScanRequest();
+          const el = document.getElementById('at-countdown'); if (el) el.textContent = '(scanning...)';
         }
-      }, 1000);
+      });
+
+      // Initial scan
       fetch('/api/autotrade/scan', { method: 'POST' }).then(r => r.json()).then(res => {
         const logEl = document.getElementById('at-log');
         if (logEl) {
