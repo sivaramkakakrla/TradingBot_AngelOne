@@ -17,6 +17,7 @@ import threading
 import time
 import uuid
 from datetime import datetime
+from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
 import pandas as pd
@@ -36,6 +37,10 @@ from trading_bot.utils.time_utils import now_ist
 log = get_logger(__name__)
 
 IST = ZoneInfo(config.TIMEZONE)
+
+# ── Daily candle cache (avoid re-fetching every 30s — daily bars change once/day) ──
+_daily_df_cache: tuple = (None, 0.0)   # (DataFrame | None, epoch_of_last_fetch)
+_DAILY_CACHE_TTL = 300                  # 5 minutes
 
 # ── Module state ──────────────────────────────────────────────────────────────
 _running = False
@@ -191,6 +196,17 @@ def _fetch_latest_candles(session, timeframe="1m", bars=100) -> pd.DataFrame | N
     """Fetch recent NIFTY candles via shared cache (avoids rate limiting)."""
     from trading_bot.candle_cache import get_candles
     df, _, _ = get_candles(timeframe, bars)
+    return df
+
+
+def _get_daily_closes(session) -> "pd.DataFrame | None":
+    """Return NIFTY daily closes with 5-min in-memory cache."""
+    global _daily_df_cache
+    df_cached, fetched_at = _daily_df_cache
+    if df_cached is not None and time.time() - fetched_at < _DAILY_CACHE_TTL:
+        return df_cached
+    df = fetch_daily_closes(session)
+    _daily_df_cache = (df, time.time())
     return df
 
 
@@ -614,9 +630,7 @@ def _scan_and_trade():
     enter_signals = [s for s in signals if s.action == "ENTER"] if signals else []
     skip_signals = [s for s in signals if s.action != "ENTER"] if signals else []
 
-    if not signals and not enter_signals:
-        _log_event("No signals found this cycle", console=False)
-        return
+    has_candle_signals = bool(signals or enter_signals)
 
     # ── Midday elevated-quality gate ────────────────────────────────────────
     # During 11:25–13:30 (chop zone) require a much stronger signal to trade.
@@ -645,9 +659,8 @@ def _scan_and_trade():
         if reasons:
             _log_event(f"Skip reasons: {' | '.join(reasons)}", console=False)
 
-    if not enter_signals:
-        _log_event("No ENTER signal this cycle — no new position", console=False)
-        return
+    if not has_candle_signals:
+        _log_event("No candle signals this cycle — checking 20-day avg...", console=False)
 
     placed_trade = False
     for sig in enter_signals:
@@ -701,6 +714,56 @@ def _scan_and_trade():
                 }
             placed_trade = True
             break  # one trade per scan cycle
+
+    # ── 20-Day Avg strategy signal ─────────────────────────────────────────────
+    # Runs every scan cycle. If candle strategy already placed a trade, we skip
+    # to avoid two trades in one cycle on the same direction.
+    if not placed_trade:
+        try:
+            live_px = float(df["close"].iloc[-1]) if df is not None and len(df) > 0 else 0.0
+            daily_df = _get_daily_closes(session)
+            if daily_df is not None and len(daily_df) >= 20 and live_px > 0:
+                sig_20d = analyze_live(daily_df, df, live_px)
+                action_tag = "ENTER" if sig_20d.should_enter else "SKIP"
+                skip_info = (f" ({'; '.join(sig_20d.skip_reasons)})"
+                             if not sig_20d.should_enter and sig_20d.skip_reasons else "")
+                _log_event(
+                    f"20D AVG: [{action_tag}] {sig_20d.direction} {sig_20d.option_type} "
+                    f"| SMA={sig_20d.sma_value:.0f} LTP={live_px:.0f} "
+                    f"Dist={sig_20d.distance_pct:+.2f}%{skip_info}",
+                    console=False,
+                )
+                if sig_20d.should_enter:
+                    if _is_sl_blocked(sig_20d.direction):
+                        _log_event(f"SKIP 20D {sig_20d.direction}: SL-blocked", console=False)
+                    elif _is_duplicate_signal(sig_20d.direction):
+                        _log_event(f"SKIP 20D {sig_20d.direction}: duplicate within cooldown", console=False)
+                    else:
+                        sig_adapter = SimpleNamespace(
+                            direction=sig_20d.direction,
+                            entry_price=live_px,
+                            sl_points=config.INITIAL_SL_POINTS,
+                            patterns=[f"20D-{sig_20d.signal_type}"],
+                            strength=80,
+                        )
+                        tick = get_latest_tick()
+                        nifty_ltp = tick.ltp if tick.ltp > 0 else live_px
+                        trade_id = _place_auto_trade(sig_adapter, nifty_ltp)
+                        if trade_id:
+                            _record_signal(sig_20d.direction)
+                            opt_type = sig_20d.option_type
+                            with _lock:
+                                _status["last_signal"] = {
+                                    "direction": sig_20d.direction,
+                                    "option_type": opt_type,
+                                    "patterns": [f"20D-{sig_20d.signal_type}"],
+                                    "strength": 80,
+                                    "trade_id": trade_id,
+                                    "time": now_ist().strftime("%H:%M:%S"),
+                                }
+                            placed_trade = True
+        except Exception as exc:
+            log.warning("20D signal check failed: %s", exc)
 
     if not placed_trade:
         _log_event("No position opened this scan (all ENTER candidates were blocked)", console=False)
