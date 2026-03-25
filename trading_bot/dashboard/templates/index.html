@@ -884,6 +884,12 @@
       const btn = document.getElementById('at-toggle-btn');
       const label = document.getElementById('at-status-label');
       if (isVercel) {
+        // Update status badge for Vercel mode
+        if (_vercelMarketLive) {
+          label.textContent = 'ACTIVE'; label.style.color = 'var(--green)'; label.style.background = 'var(--green-bg)';
+        } else {
+          label.textContent = 'MARKET CLOSED'; label.style.color = 'var(--txt-dim)'; label.style.background = 'var(--card)';
+        }
         btn.textContent = _vercelMarketLive ? 'SCAN NOW' : 'MARKET CLOSED';
         btn.style.background = _vercelMarketLive ? 'var(--accent)' : 'var(--border)';
         btn.disabled = !_vercelMarketLive;
