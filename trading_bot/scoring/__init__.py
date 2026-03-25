@@ -19,7 +19,7 @@ import numpy as np
 import pandas as pd
 
 from trading_bot import config
-from trading_bot.indicators import linear_regression as calc_linreg
+from trading_bot.indicators import linear_regression as calc_linreg, vwap as calc_vwap
 from trading_bot.utils.logger import get_logger
 from trading_bot.utils.time_utils import now_ist
 
@@ -583,6 +583,29 @@ def analyze_live(daily_df: pd.DataFrame, df_1m: pd.DataFrame | None = None,
     elif sig.direction == "BEARISH":
         sig.option_type = "PE"
 
+    # ── STEP H-pre: Intraday VWAP alignment ──────────────────────────────
+    # BEARISH entry only allowed when price is AT or BELOW intraday VWAP.
+    # BULLISH entry only allowed when price is AT or ABOVE intraday VWAP.
+    # This prevents selling into an intraday uptrend (main cause of Mar-25 losses).
+    vwap_aligned = True
+    if df_1m is not None and len(df_1m) >= 5:
+        try:
+            vwap_series = calc_vwap(df_1m)
+            vwap_now = float(vwap_series.iloc[-1])
+            if not np.isnan(vwap_now) and vwap_now > 0:
+                if sig.direction == "BEARISH" and live_price > vwap_now * 1.001:
+                    vwap_aligned = False
+                    sig.skip_reasons.append(
+                        f"VWAP gate: BEARISH signal but price {live_price:.2f} > VWAP {vwap_now:.2f} (intraday uptrend)"
+                    )
+                elif sig.direction == "BULLISH" and live_price < vwap_now * 0.999:
+                    vwap_aligned = False
+                    sig.skip_reasons.append(
+                        f"VWAP gate: BULLISH signal but price {live_price:.2f} < VWAP {vwap_now:.2f} (intraday downtrend)"
+                    )
+        except Exception:
+            pass  # VWAP unavailable — don't block
+
     # ── STEP H: Final entry decision ─────────────────────────────────────────
     # timing_confirmed = LinReg(14) daily agrees with SMA(20) slope direction.
     # Requiring this gate removes counter-momentum entries (biggest loss driver).
@@ -593,6 +616,7 @@ def analyze_live(daily_df: pd.DataFrame, df_1m: pd.DataFrame | None = None,
         and theta_passed
         and timing_confirmed          # SMA + LinReg daily must agree on direction
         and lr_1m_ok                  # 1m LinReg must not contradict
+        and vwap_aligned              # price must be on correct side of intraday VWAP
         and abs(sig.distance_pct) <= STRETCH_BLOCK_PCT
         and not (intra_bias != "NEUTRAL" and intra_bias != sig.direction)
     )
