@@ -105,64 +105,83 @@ def api_strategy_test():
         for col in ("open", "high", "low", "close", "volume"):
             df[col] = df[col].astype(float)
 
-        # Step 4: Run strategy — collect only ENTER signals
-        enter_signals = []
-        for i in range(30, len(df)):
-            try:
-                subdf = df.iloc[:i+1].copy()
-                sigs = evaluate(subdf, backtest=True)
-                if sigs:
-                    sig = sigs[-1]
-                    if sig.action == "ENTER":
-                        d = sig.to_dict()
-                        d["_full_idx"] = i  # index in the full df
-                        enter_signals.append(d)
-            except Exception:
-                pass
+        # Step 4+5: Walk-forward simulation — ONE trade at a time, no overlaps
+        # Rules:
+        #   - Take the STRONGEST signal from each bar (highest strength), not duplicates
+        #   - After exit: 10-bar SL cooldown, 2-bar target cooldown
+        #   - Max 6 trades per day to prevent overtrading
+        #   - Minimum 3 bars between entries (signal cooldown)
+        MAX_DAILY_TRADES   = 6
+        SL_COOLDOWN_BARS   = 10   # ~10 min pause after SL hit
+        TGT_COOLDOWN_BARS  = 2    # ~2 min pause after target hit
+        WARMUP_BARS        = 30   # skip first 30 bars (indicator warmup)
 
-        # Step 5: P&L simulation — walk forward from each entry
-        trades = []
-        for sig in enter_signals:
-            idx = sig.pop("_full_idx")
-            entry_px = sig["entry_price"]
-            sl_pts = sig["sl_points"]
-            tgt_pts = sig["target_points"]
-            direction = sig["direction"]
+        trades     = []
+        scan_from  = WARMUP_BARS
+        last_entry_bar = -5  # track last entry to avoid same-bar duplicates
+
+        while scan_from < len(df) and len(trades) < MAX_DAILY_TRADES:
+            # Find next entry signal scanning bar by bar
+            entry_sig  = None
+            entry_idx  = -1
+
+            for i in range(scan_from, len(df)):
+                if i == last_entry_bar:
+                    continue
+                try:
+                    subdf = df.iloc[:i + 1].copy()
+                    sigs  = evaluate(subdf, backtest=True)
+                    # Take highest-strength ENTER signal at this bar (no duplicates)
+                    enter_sigs = [s for s in sigs if s.action == "ENTER"]
+                    if not enter_sigs:
+                        continue
+                    best = max(enter_sigs, key=lambda s: s.strength)
+                    entry_sig = best.to_dict()
+                    entry_idx = i
+                    break
+                except Exception:
+                    continue
+
+            if entry_sig is None or entry_idx < 0:
+                break  # no more signals today
+
+            # Simulate the trade
+            entry_px  = entry_sig["entry_price"]
+            sl_pts    = entry_sig["sl_points"]
+            tgt_pts   = entry_sig["target_points"]
+            direction = entry_sig["direction"]
 
             if direction == "BULLISH":
-                sl_price = entry_px - sl_pts
+                sl_price  = entry_px - sl_pts
                 tgt_price = entry_px + tgt_pts
             else:
-                sl_price = entry_px + sl_pts
+                sl_price  = entry_px + sl_pts
                 tgt_price = entry_px - tgt_pts
 
-            exit_price = None
+            exit_price  = None
             exit_reason = "EOD"
-            exit_time = str(df["timestamp"].iloc[-1]) if "timestamp" in df.columns else ""
+            exit_idx    = len(df) - 1
+            exit_time   = str(df["timestamp"].iloc[-1]) if "timestamp" in df.columns else ""
 
-            for j in range(idx + 1, len(df)):
+            for j in range(entry_idx + 1, len(df)):
                 h = float(df["high"].iloc[j])
                 l = float(df["low"].iloc[j])
                 if direction == "BULLISH":
                     if l <= sl_price:
-                        exit_price = sl_price
-                        exit_reason = "SL_HIT"
+                        exit_price, exit_reason, exit_idx = sl_price, "SL_HIT", j
                         exit_time = str(df["timestamp"].iloc[j]) if "timestamp" in df.columns else ""
                         break
                     if h >= tgt_price:
-                        exit_price = tgt_price
-                        exit_reason = "TARGET_HIT"
+                        exit_price, exit_reason, exit_idx = tgt_price, "TARGET_HIT", j
                         exit_time = str(df["timestamp"].iloc[j]) if "timestamp" in df.columns else ""
                         break
                 else:
                     if h >= sl_price:
-                        exit_price = sl_price
-                        exit_reason = "SL_HIT"
+                        exit_price, exit_reason, exit_idx = sl_price, "SL_HIT", j
                         exit_time = str(df["timestamp"].iloc[j]) if "timestamp" in df.columns else ""
                         break
                     if l <= tgt_price:
-                        exit_price = tgt_price
-                        exit_reason = "TARGET_HIT"
+                        exit_price, exit_reason, exit_idx = tgt_price, "TARGET_HIT", j
                         exit_time = str(df["timestamp"].iloc[j]) if "timestamp" in df.columns else ""
                         break
 
@@ -171,13 +190,20 @@ def api_strategy_test():
 
             pnl = (exit_price - entry_px) if direction == "BULLISH" else (entry_px - exit_price)
 
-            sig["sl_price"] = round(sl_price, 2)
-            sig["target_price"] = round(tgt_price, 2)
-            sig["exit_price"] = round(exit_price, 2)
-            sig["exit_reason"] = exit_reason
-            sig["exit_time"] = exit_time
-            sig["pnl_points"] = round(pnl, 2)
-            trades.append(sig)
+            entry_sig["sl_price"]    = round(sl_price, 2)
+            entry_sig["target_price"] = round(tgt_price, 2)
+            entry_sig["exit_price"]  = round(exit_price, 2)
+            entry_sig["exit_reason"] = exit_reason
+            entry_sig["exit_time"]   = exit_time
+            entry_sig["pnl_points"]  = round(pnl, 2)
+            trades.append(entry_sig)
+
+            last_entry_bar = entry_idx
+            # Cooldown: longer pause after SL to prevent revenge trading
+            if exit_reason == "SL_HIT":
+                scan_from = exit_idx + SL_COOLDOWN_BARS
+            else:
+                scan_from = exit_idx + TGT_COOLDOWN_BARS
 
         # Step 6: Summary stats
         wins = [t for t in trades if t["pnl_points"] > 0]
