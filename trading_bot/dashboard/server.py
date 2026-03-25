@@ -971,9 +971,36 @@ def api_paper_exit():
     pnl = round(pnl, 2)
 
     now_str = now_ist().isoformat()
-    actually_closed = close_trade(trade_id, exit_price, now_str, exit_reason, pnl)
+
+    # Retrieve max-price watermark from Redis (tracked by autotrade monitor)
+    max_px = None
+    try:
+        from trading_bot.cache import _get_client as _rc
+        r = _rc()
+        if r:
+            v = r.get(f"autotrade:max_price:{trade_id}")
+            if v:
+                max_px = float(v if isinstance(v, str) else v.decode())
+    except Exception:
+        pass
+    # LTP at close time could also be the max
+    if max_px is not None:
+        max_px = max(max_px, exit_price)
+    elif exit_price > entry_price:
+        max_px = exit_price
+
+    actually_closed = close_trade(trade_id, exit_price, now_str, exit_reason, pnl,
+                                  max_price_reached=max_px)
     if actually_closed:
         update_portfolio_after_trade(pnl, pnl >= 0)
+        # Clean up Redis watermark key
+        try:
+            from trading_bot.cache import _get_client as _rc
+            r = _rc()
+            if r:
+                r.delete(f"autotrade:max_price:{trade_id}")
+        except Exception:
+            pass
     log.info("Paper EXIT %s  exit=%.2f  pnl=%.2f  reason=%s", trade_id, exit_price, pnl, exit_reason)
     return jsonify({"trade_id": trade_id, "exit_price": exit_price, "pnl": pnl})
 
@@ -1003,10 +1030,30 @@ def _check_sl_target(positions_out: list[dict]) -> list[dict]:
             qty = p["qty"]
             pnl = round((ltp - entry) * qty, 2)
             now_str = now_ist().isoformat()
-            actually_closed = close_trade(trade_id, ltp, now_str, triggered, pnl)
+            # Retrieve max-price watermark from Redis
+            max_px = None
+            try:
+                from trading_bot.cache import _get_client as _rc
+                r = _rc()
+                if r:
+                    v = r.get(f"autotrade:max_price:{trade_id}")
+                    if v:
+                        max_px = float(v if isinstance(v, str) else v.decode())
+                        max_px = max(max_px, ltp)
+            except Exception:
+                pass
+            actually_closed = close_trade(trade_id, ltp, now_str, triggered, pnl,
+                                          max_price_reached=max_px)
             if actually_closed:
                 update_portfolio_after_trade(pnl, pnl >= 0)
                 log.info("Auto %s %s  exit=%.2f  pnl=%.2f", triggered, trade_id, ltp, pnl)
+                try:
+                    from trading_bot.cache import _get_client as _rc
+                    r = _rc()
+                    if r:
+                        r.delete(f"autotrade:max_price:{trade_id}")
+                except Exception:
+                    pass
                 auto_closed.append({
                     "trade_id": trade_id, "reason": triggered,
                     "exit_price": ltp, "pnl": pnl,
