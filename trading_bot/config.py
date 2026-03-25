@@ -115,14 +115,15 @@ PCR_BULLISH = 1.2
 PCR_BEARISH = 0.8
 
 # Time windows (IST, 24h format)
-# Trade throughout market hours — no midday exclusion
+# Avoid midday chop (11:30-13:30): fake breakouts, low liquidity, fast theta decay on options
 TRADE_WINDOWS = [
-    ("09:15", "15:15"),   # full market session
+    ("09:15", "11:25"),   # morning session — best momentum, highest volume
+    ("13:30", "15:00"),   # afternoon session — post-lunch trend resumes
 ]
 FORCE_EXIT_TIME = "15:15"
 
-# ─── No-trade zone description (informational — enforced by TRADE_WINDOWS) ────
-# 11:30–13:30: midday chop, low liquidity, fake breakouts, theta burns options
+# ─── No-trade zone description ───────────────────────────────────────────────
+# 11:25–13:30: midday chop, low liquidity, fake breakouts, theta burns options
 # 14:45–15:00: close-of-day noise and position squaring
 NO_TRADE_ZONE_START = "11:30"
 NO_TRADE_ZONE_END   = "13:30"
@@ -149,7 +150,11 @@ MAX_ENTRY_PREMIUM = 500.0
 # ═══════════════════════════════════════════════════════════════════════════════
 #  EXIT / RISK MANAGEMENT
 # ═══════════════════════════════════════════════════════════════════════════════
-INITIAL_SL_POINTS = 20        # SL: 20 pts from entry (matches 9:25 AM strategy)
+INITIAL_SL_POINTS = 20        # fallback SL when ATR unavailable
+SL_PCT_OF_PREMIUM = 0.10      # SL = 10% of option premium (overrides fixed points when using percentage mode)
+SL_MODE = "percent"           # 'fixed' = INITIAL_SL_POINTS, 'percent' = SL_PCT_OF_PREMIUM * premium
+SL_MIN_POINTS = 15            # percentage SL floor (never less than this)
+SL_MAX_POINTS = 40            # percentage SL ceiling (never more than this)
 TRAIL_START_POINTS = 25       # start trailing after 25 pts profit (62.5% of target)
 TRAILING_SL_POINTS = 15       # trail SL distance once trailing activates
 PARTIAL_EXIT_POINTS = 30      # take 50% off at 30 pts profit (75% of target)
@@ -174,7 +179,7 @@ HTF_EMA_FAST = 9                 # 15m fast EMA
 HTF_EMA_SLOW = 21                # 15m slow EMA
 
 # Entry signal quality floor
-MIN_SIGNAL_STRENGTH = 25         # discard signals below this composite score (was 45, blocked everything)
+MIN_SIGNAL_STRENGTH = 45         # require strong signals only (was 25 — too permissive)
 
 # Confirmation candle minimum body ratio (rejects dojis/spinning tops)
 # Doji < 0.10, spinning top 0.10–0.20, normal candle > 0.25

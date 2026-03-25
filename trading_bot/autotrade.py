@@ -377,8 +377,14 @@ def _place_auto_trade(signal, nifty_ltp: float) -> str | None:
         return None
 
     # SL and target in option premium terms
-    sl_price = round(max(entry_price - signal.sl_points, 1.0), 2)
-    tgt_price = round(entry_price + signal.target_points, 2)
+    # Use percentage-based SL (% of premium) to avoid fixed-point SL being too tight
+    if config.SL_MODE == "percent" and entry_price > 0:
+        pct_sl = round(entry_price * config.SL_PCT_OF_PREMIUM, 2)
+        sl_pts = max(config.SL_MIN_POINTS, min(pct_sl, config.SL_MAX_POINTS))
+    else:
+        sl_pts = signal.sl_points
+    sl_price = round(max(entry_price - sl_pts, 1.0), 2)
+    tgt_price = round(entry_price + sl_pts * 2, 2)  # always 1:2 R:R
 
     now_str = now_ist().isoformat()
     trade_id = f"AT-{uuid.uuid4().hex[:8].upper()}"
