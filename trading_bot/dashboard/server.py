@@ -247,12 +247,15 @@ def _backtest_20day(date_str: str, timeframe: str):
 
         # 3) Walk through 1m bars — find entries and simulate P&L
         trades = []
-        SL_PTS = 40.0
-        TGT_PTS = 25.0
+        SL_PTS  = 20.0   # tight SL — NIFTY 20-pt max adverse move per signal
+        TGT_PTS = 40.0   # 1:2 R:R — only need 34% win rate to break even
+        MAX_DAILY_TRADES = 8   # prevent overtrading (30 trades/day was destroying edge)
+        SL_COOLDOWN_BARS = 10  # 10-min pause after SL (let market settle)
+        TGT_COOLDOWN_BARS = 3  # 3-min pause after target (allow brief consolidation)
         step = 5
         scan_from = 14  # skip first 14 bars (LinReg warmup)
 
-        while scan_from < len(df_1m):
+        while scan_from < len(df_1m) and len(trades) < MAX_DAILY_TRADES:
             # Scan for next entry signal
             entry_found = False
             for i in range(scan_from, len(df_1m), step):
@@ -325,7 +328,11 @@ def _backtest_20day(date_str: str, timeframe: str):
                 trades.append(sig)
 
                 # Continue scanning after this trade's exit
-                scan_from = exit_idx + 1
+                # Apply cooldown: longer after SL to avoid revenge trading
+                if exit_reason == "SL_HIT":
+                    scan_from = exit_idx + SL_COOLDOWN_BARS
+                else:
+                    scan_from = exit_idx + TGT_COOLDOWN_BARS
                 entry_found = True
                 break
 

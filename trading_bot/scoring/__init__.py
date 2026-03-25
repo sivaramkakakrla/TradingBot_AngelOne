@@ -583,12 +583,16 @@ def analyze_live(daily_df: pd.DataFrame, df_1m: pd.DataFrame | None = None,
     elif sig.direction == "BEARISH":
         sig.option_type = "PE"
 
-    # ── STEP H: Final entry decision (relaxed gates for higher win-rate) ──
+    # ── STEP H: Final entry decision ─────────────────────────────────────────
+    # timing_confirmed = LinReg(14) daily agrees with SMA(20) slope direction.
+    # Requiring this gate removes counter-momentum entries (biggest loss driver).
     sig.should_enter = (
         sig.direction != "NEUTRAL"
         and sig.signal_type != "NONE"
         and avg.slope_label != "FLAT"
         and theta_passed
+        and timing_confirmed          # SMA + LinReg daily must agree on direction
+        and lr_1m_ok                  # 1m LinReg must not contradict
         and abs(sig.distance_pct) <= STRETCH_BLOCK_PCT
         and not (intra_bias != "NEUTRAL" and intra_bias != sig.direction)
     )
