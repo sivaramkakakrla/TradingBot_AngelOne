@@ -115,26 +115,30 @@ PCR_BULLISH = 1.2
 PCR_BEARISH = 0.8
 
 # Time windows (IST, 24h format)
-# Full-day trading — quality enforced by per-session signal thresholds below
+# 9:25–9:45  HIGH PRIORITY  — post-gap settlement, opening momentum
+# 10:00–11:15 MEDIUM PRIORITY — post-ORB trend continuation
+# Avoid: 9:15–9:20 (opening noise), 11:45–13:30 (midday chop),
+#        13:30–14:30 (trap zone), 15:20–15:30 (closing volatility)
 TRADE_WINDOWS = [
-    ("09:15", "15:15"),   # full day — quality filtered by MIDDAY_MIN_STRENGTH
+    ("09:25", "09:45"),   # HIGH PRIORITY — opening momentum
+    ("10:00", "11:15"),   # MEDIUM PRIORITY — post-ORB continuation
 ]
 FORCE_EXIT_TIME = "15:15"
 
-# ─── Midday quality gate (11:25–13:30: chop, low liquidity, fake breakouts) ──
-# During this band the bot still trades, but requires a much stronger signal.
-MIDDAY_START           = "11:25"   # start of elevated-threshold zone
-MIDDAY_END             = "13:30"   # end of elevated-threshold zone
-MIDDAY_MIN_STRENGTH    = 65        # vs MIN_SIGNAL_STRENGTH=45 at normal hours
-MIDDAY_MIN_CONFIRMATIONS = 3       # vs MIN_CONFIRMATIONS=2 at normal hours
-NO_TRADE_ZONE_START = "11:30"      # kept for reference / scoring module
+# Midday / afternoon no-trade zones (not reached because windows exclude them)
+MIDDAY_START           = "11:45"   # start of no-trade zone
+MIDDAY_END             = "13:30"   # end of no-trade zone
+MIDDAY_MIN_STRENGTH    = 65
+MIDDAY_MIN_CONFIRMATIONS = 3
+NO_TRADE_ZONE_START = "11:45"
 NO_TRADE_ZONE_END   = "13:30"
 
 # Duplicate signal cooldown (seconds) — also enforced via Redis on Vercel
 DUPLICATE_SIGNAL_COOLDOWN = 120   # 2 minutes (short cooldown, allow frequent trades)
 
 # Post-SL block: block same direction for this many seconds after a SL hit
-SL_BLOCK_DURATION = 300           # 5 minutes (was 20 min — too restrictive)
+# 60 min: 2 consecutive SL hits → stop that direction for 1 hour (overtrading control)
+SL_BLOCK_DURATION = 3600          # 60 minutes
 
 # Per-period overtrading cap (max new auto-trades in a rolling window)
 MAX_TRADES_PER_15MIN = 10         # effectively unlimited within 15 minutes
@@ -152,20 +156,22 @@ MAX_ENTRY_PREMIUM = 500.0
 # ═══════════════════════════════════════════════════════════════════════════════
 #  EXIT / RISK MANAGEMENT
 # ═══════════════════════════════════════════════════════════════════════════════
-INITIAL_SL_POINTS = 20        # fallback SL when ATR unavailable
-SL_PCT_OF_PREMIUM = 0.10      # SL = 10% of option premium (overrides fixed points when using percentage mode)
-SL_MODE = "percent"           # 'fixed' = INITIAL_SL_POINTS, 'percent' = SL_PCT_OF_PREMIUM * premium
-SL_MIN_POINTS = 15            # percentage SL floor (never less than this)
-SL_MAX_POINTS = 40            # percentage SL ceiling (never more than this)
+INITIAL_SL_POINTS = 12        # option premium SL — strict (10–12 pts)
+SL_PCT_OF_PREMIUM = 0.10      # used only when SL_MODE='percent'
+SL_MODE = "fixed"             # 'fixed' = INITIAL_SL_POINTS clamped to MIN/MAX
+SL_MIN_POINTS = 10            # minimum SL in premium points
+SL_MAX_POINTS = 12            # maximum SL in premium points (strict cap)
+FIXED_TARGET_POINTS = 35      # target in premium points (30–40 range, ~3:1 R:R)
 TRAIL_START_POINTS = 25       # start trailing after 25 pts profit (62.5% of target)
 TRAILING_SL_POINTS = 15       # trail SL distance once trailing activates
 PARTIAL_EXIT_POINTS = 30      # take 50% off at 30 pts profit (75% of target)
 PARTIAL_EXIT_PCT = 0.50       # sell 50% at partial target
 
 MAX_LOTS_PER_TRADE = 2
-MAX_OPEN_TRADES = 5           # allow multiple concurrent trades
-MAX_DAILY_LOSS = 999999       # no daily loss limit
-MAX_DAILY_TRADES = 999        # no daily trade cap
+MAX_OPEN_TRADES = 1           # ONE trade at a time — capital protection first
+MAX_DAILY_LOSS = 999999       # no rupee limit (controlled by MAX_DAILY_LOSSES count)
+MAX_DAILY_TRADES = 999        # no count limit (controlled by MAX_DAILY_LOSSES)
+MAX_DAILY_LOSSES = 3          # stop for the day after 3 losing trades
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  MARKET REGIME FILTERS  (sideways / trend detection)
@@ -181,7 +187,18 @@ HTF_EMA_FAST = 9                 # 15m fast EMA
 HTF_EMA_SLOW = 21                # 15m slow EMA
 
 # Entry signal quality floor
-MIN_SIGNAL_STRENGTH = 45         # require strong signals only (was 25 — too permissive)
+MIN_SIGNAL_STRENGTH = 55         # strong signals only (raised — prioritise quality)
+
+# ─── Trend filter (VWAP + MA20 slope) ────────────────────────────────────────
+# BULLISH: price > VWAP AND MA20 slope UP   → ONLY CE trades
+# BEARISH: price < VWAP AND MA20 slope DOWN → ONLY PE trades
+# SIDEWAYS: no trade
+TREND_FILTER_ENABLED = True      # mandatory direction gate — never trade counter-trend
+MA20_SLOPE_BARS = 5              # compare SMA20 now vs 5 bars ago for slope direction
+MA20_SLOPE_FLAT_THRESH = 0.003   # abs((sma_now-sma_prev)/sma_prev) below this → FLAT
+
+# ─── Late entry filter ────────────────────────────────────────────────────────
+LATE_ENTRY_MAX_MOVE = 45         # skip if price already moved > 45 pts in signal direction (last 10 bars)
 
 # Confirmation candle minimum body ratio (rejects dojis/spinning tops)
 # Doji < 0.10, spinning top 0.10–0.20, normal candle > 0.25

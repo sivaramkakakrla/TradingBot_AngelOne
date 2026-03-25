@@ -306,6 +306,23 @@ def _intraday_drawdown() -> float:
         return 0.0
 
 
+def _count_today_losses() -> int:
+    """Count total closing-loss AUTO trades today (for MAX_DAILY_LOSSES cap)."""
+    today = now_ist().strftime("%Y-%m-%d")
+    try:
+        from trading_bot.data.store import get_cursor
+        with get_cursor() as cur:
+            cur.execute(
+                "SELECT COUNT(*) FROM trades "
+                "WHERE source='AUTO' AND status='CLOSED' AND DATE(exit_time)=? AND pnl < 0",
+                (today,),
+            )
+            row = cur.fetchone()
+            return int(row[0]) if row else 0
+    except Exception:
+        return 0
+
+
 def risk_manager() -> tuple[bool, str]:
     """
     Global risk gate for new entries.
@@ -320,6 +337,12 @@ def risk_manager() -> tuple[bool, str]:
     today_count = _count_today_auto_trades()
     if today_count >= config.MAX_DAILY_TRADES:
         return False, f"daily trade cap reached ({today_count}/{config.MAX_DAILY_TRADES})"
+
+    # 3 losses today → stop for the day (overtrading protection)
+    losses_today = _count_today_losses()
+    max_losses = getattr(config, 'MAX_DAILY_LOSSES', 999)
+    if losses_today >= max_losses:
+        return False, f"daily loss count {losses_today}/{max_losses} — no more trades today"
 
     recent_count = _count_trades_last_n_minutes(15)
     if recent_count >= config.MAX_TRADES_PER_15MIN:
@@ -393,14 +416,15 @@ def _place_auto_trade(signal, nifty_ltp: float) -> str | None:
         return None
 
     # SL and target in option premium terms
-    # Use percentage-based SL (% of premium) to avoid fixed-point SL being too tight
+    # SL: clamp between SL_MIN_POINTS and SL_MAX_POINTS (strict capital protection)
     if config.SL_MODE == "percent" and entry_price > 0:
-        pct_sl = round(entry_price * config.SL_PCT_OF_PREMIUM, 2)
-        sl_pts = max(config.SL_MIN_POINTS, min(pct_sl, config.SL_MAX_POINTS))
+        raw_sl = round(entry_price * config.SL_PCT_OF_PREMIUM, 2)
     else:
-        sl_pts = signal.sl_points
+        raw_sl = signal.sl_points
+    sl_pts = max(config.SL_MIN_POINTS, min(raw_sl, config.SL_MAX_POINTS))
     sl_price = round(max(entry_price - sl_pts, 1.0), 2)
-    tgt_price = round(entry_price + sl_pts * 2, 2)  # always 1:2 R:R
+    tgt_pts = getattr(config, 'FIXED_TARGET_POINTS', sl_pts * 2)
+    tgt_price = round(entry_price + tgt_pts, 2)
 
     now_str = now_ist().isoformat()
     trade_id = f"AT-{uuid.uuid4().hex[:8].upper()}"

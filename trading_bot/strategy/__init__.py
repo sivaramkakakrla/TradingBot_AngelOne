@@ -47,6 +47,8 @@ from trading_bot.indicators import (
     macd as calc_macd,
     supertrend as calc_supertrend,
     ema as calc_ema,
+    sma as calc_sma,
+    vwap as calc_vwap_ind,
     volume_sma as calc_vol_sma,
     atr as calc_atr,
     adx as calc_adx,
@@ -311,8 +313,114 @@ def _bar_not_overextended(df: pd.DataFrame, ref_idx: int, atr_val: float) -> boo
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  MAIN EVALUATION
+#  TREND REGIME GATES  (VWAP + MA20 slope + Price Structure + Late Entry)
 # ═══════════════════════════════════════════════════════════════════════════════
+
+def _get_trend_regime(df: pd.DataFrame) -> tuple[str, float, float]:
+    """
+    Determine intraday trend regime from VWAP position + MA20 slope.
+
+    Returns: (regime, vwap_val, slope_pct)
+        regime = "BULLISH" | "BEARISH" | "SIDEWAYS"
+
+    Rules:
+        BULLISH  : price > VWAP  AND  MA20 slope UP
+        BEARISH  : price < VWAP  AND  MA20 slope DOWN
+        SIDEWAYS : everything else (conflicting signals)
+    """
+    min_bars = config.AVG_LOOKBACK + config.MA20_SLOPE_BARS + 2
+    if len(df) < min_bars:
+        return "SIDEWAYS", 0.0, 0.0
+
+    try:
+        close_now = float(df["close"].iloc[-1])
+
+        # VWAP
+        has_vol = "volume" in df.columns and float(df["volume"].sum()) > 0
+        vwap_val = 0.0
+        vwap_valid = False
+        if has_vol:
+            vwap_s = calc_vwap_ind(df)
+            v = float(vwap_s.iloc[-1])
+            if not pd.isna(v) and v > 0:
+                vwap_val = v
+                vwap_valid = True
+
+        # MA20 slope: compare SMA20 now vs N bars ago
+        sma20 = calc_sma(df["close"], 20)
+        sma_now = float(sma20.iloc[-1])
+        sma_prev = float(sma20.iloc[-1 - config.MA20_SLOPE_BARS])
+        if pd.isna(sma_now) or pd.isna(sma_prev) or sma_prev == 0:
+            return "SIDEWAYS", vwap_val, 0.0
+
+        slope_pct = (sma_now - sma_prev) / sma_prev  # fractional
+        thresh = config.MA20_SLOPE_FLAT_THRESH
+        slope_up = slope_pct > thresh
+        slope_down = slope_pct < -thresh
+
+        if vwap_valid:
+            above_vwap = close_now > vwap_val
+            if above_vwap and slope_up:
+                return "BULLISH", vwap_val, slope_pct
+            if not above_vwap and slope_down:
+                return "BEARISH", vwap_val, slope_pct
+            return "SIDEWAYS", vwap_val, slope_pct
+        else:
+            # No VWAP (NIFTY index has no volume) — use MA20 slope only
+            if slope_up:
+                return "BULLISH", 0.0, slope_pct
+            if slope_down:
+                return "BEARISH", 0.0, slope_pct
+            return "SIDEWAYS", 0.0, slope_pct
+
+    except Exception as exc:
+        log.warning("_get_trend_regime error: %s", exc)
+        return "SIDEWAYS", 0.0, 0.0
+
+
+def _check_price_structure(df: pd.DataFrame, direction: str, n: int = 5) -> bool:
+    """
+    Verify price structure supports the intended trade direction.
+    BULLISH: majority of recent N bars show Higher Highs + Higher Lows.
+    BEARISH: majority of recent N bars show Lower Highs + Lower Lows.
+    Uses slope of high/low series over last N bars.
+    """
+    if len(df) < n + 2:
+        return True  # not enough data — allow (don't block on insufficient history)
+    try:
+        highs = [float(df["high"].iloc[-i]) for i in range(1, n + 1)]
+        lows  = [float(df["low"].iloc[-i])  for i in range(1, n + 1)]
+        # highs[0] is most recent — check if sequence is mostly increasing/decreasing
+        hi_slope = highs[0] - highs[-1]   # positive = recents > older → highs rising
+        lo_slope = lows[0]  - lows[-1]
+
+        if direction == "BULLISH":
+            return hi_slope >= 0 and lo_slope >= 0   # HH + HL
+        else:
+            return hi_slope <= 0 and lo_slope <= 0   # LH + LL
+    except Exception:
+        return True
+
+
+def _is_late_entry(df: pd.DataFrame, direction: str, lookback: int = 10) -> bool:
+    """
+    Return True if price has already moved > LATE_ENTRY_MAX_MOVE in the
+    signal direction over the last `lookback` 1m bars — chasing prevention.
+    """
+    if len(df) < lookback + 1:
+        return False
+    try:
+        recent = float(df["close"].iloc[-1])
+        past   = float(df["close"].iloc[-lookback])
+        move   = recent - past
+        limit  = config.LATE_ENTRY_MAX_MOVE
+        if direction == "BULLISH" and move > limit:
+            return True
+        if direction == "BEARISH" and -move > limit:
+            return True
+        return False
+    except Exception:
+        return False
 
 def evaluate(df: pd.DataFrame, backtest: bool = False,
              df_15m: pd.DataFrame | None = None) -> list[Signal]:
@@ -339,6 +447,19 @@ def evaluate(df: pd.DataFrame, backtest: bool = False,
     """
     if len(df) < 10:
         return []
+
+    # ── Gate G0: Trend regime (VWAP + MA20 slope) ─────────────────────────────────
+    # BULLISH: price>VWAP + MA20 slope UP   → ONLY CE
+    # BEARISH: price<VWAP + MA20 slope DOWN → ONLY PE
+    # SIDEWAYS: no trade
+    trend_regime = "UNKNOWN"
+    if not backtest and getattr(config, 'TREND_FILTER_ENABLED', False):
+        trend_regime, _vwap_v, _slope_v = _get_trend_regime(df)
+        log.debug("evaluate: trend_regime=%s vwap=%.2f slope=%.5f",
+                  trend_regime, _vwap_v, _slope_v)
+        if trend_regime == "SIDEWAYS":
+            log.info("evaluate: SIDEWAYS regime (VWAP+MA20) — no trade")
+            return []
 
     # ── Gate G2: Sideways / chop filter ───────────────────────────────────
     # DISABLED on 1m: ADX(14) is unreliable on 1-minute candles — frequently
@@ -480,6 +601,29 @@ def evaluate(df: pd.DataFrame, backtest: bool = False,
         if not bar_shape_ok:
             reasons.append("entry candle over-extended vs ATR")
 
+        # ── Gate: Trend regime alignment (counter-trend block) ──────────────
+        trend_ok = True
+        if not backtest and trend_regime not in ("UNKNOWN", "SIDEWAYS"):
+            trend_ok = (direction == trend_regime)
+            if not trend_ok:
+                reasons.append(
+                    f"counter-trend: market={trend_regime}, signal={direction} — never trade opposite trend"
+                )
+
+        # ── Gate: Price structure (HH/HL for CE, LH/LL for PE, last 5 bars) ─
+        structure_ok = backtest or _check_price_structure(df, direction)
+        if not structure_ok:
+            reasons.append(
+                "no supporting structure (need HH+HL for CE, LH+LL for PE)"
+            )
+
+        # ── Gate: Late entry filter (already moved > 45 pts in direction) ───
+        not_late = backtest or not _is_late_entry(df, direction)
+        if not not_late:
+            reasons.append(
+                f"late entry: price moved >{config.LATE_ENTRY_MAX_MOVE}pts already — wait for pullback"
+            )
+
         all_gates = (
             confirmations >= MIN_CONFIRMATIONS
             and in_window
@@ -488,6 +632,9 @@ def evaluate(df: pd.DataFrame, backtest: bool = False,
             and strength_ok
             and or_ok
             and bar_shape_ok
+            and trend_ok
+            and structure_ok
+            and not_late
         )
 
         if all_gates:
