@@ -91,7 +91,7 @@ def _fetch_candles_from_api(timeframe: str, bars: int) -> tuple[pd.DataFrame | N
             return None, None, None
 
         raw_data = resp.get("data") or []
-        if len(raw_data) < 20:
+        if len(raw_data) < 10:
             return None, None, None
 
         rows = []

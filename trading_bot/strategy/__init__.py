@@ -337,7 +337,7 @@ def evaluate(df: pd.DataFrame, backtest: bool = False,
     -------
     List of Signal objects (usually 0 or 1 per evaluation cycle).
     """
-    if len(df) < 20:
+    if len(df) < 10:
         return []
 
     # ── Gate G2: Sideways / chop filter ───────────────────────────────────

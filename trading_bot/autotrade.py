@@ -356,8 +356,9 @@ def _place_auto_trade(signal, nifty_ltp: float) -> str | None:
             _log_event(f"Option LTP fetch failed: {e}")
 
     if entry_price <= 0:
-        # Fallback: estimate premium from SL/target points
-        entry_price = signal.sl_points * 3  # rough estimate ~60-90 premium
+        # Fallback: estimate premium from SL/target points.
+        # ATM options typically cost 6-10× the SL points on 1m NIFTY.
+        entry_price = signal.sl_points * 8
         _log_event(f"Using estimated premium {entry_price:.2f} for {opt_name}")
 
     # Premium quality gate: avoid very cheap theta-burners and over-expensive entries
@@ -577,9 +578,9 @@ def _scan_and_trade():
 
     # ── Fetch 1m candles ─────────────────────────────────────────────────
     df = _fetch_latest_candles(session, timeframe="1m")
-    if df is None or len(df) < 20:
+    if df is None or len(df) < 10:
         bar_count = 0 if df is None else len(df)
-        _log_event(f"Insufficient candles ({bar_count} bars, need 20) — skip")
+        _log_event(f"Insufficient candles ({bar_count} bars, need 10) — skip")
         return
 
     # ── Fetch 15m candles for HTF bias ───────────────────────────────────

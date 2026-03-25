@@ -141,8 +141,10 @@ MAX_CONSECUTIVE_SL = 2            # pause trading after this many SL hits in a r
 MAX_INTRADAY_DRAWDOWN = 1200      # stop new entries if peak-to-trough drawdown exceeds this
 
 # Option premium quality band (avoid deep OTM junk and over-expensive contracts)
-MIN_ENTRY_PREMIUM = 120.0
-MAX_ENTRY_PREMIUM = 280.0
+# Widened: ATM premiums range ₹50-₹400+ depending on DTE and volatility.
+# Previous band ₹120-₹280 was too narrow and blocked most early-day trades.
+MIN_ENTRY_PREMIUM = 50.0
+MAX_ENTRY_PREMIUM = 500.0
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  EXIT / RISK MANAGEMENT
