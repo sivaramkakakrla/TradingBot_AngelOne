@@ -837,6 +837,9 @@ def api_paper_buy():
         "source":         source,
         "created_at":     now_str,
     })
+    # Seed the "highest" watermark with entry price
+    _update_highest(trade_id, entry_price)
+
     log.info("Paper BUY  %s  %s  qty=%d  px=%.2f  sl=%s  tgt=%s",
              trade_id, symbol, qty, entry_price, sl, tgt)
     return jsonify({
@@ -918,12 +921,34 @@ def api_paper_sell():
         "source":         source,
         "created_at":     now_str,
     })
+    # Seed the "highest" watermark with entry price
+    _update_highest(trade_id, entry_price)
+
     log.info("Paper SELL %s  %s  qty=%d  px=%.2f  sl=%s  tgt=%s",
              trade_id, symbol, qty, entry_price, sl, tgt)
     return jsonify({
         "trade_id": trade_id, "side": "SELL", "symbol": symbol,
         "price": entry_price, "qty": qty, "stop_loss": sl, "target": tgt,
     })
+
+
+# ── Helper: update the "highest" (max premium) watermark in Redis ──────────
+def _update_highest(trade_id: str, price: float):
+    """Update the running highest-price watermark for a trade in Redis."""
+    if price <= 0:
+        return
+    _key = f"autotrade:max_price:{trade_id}"
+    try:
+        from trading_bot.cache import _get_client as _rc
+        r = _rc()
+        if not r:
+            return
+        prev = r.get(_key)
+        prev_f = float(prev if isinstance(prev, str) else prev.decode()) if prev else 0.0
+        new_max = max(prev_f, price)
+        r.set(_key, str(new_max), ex=86400)  # 1 day TTL
+    except Exception:
+        pass
 
 
 # ── Helper: compute max premium reached during a trade's lifetime ──────────
@@ -1166,6 +1191,10 @@ def api_paper_positions():
             "target":      t["target"],
             "source":      t.get("source") or "MANUAL",
         })
+
+    # Update "highest" watermark for every open trade on each poll
+    for p in positions:
+        _update_highest(p["trade_id"], p["ltp"])
 
     # Auto-close positions hitting SL / Target
     auto_closed = _check_sl_target(positions)
