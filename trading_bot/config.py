@@ -115,17 +115,19 @@ PCR_BULLISH = 1.2
 PCR_BEARISH = 0.8
 
 # Time windows (IST, 24h format)
-# Avoid midday chop (11:30-13:30): fake breakouts, low liquidity, fast theta decay on options
+# Full-day trading — quality enforced by per-session signal thresholds below
 TRADE_WINDOWS = [
-    ("09:15", "11:25"),   # morning session — best momentum, highest volume
-    ("13:30", "15:00"),   # afternoon session — post-lunch trend resumes
+    ("09:15", "15:15"),   # full day — quality filtered by MIDDAY_MIN_STRENGTH
 ]
 FORCE_EXIT_TIME = "15:15"
 
-# ─── No-trade zone description ───────────────────────────────────────────────
-# 11:25–13:30: midday chop, low liquidity, fake breakouts, theta burns options
-# 14:45–15:00: close-of-day noise and position squaring
-NO_TRADE_ZONE_START = "11:30"
+# ─── Midday quality gate (11:25–13:30: chop, low liquidity, fake breakouts) ──
+# During this band the bot still trades, but requires a much stronger signal.
+MIDDAY_START           = "11:25"   # start of elevated-threshold zone
+MIDDAY_END             = "13:30"   # end of elevated-threshold zone
+MIDDAY_MIN_STRENGTH    = 65        # vs MIN_SIGNAL_STRENGTH=45 at normal hours
+MIDDAY_MIN_CONFIRMATIONS = 3       # vs MIN_CONFIRMATIONS=2 at normal hours
+NO_TRADE_ZONE_START = "11:30"      # kept for reference / scoring module
 NO_TRADE_ZONE_END   = "13:30"
 
 # Duplicate signal cooldown (seconds) — also enforced via Redis on Vercel

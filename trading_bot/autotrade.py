@@ -618,6 +618,24 @@ def _scan_and_trade():
         _log_event("No signals found this cycle", console=False)
         return
 
+    # ── Midday elevated-quality gate ────────────────────────────────────────
+    # During 11:25–13:30 (chop zone) require a much stronger signal to trade.
+    now_hhmm = now_ist().strftime("%H:%M")
+    if config.MIDDAY_START <= now_hhmm <= config.MIDDAY_END:
+        before = len(enter_signals)
+        enter_signals = [
+            s for s in enter_signals
+            if s.strength >= config.MIDDAY_MIN_STRENGTH
+            and s.confirmations >= config.MIDDAY_MIN_CONFIRMATIONS
+        ]
+        filtered = before - len(enter_signals)
+        if filtered:
+            _log_event(
+                f"Midday quality gate: dropped {filtered} weak signal(s) "
+                f"(need str≥{config.MIDDAY_MIN_STRENGTH}, conf≥{config.MIDDAY_MIN_CONFIRMATIONS})",
+                console=False,
+            )
+
     _log_event(
         f"Signals this cycle: total={len(signals)} enter={len(enter_signals)} skip={len(skip_signals)}"
     )
