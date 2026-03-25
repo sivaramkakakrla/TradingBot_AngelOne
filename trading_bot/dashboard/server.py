@@ -42,6 +42,15 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 app = Flask(__name__, template_folder=os.path.join(_HERE, "templates"))
 CORS(app)
 
+@app.after_request
+def _no_cache_html(response):
+    """Prevent browser from caching HTML pages so template changes take effect immediately."""
+    if response.content_type and 'text/html' in response.content_type:
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+    return response
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Strategy Test API — returns signals for a given date (for dashboard test tab)
 @app.route("/api/strategy/test")
@@ -236,83 +245,94 @@ def _backtest_20day(date_str: str, timeframe: str):
               "timestamp": r["timestamp"]} for r in rows],
         )
 
-        # 3) Walk through 1m bars — run analyze_live every 5 bars
-        enter_signals = []
-        step = 5
-        for i in range(14, len(df_1m), step):
-            subdf = df_1m.iloc[:i + 1].copy()
-            live_price = float(subdf["close"].iloc[-1])
-            bar_ts = str(subdf["timestamp"].iloc[-1])
-            try:
-                bar_time = _dt.fromisoformat(bar_ts)
-            except Exception:
-                bar_time = None
-
-            result = analyze_live(daily_df, subdf, live_price, bar_time=bar_time)
-            if result.should_enter:
-                d = result.to_dict()
-                d["_full_idx"] = i
-                d["bar_timestamp"] = bar_ts
-                enter_signals.append(d)
-                break   # one entry per day
-
-        # 4) P&L simulation
+        # 3) Walk through 1m bars — find entries and simulate P&L
         trades = []
         SL_PTS = 30.0
         TGT_PTS = 60.0
-        for sig in enter_signals:
-            idx = sig.pop("_full_idx")
-            entry_px = sig["entry_price"]
-            direction = sig["direction"]
-            sig["sl_points"] = SL_PTS
-            sig["target_points"] = TGT_PTS
+        step = 5
+        scan_from = 14  # skip first 14 bars (LinReg warmup)
 
-            if direction == "BULLISH":
-                sl_price = entry_px - SL_PTS
-                tgt_price = entry_px + TGT_PTS
-            else:
-                sl_price = entry_px + SL_PTS
-                tgt_price = entry_px - TGT_PTS
+        while scan_from < len(df_1m):
+            # Scan for next entry signal
+            entry_found = False
+            for i in range(scan_from, len(df_1m), step):
+                subdf = df_1m.iloc[:i + 1].copy()
+                live_price = float(subdf["close"].iloc[-1])
+                bar_ts = str(subdf["timestamp"].iloc[-1])
+                try:
+                    bar_time = _dt.fromisoformat(bar_ts)
+                except Exception:
+                    bar_time = None
 
-            exit_price = None
-            exit_reason = "EOD"
-            exit_time = str(df_1m["timestamp"].iloc[-1])
+                result = analyze_live(daily_df, subdf, live_price, bar_time=bar_time)
+                if not result.should_enter:
+                    continue
 
-            for j in range(idx + 1, len(df_1m)):
-                h = float(df_1m["high"].iloc[j])
-                l = float(df_1m["low"].iloc[j])
+                # --- Entry found — simulate P&L ---
+                sig = result.to_dict()
+                sig["bar_timestamp"] = bar_ts
+                sig["entry_idx"] = i
+                entry_px = sig["entry_price"]
+                direction = sig["direction"]
+                sig["sl_points"] = SL_PTS
+                sig["target_points"] = TGT_PTS
+
                 if direction == "BULLISH":
-                    if l <= sl_price:
-                        exit_price, exit_reason = sl_price, "SL_HIT"
-                        exit_time = str(df_1m["timestamp"].iloc[j])
-                        break
-                    if h >= tgt_price:
-                        exit_price, exit_reason = tgt_price, "TARGET_HIT"
-                        exit_time = str(df_1m["timestamp"].iloc[j])
-                        break
+                    sl_price = entry_px - SL_PTS
+                    tgt_price = entry_px + TGT_PTS
                 else:
-                    if h >= sl_price:
-                        exit_price, exit_reason = sl_price, "SL_HIT"
-                        exit_time = str(df_1m["timestamp"].iloc[j])
-                        break
-                    if l <= tgt_price:
-                        exit_price, exit_reason = tgt_price, "TARGET_HIT"
-                        exit_time = str(df_1m["timestamp"].iloc[j])
-                        break
+                    sl_price = entry_px + SL_PTS
+                    tgt_price = entry_px - TGT_PTS
 
-            if exit_price is None:
-                exit_price = float(df_1m["close"].iloc[-1])
+                exit_price = None
+                exit_reason = "EOD"
+                exit_idx = len(df_1m) - 1
+                exit_time = str(df_1m["timestamp"].iloc[-1])
 
-            pnl = (exit_price - entry_px) if direction == "BULLISH" else (entry_px - exit_price)
-            sig["sl_price"] = round(sl_price, 2)
-            sig["target_price"] = round(tgt_price, 2)
-            sig["exit_price"] = round(exit_price, 2)
-            sig["exit_reason"] = exit_reason
-            sig["exit_time"] = exit_time
-            sig["pnl_points"] = round(pnl, 2)
-            trades.append(sig)
+                for j in range(i + 1, len(df_1m)):
+                    h = float(df_1m["high"].iloc[j])
+                    l = float(df_1m["low"].iloc[j])
+                    if direction == "BULLISH":
+                        if l <= sl_price:
+                            exit_price, exit_reason, exit_idx = sl_price, "SL_HIT", j
+                            exit_time = str(df_1m["timestamp"].iloc[j])
+                            break
+                        if h >= tgt_price:
+                            exit_price, exit_reason, exit_idx = tgt_price, "TARGET_HIT", j
+                            exit_time = str(df_1m["timestamp"].iloc[j])
+                            break
+                    else:
+                        if h >= sl_price:
+                            exit_price, exit_reason, exit_idx = sl_price, "SL_HIT", j
+                            exit_time = str(df_1m["timestamp"].iloc[j])
+                            break
+                        if l <= tgt_price:
+                            exit_price, exit_reason, exit_idx = tgt_price, "TARGET_HIT", j
+                            exit_time = str(df_1m["timestamp"].iloc[j])
+                            break
 
-        # 5) Summary
+                if exit_price is None:
+                    exit_price = float(df_1m["close"].iloc[-1])
+
+                pnl = (exit_price - entry_px) if direction == "BULLISH" else (entry_px - exit_price)
+                sig["sl_price"] = round(sl_price, 2)
+                sig["target_price"] = round(tgt_price, 2)
+                sig["exit_price"] = round(exit_price, 2)
+                sig["exit_reason"] = exit_reason
+                sig["exit_time"] = exit_time
+                sig["exit_idx"] = exit_idx
+                sig["pnl_points"] = round(pnl, 2)
+                trades.append(sig)
+
+                # Continue scanning after this trade's exit
+                scan_from = exit_idx + 1
+                entry_found = True
+                break
+
+            if not entry_found:
+                break  # no more signals found
+
+        # 4) Summary
         wins = [t for t in trades if t["pnl_points"] > 0]
         losses = [t for t in trades if t["pnl_points"] <= 0]
         total_pnl = sum(t["pnl_points"] for t in trades)
@@ -2989,66 +3009,7 @@ def api_autotrade_scan():
 #  SCORING ENGINE ENDPOINTS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-@app.route("/api/scoring/pnl")
-def api_scoring_pnl():
-    """Return 20-day P&L summary for the scoring engine with ₹30,000 investment."""
-    import datetime as _dt
-    investment = 30000.0
-    today = now_ist().date()
-
-    # Gather last 20 trading days with data
-    daily: list[dict] = []
-    check_date = today
-    checked = 0
-    while len(daily) < 20 and checked < 40:
-        date_str = check_date.isoformat()
-        # Skip weekends
-        if check_date.weekday() < 5:
-            summary = get_pnl_between(date_str, date_str)
-            if summary["trades"] > 0:
-                daily.append({
-                    "date": date_str,
-                    "trades": summary["trades"],
-                    "wins": summary["wins"],
-                    "losses": summary["losses"],
-                    "day_pnl": summary["total_pnl"],
-                })
-            checked += 1
-        check_date -= _dt.timedelta(days=1)
-
-    daily.reverse()  # oldest first
-
-    # Compute cumulative P&L and balance
-    cumulative = 0.0
-    for d in daily:
-        cumulative += d["day_pnl"]
-        d["cumulative"] = round(cumulative, 2)
-        d["balance"] = round(investment + cumulative, 2)
-
-    total_pnl = cumulative
-    total_trades = sum(d["trades"] for d in daily)
-    wins = sum(d["wins"] for d in daily)
-    losses = sum(d["losses"] for d in daily)
-    trading_days = len(daily) or 1
-    avg_daily = round(total_pnl / trading_days, 2) if daily else 0.0
-
-    day_pnls = [d["day_pnl"] for d in daily] if daily else [0.0]
-    best_day = max(day_pnls)
-    worst_day = min(day_pnls)
-
-    return jsonify(_sanitize({
-        "investment": investment,
-        "total_pnl": round(total_pnl, 2),
-        "avg_daily_pnl": avg_daily,
-        "total_trades": total_trades,
-        "wins": wins,
-        "losses": losses,
-        "best_day": round(best_day, 2),
-        "worst_day": round(worst_day, 2),
-        "trading_days": trading_days,
-        "daily": daily,
-        "time": now_ist().strftime("%Y-%m-%d %H:%M:%S"),
-    }))
+# /api/scoring/pnl removed — P&L cards no longer shown on 20-day avg page
 
 
 @app.route("/api/scoring/live")

@@ -424,7 +424,7 @@
             </div>
             <div id="testResults" style="margin-top:16px;"></div>
             <div id="testChartArea" style="margin-top:18px;display:none;">
-                <canvas id="testChart" height="180"></canvas>
+                <canvas id="testChart" height="340"></canvas>
             </div>
         </div>
         <script>
@@ -515,6 +515,7 @@
                         html += `<th style="padding:6px 8px;text-align:right;">Entry</th>`;
                         html += `<th style="padding:6px 8px;text-align:right;">SL</th>`;
                         html += `<th style="padding:6px 8px;text-align:right;">Target</th>`;
+                        html += `<th style="padding:6px 8px;text-align:left;">Exit Time</th>`;
                         html += `<th style="padding:6px 8px;text-align:right;">Exit</th>`;
                         html += `<th style="padding:6px 8px;text-align:left;">Reason</th>`;
                         html += `<th style="padding:6px 8px;text-align:right;">P&L</th>`;
@@ -534,6 +535,7 @@
                             html += `<td style="padding:5px 8px;text-align:right;">${(t.entry_price || 0).toFixed(2)}</td>`;
                             html += `<td style="padding:5px 8px;text-align:right;color:#dc2626;">${(t.sl_price || 0).toFixed(2)}</td>`;
                             html += `<td style="padding:5px 8px;text-align:right;color:#16a34a;">${(t.target_price || 0).toFixed(2)}</td>`;
+                            html += `<td style="padding:5px 8px;">${exitTimeStr}</td>`;
                             html += `<td style="padding:5px 8px;text-align:right;">${(t.exit_price || 0).toFixed(2)}</td>`;
                             html += `<td style="padding:5px 8px;color:${exitClr};font-weight:600;">${t.exit_reason || ''}</td>`;
                             html += `<td style="padding:5px 8px;text-align:right;color:${clr};font-weight:700;">${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}</td>`;
@@ -559,35 +561,126 @@
                 const canvas = document.getElementById('testChart');
                 const ctx = canvas.getContext('2d');
                 const W = canvas.width = canvas.parentElement.offsetWidth;
-                const H = canvas.height;
+                const H = canvas.height = 340;
                 ctx.clearRect(0, 0, W, H);
-                // Draw close price line
+
+                const opens = candles.map(c => c.open || c[1]);
+                const highs = candles.map(c => c.high || c[2]);
+                const lows = candles.map(c => c.low || c[3]);
                 const closes = candles.map(c => c.close || c[4]);
-                const mn = Math.min(...closes), mx = Math.max(...closes);
-                const pad = { l: 40, r: 10, t: 10, b: 24 };
-                const cw = W - pad.l - pad.r, ch = H - pad.t - pad.b;
-                const toX = i => pad.l + (i / Math.max(closes.length - 1, 1)) * cw;
-                const toY = v => pad.t + ((mx - v) / (mx - mn)) * ch;
-                ctx.strokeStyle = '#2563eb'; ctx.lineWidth = 2; ctx.beginPath();
-                closes.forEach((v, i) => { i === 0 ? ctx.moveTo(toX(i), toY(v)) : ctx.lineTo(toX(i), toY(v)); });
-                ctx.stroke();
-                // Mark entry signals with green (win) or red (loss) dots
+                const times = candles.map(c => c.time || '');
+                const n = candles.length;
+                if (n === 0) return;
+
+                // Price range with padding
+                let mn = Math.min(...lows), mx = Math.max(...highs);
+                // Extend range to include SL/TGT lines
                 trades.forEach(t => {
-                    const ep = t.entry_price;
-                    // Find closest candle index by price
-                    let bestIdx = 0, bestDist = Infinity;
-                    closes.forEach((c, i) => { const d = Math.abs(c - ep); if (d < bestDist) { bestDist = d; bestIdx = i; } });
-                    const isWin = (t.pnl_points || 0) > 0;
-                    ctx.beginPath();
-                    ctx.arc(toX(bestIdx), toY(closes[bestIdx]), 5, 0, 2 * Math.PI);
-                    ctx.fillStyle = isWin ? '#16a34a' : '#dc2626';
-                    ctx.fill();
+                    if (t.sl_price) { mn = Math.min(mn, t.sl_price); mx = Math.max(mx, t.sl_price); }
+                    if (t.target_price) { mn = Math.min(mn, t.target_price); mx = Math.max(mx, t.target_price); }
                 });
-                // X axis labels
+                const rangePad = (mx - mn) * 0.06;
+                mn -= rangePad; mx += rangePad;
+
+                const pad = { l: 56, r: 12, t: 16, b: 32 };
+                const cw = W - pad.l - pad.r, ch = H - pad.t - pad.b;
+                const barW = Math.max(1, cw / n);
+                const toX = i => pad.l + (i + 0.5) * barW;
+                const toY = v => pad.t + ((mx - v) / (mx - mn || 1)) * ch;
+
+                // Grid lines + Y axis labels
+                ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 0.5;
+                const ySteps = 6;
+                for (let s = 0; s <= ySteps; s++) {
+                    const v = mn + (mx - mn) * s / ySteps;
+                    const y = toY(v);
+                    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W - pad.r, y); ctx.stroke();
+                    ctx.fillStyle = '#64748b'; ctx.font = '10px Inter'; ctx.textAlign = 'right';
+                    ctx.fillText(v.toFixed(1), pad.l - 4, y + 3);
+                }
+
+                // Draw candlesticks
+                const bodyW = Math.max(1, barW * 0.6);
+                for (let i = 0; i < n; i++) {
+                    const x = toX(i);
+                    const o = opens[i], h = highs[i], l = lows[i], cl = closes[i];
+                    const bull = cl >= o;
+                    const color = bull ? '#16a34a' : '#dc2626';
+
+                    // Wick
+                    ctx.strokeStyle = color; ctx.lineWidth = 1;
+                    ctx.beginPath(); ctx.moveTo(x, toY(h)); ctx.lineTo(x, toY(l)); ctx.stroke();
+
+                    // Body
+                    const yTop = toY(Math.max(o, cl));
+                    const yBot = toY(Math.min(o, cl));
+                    const bodyH = Math.max(1, yBot - yTop);
+                    ctx.fillStyle = bull ? '#16a34a' : '#dc2626';
+                    ctx.fillRect(x - bodyW / 2, yTop, bodyW, bodyH);
+                }
+
+                // Draw SL & Target horizontal dashed lines for each trade
+                trades.forEach(t => {
+                    const eIdx = t.entry_idx != null ? t.entry_idx : 0;
+                    const xIdx = t.exit_idx != null ? t.exit_idx : n - 1;
+                    const x1 = toX(eIdx), x2 = toX(Math.min(xIdx, n - 1));
+
+                    // SL line (red dashed)
+                    if (t.sl_price) {
+                        ctx.save(); ctx.setLineDash([4, 3]); ctx.strokeStyle = '#dc262688'; ctx.lineWidth = 1;
+                        ctx.beginPath(); ctx.moveTo(x1, toY(t.sl_price)); ctx.lineTo(x2, toY(t.sl_price)); ctx.stroke();
+                        ctx.restore();
+                        ctx.fillStyle = '#dc2626'; ctx.font = '9px Inter'; ctx.textAlign = 'left';
+                        ctx.fillText('SL ' + t.sl_price.toFixed(1), x2 + 3, toY(t.sl_price) + 3);
+                    }
+                    // Target line (green dashed)
+                    if (t.target_price) {
+                        ctx.save(); ctx.setLineDash([4, 3]); ctx.strokeStyle = '#16a34a88'; ctx.lineWidth = 1;
+                        ctx.beginPath(); ctx.moveTo(x1, toY(t.target_price)); ctx.lineTo(x2, toY(t.target_price)); ctx.stroke();
+                        ctx.restore();
+                        ctx.fillStyle = '#16a34a'; ctx.font = '9px Inter'; ctx.textAlign = 'left';
+                        ctx.fillText('TGT ' + t.target_price.toFixed(1), x2 + 3, toY(t.target_price) + 3);
+                    }
+                });
+
+                // Draw BUY / SELL arrows at entry and exit points
+                trades.forEach(t => {
+                    const eIdx = t.entry_idx != null ? t.entry_idx : 0;
+                    const xIdx = t.exit_idx != null ? t.exit_idx : n - 1;
+                    const isBull = t.direction === 'BULLISH';
+                    const isWin = (t.pnl_points || 0) > 0;
+
+                    // Entry arrow
+                    const ex = toX(eIdx);
+                    const ey = isBull ? toY(lows[eIdx]) + 14 : toY(highs[eIdx]) - 14;
+                    ctx.fillStyle = isBull ? '#16a34a' : '#dc2626';
+                    ctx.font = 'bold 13px Inter';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(isBull ? '▲ BUY' : '▼ SELL', ex, ey);
+
+                    // Exit marker
+                    if (xIdx < n) {
+                        const xx = toX(xIdx);
+                        const xy = isBull ? toY(highs[xIdx]) - 10 : toY(lows[xIdx]) + 16;
+                        const exitClr = t.exit_reason === 'TARGET_HIT' ? '#16a34a' : t.exit_reason === 'SL_HIT' ? '#dc2626' : '#d97706';
+                        ctx.fillStyle = exitClr;
+                        ctx.font = 'bold 10px Inter';
+                        ctx.fillText(t.exit_reason === 'TARGET_HIT' ? '★ TGT' : t.exit_reason === 'SL_HIT' ? '✕ SL' : '● EOD', xx, xy);
+                    }
+
+                    // Entry price label
+                    ctx.fillStyle = '#334155'; ctx.font = '9px Inter'; ctx.textAlign = 'left';
+                    ctx.fillText(t.entry_price.toFixed(1), ex + 6, toY(t.entry_price) - 2);
+                });
+
+                // X axis time labels
                 ctx.fillStyle = '#64748b'; ctx.font = '10px Inter'; ctx.textAlign = 'center';
-                const step = Math.max(1, Math.floor(closes.length / 7));
-                for (let i = 0; i < closes.length; i += step) {
-                    ctx.fillText(String(i + 1), toX(i), H - 6);
+                const labelStep = Math.max(1, Math.floor(n / 8));
+                for (let i = 0; i < n; i += labelStep) {
+                    const ts = times[i] || '';
+                    const hm = ts.split(' ').pop() || '';
+                    const short = hm.substring(0, 5);
+                    ctx.fillText(short, toX(i), H - 8);
                 }
             }
         </script>
