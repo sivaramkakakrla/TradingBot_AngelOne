@@ -209,7 +209,7 @@ THETA_BLOCK_HOUR = "14:45"       # after this, no new entries (theta too punishi
 # ═══════════════════════════════════════════════════════════════════════════════
 #  PAPER TRADING PORTFOLIO
 # ═══════════════════════════════════════════════════════════════════════════════
-PAPER_INITIAL_CAPITAL = 30_000  # ₹30,000 starting balance
+PAPER_INITIAL_CAPITAL = 40_000  # ₹40,000 starting balance
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  DATABASE
