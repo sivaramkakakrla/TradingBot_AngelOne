@@ -44,6 +44,22 @@
         "/^python _add_scalping_nav\\.py$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^cd c:\\\\Users\\\\Sushma\\\\Desktop\\\\AngelOne; python -c \"\nfrom trading_bot\\.data\\.store import init_db, get_cursor\ninit_db\\(\\)\nwith get_cursor\\(\\) as cur:\n    cur\\.execute\\(\\\\\"SELECT trade_id, symbol, strike, option_type, direction, entry_price, exit_price, quantity, pnl, exit_reason, max_price_reached, entry_time, exit_time FROM trades WHERE status='CLOSED' ORDER BY exit_time DESC LIMIT 5\\\\\"\\)\n    rows = cur\\.fetchall\\(\\)\n    cols = \\[d\\[0\\] for d in cur\\.description\\]\n    for r in rows:\n        print\\(dict\\(zip\\(cols, r\\)\\)\\)\n\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^python -c \"from trading_bot\\.data\\.store import init_db, get_cursor; init_db\\(\\); cur = get_cursor\\(\\)\\.__enter__\\(\\); cur\\.execute\\('SELECT trade_id, symbol, strike, option_type, entry_price, exit_price, quantity, pnl, exit_reason, max_price_reached, exit_time FROM trades WHERE status=''CLOSED'' ORDER BY exit_time DESC LIMIT 5'\\); rows = cur\\.fetchall\\(\\); cols = \\[d\\[0\\] for d in cur\\.description\\]; \\[print\\(dict\\(zip\\(cols, r\\)\\)\\) for r in rows\\]\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^cd c:\\\\Users\\\\Sushma\\\\Desktop\\\\AngelOne; python -c \"\nfrom trading_bot\\.data\\.store import init_db, get_cursor\ninit_db\\(\\)\nc = get_cursor\\(\\)\\.__enter__\\(\\)\nc\\.execute\\(\"\"\"SELECT trade_id, symbol, strike, option_type, entry_price, exit_price, quantity, pnl, exit_reason, max_price_reached, exit_time FROM trades WHERE status='CLOSED' ORDER BY exit_time DESC LIMIT 5\"\"\"\\)\nrows = c\\.fetchall\\(\\)\ncols = \\[d\\[0\\] for d in c\\.description\\]\nfor r in rows:\n    print\\(dict\\(zip\\(cols, r\\)\\)\\)\n\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^python _check_trades\\.py$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     }
 }
