@@ -1,0 +1,1408 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Project Candles — Option Chain</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg: #0f1117;
+            --bg-subtle: #161822;
+            --surface: #1a1d2e;
+            --surface-hover: #1f2337;
+            --card: #141622;
+            --border: rgba(255, 255, 255, .06);
+            --border-lt: rgba(255, 255, 255, .1);
+            --txt: #e8eaed;
+            --txt-dim: #8b8fa3;
+            --txt-mute: #5a5e72;
+            --accent: #818cf8;
+            --accent-dim: #6366f1;
+            --accent-bg: rgba(129, 140, 248, .08);
+            --green: #34d399;
+            --green-bg: rgba(52, 211, 153, .08);
+            --green-bdr: rgba(52, 211, 153, .25);
+            --red: #f87171;
+            --red-bg: rgba(248, 113, 113, .08);
+            --red-bdr: rgba(248, 113, 113, .25);
+            --amber: #fbbf24;
+            --amber-bg: rgba(251, 191, 36, .08);
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, .3);
+            --shadow-md: 0 4px 16px rgba(0, 0, 0, .35);
+            --shadow-lg: 0 8px 32px rgba(0, 0, 0, .4);
+            --radius: 14px;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--txt);
+            font-family: 'Inter', system-ui, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ── Topbar ── */
+        .topbar {
+            display: flex;
+            align-items: center;
+            padding: 0 24px;
+            height: 48px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+            gap: 16px;
+            position: relative;
+        }
+
+        .logo {
+            font-size: .92rem;
+            font-weight: 700;
+            color: var(--accent);
+            letter-spacing: -.3px;
+            text-decoration: none;
+        }
+
+        .topbar nav.desktop-nav {
+            display: flex;
+            gap: 2px;
+            margin-left: 16px;
+        }
+
+        .topbar nav a {
+            color: var(--txt-dim);
+            text-decoration: none;
+            font-size: .76rem;
+            font-weight: 500;
+            padding: 6px 11px;
+            border-radius: 8px;
+            transition: all .15s;
+            white-space: nowrap;
+        }
+
+        .topbar nav a:hover {
+            color: var(--txt);
+            background: var(--surface-hover);
+        }
+
+        .topbar nav a.active {
+            color: var(--accent);
+            background: var(--accent-bg);
+        }
+
+        .badge-area {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .market-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: .72rem;
+            font-weight: 600;
+            letter-spacing: .3px;
+        }
+
+        .market-badge .dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+        }
+
+        .market-badge.live {
+            background: var(--green-bg);
+            border: 1px solid var(--green-bdr);
+            color: var(--green);
+        }
+
+        .market-badge.live .dot {
+            background: var(--green);
+            animation: pulse 1.5s infinite;
+        }
+
+        .market-badge.closed {
+            background: var(--red-bg);
+            border: 1px solid var(--red-bdr);
+            color: var(--red);
+        }
+
+        .market-badge.closed .dot {
+            background: var(--red);
+        }
+
+        .market-badge.connecting {
+            background: var(--amber-bg);
+            border: 1px solid rgba(251, 191, 36, .25);
+            color: var(--amber);
+        }
+
+        .market-badge.connecting .dot {
+            background: var(--amber);
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: .3;
+            }
+        }
+
+        /* ── Hamburger ── */
+        .hamburger {
+            display: none;
+            background: none;
+            border: none;
+            cursor: pointer;
+            width: 32px;
+            height: 32px;
+            position: relative;
+            padding: 0;
+        }
+
+        .hamburger span {
+            display: block;
+            width: 20px;
+            height: 2px;
+            background: var(--txt-dim);
+            border-radius: 2px;
+            position: absolute;
+            left: 6px;
+            transition: all .25s;
+        }
+
+        .hamburger span:nth-child(1) {
+            top: 8px;
+        }
+
+        .hamburger span:nth-child(2) {
+            top: 15px;
+        }
+
+        .hamburger span:nth-child(3) {
+            top: 22px;
+        }
+
+        .hamburger.open span:nth-child(1) {
+            top: 15px;
+            transform: rotate(45deg);
+        }
+
+        .hamburger.open span:nth-child(2) {
+            opacity: 0;
+        }
+
+        .hamburger.open span:nth-child(3) {
+            top: 15px;
+            transform: rotate(-45deg);
+        }
+
+        .mobile-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            box-shadow: var(--shadow-lg);
+            z-index: 200;
+            padding: 8px 0;
+            flex-direction: column;
+        }
+
+        .mobile-menu.show {
+            display: flex;
+        }
+
+        .mobile-menu a {
+            color: var(--txt-dim);
+            text-decoration: none;
+            font-size: .84rem;
+            font-weight: 500;
+            padding: 11px 20px;
+            transition: all .15s;
+            border-left: 3px solid transparent;
+        }
+
+        .mobile-menu a:hover {
+            background: rgba(255, 255, 255, .03);
+            color: var(--txt);
+        }
+
+        .mobile-menu a.active {
+            color: var(--accent);
+            background: var(--accent-bg);
+            border-left-color: var(--accent);
+        }
+
+        @media (max-width: 900px) {
+            .topbar {
+                position: relative;
+            }
+
+            .topbar nav.desktop-nav {
+                display: none !important;
+            }
+
+            .hamburger {
+                display: block;
+            }
+        }
+
+        /* ── Spot ticker ── */
+        .spot-strip {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 24px;
+            background: var(--bg-subtle);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .spot-info {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .spot-label {
+            font-size: .72rem;
+            font-weight: 600;
+            color: var(--txt-mute);
+            text-transform: uppercase;
+            letter-spacing: .5px;
+        }
+
+        .spot-price {
+            font-size: 1.3rem;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .spot-change {
+            font-size: .82rem;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 6px;
+        }
+
+        .spot-change.up {
+            color: var(--green);
+            background: var(--green-bg);
+        }
+
+        .spot-change.down {
+            color: var(--red);
+            background: var(--red-bg);
+        }
+
+        .expiry-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .expiry-tabs {
+            display: flex;
+            gap: 4px;
+        }
+
+        .expiry-tab {
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: .76rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1px solid var(--border-lt);
+            background: transparent;
+            color: var(--txt-dim);
+            transition: all .15s;
+        }
+
+        .expiry-tab:hover {
+            background: var(--surface-hover);
+            color: var(--txt);
+        }
+
+        .expiry-tab.active {
+            background: var(--accent-bg);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .btn-refresh {
+            background: var(--surface);
+            border: 1px solid var(--border-lt);
+            color: var(--txt-dim);
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: .76rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all .15s;
+        }
+
+        .btn-refresh:hover {
+            background: var(--surface-hover);
+            color: var(--txt);
+        }
+
+        .btn-refresh.loading {
+            opacity: .5;
+            pointer-events: none;
+        }
+
+        /* ── OC Table ── */
+        .oc-wrapper {
+            flex: 1;
+            overflow: auto;
+            padding: 0;
+        }
+
+        .oc-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: .78rem;
+            table-layout: fixed;
+        }
+
+        .oc-table thead th {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: var(--bg-subtle);
+            padding: 10px 8px;
+            font-size: .68rem;
+            font-weight: 700;
+            color: var(--txt-mute);
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            border-bottom: 1px solid var(--border-lt);
+            text-align: right;
+        }
+
+        .oc-table thead th.strike-header {
+            text-align: center;
+            background: var(--surface);
+        }
+
+        .oc-table thead th.ce-header {
+            text-align: right;
+        }
+
+        .oc-table thead th.pe-header {
+            text-align: left;
+        }
+
+        .oc-table tbody td {
+            padding: 8px;
+            font-variant-numeric: tabular-nums;
+            border-bottom: 1px solid var(--border);
+            transition: background .15s;
+        }
+
+        .oc-table tbody tr:hover td {
+            background: var(--surface-hover);
+        }
+
+        /* CE side — right-aligned */
+        .oc-table td.ce-cell {
+            text-align: right;
+        }
+
+        /* PE side — left-aligned */
+        .oc-table td.pe-cell {
+            text-align: left;
+        }
+
+        /* Strike column */
+        .oc-table td.strike-cell {
+            text-align: center;
+            font-weight: 700;
+            color: var(--txt);
+            background: var(--surface);
+            position: relative;
+        }
+
+        /* ATM row */
+        .oc-table tr.atm-row td {
+            border-top: 2px solid var(--accent);
+            border-bottom: 2px solid var(--accent);
+        }
+
+        .oc-table tr.atm-row td.strike-cell {
+            background: var(--accent-bg);
+            color: var(--accent);
+        }
+
+        /* ITM shading */
+        .itm-ce {
+            background: rgba(52, 211, 153, .03);
+        }
+
+        .itm-pe {
+            background: rgba(248, 113, 113, .03);
+        }
+
+        /* LTP cells */
+        .ltp-val {
+            font-weight: 600;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 6px;
+            transition: all .15s;
+            display: inline-block;
+            min-width: 60px;
+        }
+
+        .ltp-val:hover {
+            background: var(--accent-bg);
+            color: var(--accent);
+        }
+
+        .ltp-val.flash-up {
+            animation: flashUp .4s;
+        }
+
+        .ltp-val.flash-down {
+            animation: flashDown .4s;
+        }
+
+        @keyframes flashUp {
+            0% {
+                background: var(--green-bg);
+            }
+
+            100% {
+                background: transparent;
+            }
+        }
+
+        @keyframes flashDown {
+            0% {
+                background: var(--red-bg);
+            }
+
+            100% {
+                background: transparent;
+            }
+        }
+
+        .oi-val,
+        .vol-val {
+            color: var(--txt-dim);
+            font-size: .72rem;
+        }
+
+        /* BUY/SELL tiny buttons in cells */
+        .cell-actions {
+            display: flex;
+            gap: 4px;
+            opacity: 0;
+            transition: opacity .15s;
+        }
+
+        .oc-table tbody tr:hover .cell-actions {
+            opacity: 1;
+        }
+
+        .cell-actions .btn-b,
+        .cell-actions .btn-s {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: .66rem;
+            font-weight: 700;
+            cursor: pointer;
+            border: none;
+            transition: all .15s;
+        }
+
+        .cell-actions .btn-b {
+            background: var(--green-bg);
+            color: var(--green);
+            border: 1px solid var(--green-bdr);
+        }
+
+        .cell-actions .btn-b:hover {
+            background: var(--green);
+            color: #fff;
+        }
+
+        .cell-actions .btn-s {
+            background: var(--red-bg);
+            color: var(--red);
+            border: 1px solid var(--red-bdr);
+        }
+
+        .cell-actions .btn-s:hover {
+            background: var(--red);
+            color: #fff;
+        }
+
+        .ce-actions {
+            justify-content: flex-end;
+        }
+
+        .pe-actions {
+            justify-content: flex-start;
+        }
+
+        /* ── Order Modal ── */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, .6);
+            z-index: 500;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .modal-overlay.show {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--surface);
+            border: 1px solid var(--border-lt);
+            border-radius: var(--radius);
+            width: 100%;
+            max-width: 420px;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .modal-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .modal-head h3 {
+            font-size: .92rem;
+            font-weight: 700;
+        }
+
+        .modal-head .modal-close {
+            background: none;
+            border: none;
+            color: var(--txt-dim);
+            cursor: pointer;
+            font-size: 1.2rem;
+            padding: 4px;
+        }
+
+        .modal-body {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .modal-body .info-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: .82rem;
+        }
+
+        .modal-body .info-row .label {
+            color: var(--txt-dim);
+        }
+
+        .modal-body .info-row .value {
+            font-weight: 600;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .form-group label {
+            font-size: .72rem;
+            font-weight: 600;
+            color: var(--txt-dim);
+            text-transform: uppercase;
+            letter-spacing: .3px;
+        }
+
+        .form-group input {
+            background: var(--bg);
+            border: 1px solid var(--border-lt);
+            color: var(--txt);
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: .84rem;
+            font-family: inherit;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            padding: 16px 20px;
+            border-top: 1px solid var(--border);
+        }
+
+        .btn-order {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 8px;
+            font-size: .84rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all .15s;
+        }
+
+        .btn-order.buy {
+            background: var(--green);
+            color: #fff;
+        }
+
+        .btn-order.buy:hover {
+            background: #22c55e;
+        }
+
+        .btn-order.sell {
+            background: var(--red);
+            color: #fff;
+        }
+
+        .btn-order.sell:hover {
+            background: #ef4444;
+        }
+
+        .btn-order.cancel {
+            background: var(--bg);
+            color: var(--txt-dim);
+            border: 1px solid var(--border-lt);
+        }
+
+        .btn-order.cancel:hover {
+            color: var(--txt);
+        }
+
+        .btn-order:disabled {
+            opacity: .5;
+            pointer-events: none;
+        }
+
+        /* ── Toast ── */
+        .toast-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .toast {
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-size: .82rem;
+            font-weight: 600;
+            animation: toastIn .3s ease-out;
+            max-width: 360px;
+        }
+
+        .toast.success {
+            background: var(--green-bg);
+            border: 1px solid var(--green-bdr);
+            color: var(--green);
+        }
+
+        .toast.error {
+            background: var(--red-bg);
+            border: 1px solid var(--red-bdr);
+            color: var(--red);
+        }
+
+        @keyframes toastIn {
+            from {
+                transform: translateY(20px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        /* ── Positions strip ── */
+        .positions-strip {
+            background: var(--bg-subtle);
+            border-top: 1px solid var(--border);
+            padding: 10px 24px;
+            flex-shrink: 0;
+        }
+
+        .positions-strip h4 {
+            font-size: .76rem;
+            color: var(--txt-mute);
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            margin-bottom: 8px;
+        }
+
+        .pos-list {
+            display: flex;
+            gap: 12px;
+            overflow-x: auto;
+            padding-bottom: 4px;
+        }
+
+        .pos-card {
+            background: var(--surface);
+            border: 1px solid var(--border-lt);
+            border-radius: 10px;
+            padding: 10px 14px;
+            min-width: 220px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+
+        .pos-card .pos-sym {
+            font-size: .78rem;
+            font-weight: 700;
+        }
+
+        .pos-card .pos-detail {
+            font-size: .72rem;
+            color: var(--txt-dim);
+        }
+
+        .pos-card .pos-pnl {
+            font-size: .82rem;
+            font-weight: 700;
+        }
+
+        .pos-card .pos-pnl.up {
+            color: var(--green);
+        }
+
+        .pos-card .pos-pnl.down {
+            color: var(--red);
+        }
+
+        .pos-card .btn-exit {
+            background: var(--red-bg);
+            color: var(--red);
+            border: 1px solid var(--red-bdr);
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: .7rem;
+            font-weight: 700;
+            cursor: pointer;
+            align-self: flex-start;
+            margin-top: 4px;
+        }
+
+        .pos-card .btn-exit:hover {
+            background: var(--red);
+            color: #fff;
+        }
+
+        .no-positions {
+            color: var(--txt-mute);
+            font-size: .76rem;
+        }
+
+        /* ── Loading spinner ── */
+        .spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid var(--border-lt);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin .6s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 900px) {
+            .spot-strip {
+                padding: 10px 16px;
+            }
+
+            .oc-table {
+                font-size: .72rem;
+            }
+
+            .oc-table thead th,
+            .oc-table tbody td {
+                padding: 6px 4px;
+            }
+
+            .cell-actions {
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- ── Topbar ── -->
+    <div class="topbar">
+        <a class="logo" href="/">Project Candles</a>
+        <nav class="desktop-nav">
+            <a href="/">Dashboard</a>
+            <a href="/orders">Orders</a>
+            <a href="/180-rule">180 Rule</a>
+            <a href="/orb-strategy">ORB Strategy</a>
+            <a href="/20-day-avg">20-Day Avg</a>
+            <a href="/pnl">P&amp;L</a>
+            <a href="/scalping">Scalping</a>
+            <a href="/option-chain" class="active">Option Chain</a>
+            <a href="/history">History</a>
+            <a href="/chat">AI Chat</a>
+        </nav>
+        <button class="hamburger" id="hamburger"
+            onclick="this.classList.toggle('open');document.getElementById('mobile-menu').classList.toggle('show');">
+            <span></span><span></span><span></span>
+        </button>
+        <div class="badge-area">
+            <div class="market-badge connecting" id="market-badge">
+                <span class="dot"></span>
+                <span id="market-label">CONNECTING</span>
+            </div>
+        </div>
+        <div class="mobile-menu" id="mobile-menu">
+            <a href="/">Dashboard</a>
+            <a href="/orders">Orders</a>
+            <a href="/180-rule">180 Rule</a>
+            <a href="/orb-strategy">ORB Strategy</a>
+            <a href="/20-day-avg">20-Day Avg</a>
+            <a href="/pnl">P&amp;L</a>
+            <a href="/scalping">Scalping</a>
+            <a href="/option-chain" class="active">Option Chain</a>
+            <a href="/history">History</a>
+            <a href="/chat">AI Chat</a>
+        </div>
+    </div>
+
+    <!-- ── Spot ticker + expiry tabs ── -->
+    <div class="spot-strip">
+        <div class="spot-info">
+            <span class="spot-label">NIFTY 50</span>
+            <span class="spot-price" id="spot-ltp">--,---.--</span>
+            <span class="spot-change" id="spot-chg"></span>
+        </div>
+        <div class="expiry-controls">
+            <div class="expiry-tabs" id="expiry-tabs">
+                <!-- filled by JS -->
+            </div>
+            <button class="btn-refresh" id="btn-refresh" onclick="refreshChain()">
+                ↻ Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- ── Option Chain Table ── -->
+    <div class="oc-wrapper">
+        <table class="oc-table">
+            <thead>
+                <tr>
+                    <th class="ce-header" style="width:8%">OI</th>
+                    <th class="ce-header" style="width:8%">Vol</th>
+                    <th class="ce-header" style="width:10%">CE LTP</th>
+                    <th class="ce-header" style="width:9%">Action</th>
+                    <th class="strike-header" style="width:10%">Strike</th>
+                    <th class="pe-header" style="width:9%">Action</th>
+                    <th class="pe-header" style="width:10%">PE LTP</th>
+                    <th class="pe-header" style="width:8%">Vol</th>
+                    <th class="pe-header" style="width:8%">OI</th>
+                </tr>
+            </thead>
+            <tbody id="chain-body">
+                <tr>
+                    <td colspan="9" style="text-align:center;padding:40px;color:var(--txt-mute);">
+                        Loading option chain… <span class="spinner"></span>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- ── Open positions strip ── -->
+    <div class="positions-strip">
+        <h4>Open Positions</h4>
+        <div class="pos-list" id="pos-list">
+            <div class="no-positions">No open positions</div>
+        </div>
+    </div>
+
+    <!-- ── Order Modal ── -->
+    <div class="modal-overlay" id="order-modal">
+        <div class="modal">
+            <div class="modal-head">
+                <h3 id="modal-title">Place Order</h3>
+                <button class="modal-close" onclick="closeModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="info-row">
+                    <span class="label">Symbol</span>
+                    <span class="value" id="modal-symbol">--</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Strike</span>
+                    <span class="value" id="modal-strike">--</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Type</span>
+                    <span class="value" id="modal-type">--</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">LTP</span>
+                    <span class="value" id="modal-ltp">--</span>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Quantity (Lots)</label>
+                        <input type="number" id="modal-lots" value="1" min="1" max="10" />
+                    </div>
+                    <div class="form-group">
+                        <label>Price (0 = Market)</label>
+                        <input type="number" id="modal-price" value="0" step="0.05" min="0" />
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Stop Loss</label>
+                        <input type="number" id="modal-sl" value="0" step="0.05" min="0" />
+                    </div>
+                    <div class="form-group">
+                        <label>Target</label>
+                        <input type="number" id="modal-target" value="0" step="0.05" min="0" />
+                    </div>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-order cancel" onclick="closeModal()">Cancel</button>
+                <button class="btn-order" id="modal-submit" onclick="submitOrder()">Place Order</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Toast container ── -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script>
+        /* ═══════════════════════════════════════════════════════════ */
+        /*  STATE                                                     */
+        /* ═══════════════════════════════════════════════════════════ */
+        let selectedExpiry = '';
+        let chainData = null;       // last chain response
+        let prevLtpMap = {};        // token → previous ltp (for flash)
+        let refreshTimer = null;
+        let orderCtx = {};          // current order context
+        const LOT_SIZE = 65;
+
+        /* ═══════════════════════════════════════════════════════════ */
+        /*  INIT                                                      */
+        /* ═══════════════════════════════════════════════════════════ */
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadExpiries();
+            loadPositions();
+            pollLive();
+            // Auto-refresh chain every 10 seconds
+            refreshTimer = setInterval(refreshChainSilent, 10000);
+            // Refresh positions every 15 seconds
+            setInterval(loadPositions, 15000);
+        });
+
+        /* ═══════════════════════════════════════════════════════════ */
+        /*  MARKET STATUS                                             */
+        /* ═══════════════════════════════════════════════════════════ */
+        function pollLive() {
+            setInterval(async () => {
+                try {
+                    const r = await fetch('/api/live');
+                    const d = await r.json();
+                    if (d.nifty) {
+                        const ltp = d.nifty.ltp || 0;
+                        const chg = d.nifty.change || 0;
+                        const pct = d.nifty.change_pct || 0;
+                        document.getElementById('spot-ltp').textContent = ltp.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                        const chgEl = document.getElementById('spot-chg');
+                        const sign = chg >= 0 ? '+' : '';
+                        chgEl.textContent = `${sign}${chg.toFixed(2)} (${sign}${pct.toFixed(2)}%)`;
+                        chgEl.className = 'spot-change ' + (chg >= 0 ? 'up' : 'down');
+                    }
+                    updateMarketBadge(d.market_open);
+                } catch { }
+            }, 3000);
+        }
+
+        function updateMarketBadge(isOpen) {
+            const badge = document.getElementById('market-badge');
+            const label = document.getElementById('market-label');
+            if (isOpen) {
+                badge.className = 'market-badge live';
+                label.textContent = 'LIVE';
+            } else {
+                badge.className = 'market-badge closed';
+                label.textContent = 'CLOSED';
+            }
+        }
+
+        /* ═══════════════════════════════════════════════════════════ */
+        /*  EXPIRY TABS                                               */
+        /* ═══════════════════════════════════════════════════════════ */
+        async function loadExpiries() {
+            try {
+                const r = await fetch('/api/options/expiries');
+                const d = await r.json();
+                const container = document.getElementById('expiry-tabs');
+                container.innerHTML = '';
+                const expiries = (d.expiries || []).slice(0, 5);
+                selectedExpiry = d.default_expiry || expiries[0] || '';
+
+                expiries.forEach(exp => {
+                    const btn = document.createElement('button');
+                    btn.className = 'expiry-tab' + (exp === selectedExpiry ? ' active' : '');
+                    const dt = new Date(exp + 'T00:00:00');
+                    btn.textContent = dt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+                    btn.dataset.expiry = exp;
+                    btn.onclick = () => selectExpiry(exp);
+                    container.appendChild(btn);
+                });
+
+                // Pre-load instruments then fetch chain
+                await fetch('/api/options/load', { method: 'POST' });
+                await refreshChain();
+            } catch (e) {
+                console.error('Failed to load expiries:', e);
+            }
+        }
+
+        function selectExpiry(exp) {
+            selectedExpiry = exp;
+            document.querySelectorAll('.expiry-tab').forEach(b => {
+                b.classList.toggle('active', b.dataset.expiry === exp);
+            });
+            prevLtpMap = {};
+            refreshChain();
+        }
+
+        /* ═══════════════════════════════════════════════════════════ */
+        /*  OPTION CHAIN FETCH                                        */
+        /* ═══════════════════════════════════════════════════════════ */
+        async function refreshChain() {
+            const btn = document.getElementById('btn-refresh');
+            btn.classList.add('loading');
+            btn.textContent = '⟳ Loading…';
+            try {
+                const url = '/api/options/chain' + (selectedExpiry ? `?expiry=${selectedExpiry}` : '');
+                const r = await fetch(url);
+                if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                chainData = await r.json();
+                renderChain(chainData);
+            } catch (e) {
+                console.error('Chain fetch error:', e);
+                toast('Failed to load option chain', 'error');
+            } finally {
+                btn.classList.remove('loading');
+                btn.textContent = '↻ Refresh';
+            }
+        }
+
+        async function refreshChainSilent() {
+            try {
+                const url = '/api/options/chain' + (selectedExpiry ? `?expiry=${selectedExpiry}` : '');
+                const r = await fetch(url);
+                if (!r.ok) return;
+                chainData = await r.json();
+                renderChain(chainData);
+            } catch { }
+        }
+
+        /* ═══════════════════════════════════════════════════════════ */
+        /*  RENDER CHAIN                                              */
+        /* ═══════════════════════════════════════════════════════════ */
+        function renderChain(data) {
+            const tbody = document.getElementById('chain-body');
+            if (!data || !data.chain || data.chain.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--txt-mute);">No data available</td></tr>';
+                return;
+            }
+
+            const atm = data.atm || 0;
+            const rows = [];
+
+            for (const row of data.chain) {
+                const strike = row.strike;
+                const ce = row.CE || {};
+                const pe = row.PE || {};
+                const isATM = strike === atm;
+                const ceITM = strike < atm;
+                const peITM = strike > atm;
+
+                // Flash detection
+                const ceKey = ce.token || `ce-${strike}`;
+                const peKey = pe.token || `pe-${strike}`;
+                const cePrev = prevLtpMap[ceKey] || 0;
+                const pePrev = prevLtpMap[peKey] || 0;
+                let ceFlash = '', peFlash = '';
+                if (cePrev && ce.ltp !== cePrev) ceFlash = ce.ltp > cePrev ? 'flash-up' : 'flash-down';
+                if (pePrev && pe.ltp !== pePrev) peFlash = pe.ltp > pePrev ? 'flash-up' : 'flash-down';
+                prevLtpMap[ceKey] = ce.ltp;
+                prevLtpMap[peKey] = pe.ltp;
+
+                const ceData = JSON.stringify({ symbol: ce.symbol, token: ce.token, strike, type: 'CE', ltp: ce.ltp, lot: ce.lot_size || LOT_SIZE }).replace(/"/g, '&quot;');
+                const peData = JSON.stringify({ symbol: pe.symbol, token: pe.token, strike, type: 'PE', ltp: pe.ltp, lot: pe.lot_size || LOT_SIZE }).replace(/"/g, '&quot;');
+
+                rows.push(`
+          <tr class="${isATM ? 'atm-row' : ''}">
+            <td class="ce-cell ${ceITM ? 'itm-ce' : ''}"><span class="oi-val">${fmtNum(ce.oi)}</span></td>
+            <td class="ce-cell ${ceITM ? 'itm-ce' : ''}"><span class="vol-val">${fmtNum(ce.volume)}</span></td>
+            <td class="ce-cell ${ceITM ? 'itm-ce' : ''}"><span class="ltp-val ${ceFlash}" onclick='openOrder("BUY", ${ceData})'>${fmtLtp(ce.ltp)}</span></td>
+            <td class="ce-cell ${ceITM ? 'itm-ce' : ''}">
+              <div class="cell-actions ce-actions">
+                <button class="btn-b" onclick='openOrder("BUY", ${ceData})'>B</button>
+                <button class="btn-s" onclick='openOrder("SELL", ${ceData})'>S</button>
+              </div>
+            </td>
+            <td class="strike-cell">${strike.toFixed(0)}</td>
+            <td class="pe-cell ${peITM ? 'itm-pe' : ''}">
+              <div class="cell-actions pe-actions">
+                <button class="btn-b" onclick='openOrder("BUY", ${peData})'>B</button>
+                <button class="btn-s" onclick='openOrder("SELL", ${peData})'>S</button>
+              </div>
+            </td>
+            <td class="pe-cell ${peITM ? 'itm-pe' : ''}"><span class="ltp-val ${peFlash}" onclick='openOrder("BUY", ${peData})'>${fmtLtp(pe.ltp)}</span></td>
+            <td class="pe-cell ${peITM ? 'itm-pe' : ''}"><span class="vol-val">${fmtNum(pe.volume)}</span></td>
+            <td class="pe-cell ${peITM ? 'itm-pe' : ''}"><span class="oi-val">${fmtNum(pe.oi)}</span></td>
+          </tr>
+        `);
+            }
+
+            tbody.innerHTML = rows.join('');
+
+            // Scroll to ATM
+            const atmRow = tbody.querySelector('.atm-row');
+            if (atmRow) atmRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        /* ═══════════════════════════════════════════════════════════ */
+        /*  ORDER MODAL                                               */
+        /* ═══════════════════════════════════════════════════════════ */
+        function openOrder(side, data) {
+            orderCtx = { side, ...data };
+            const titleEl = document.getElementById('modal-title');
+            const submitEl = document.getElementById('modal-submit');
+
+            titleEl.textContent = `${side} ${data.type} @ ${data.strike}`;
+            titleEl.style.color = side === 'BUY' ? 'var(--green)' : 'var(--red)';
+
+            document.getElementById('modal-symbol').textContent = data.symbol || `NIFTY ${data.strike} ${data.type}`;
+            document.getElementById('modal-strike').textContent = data.strike;
+            document.getElementById('modal-type').textContent = data.type;
+            document.getElementById('modal-ltp').textContent = `₹${fmtLtp(data.ltp)}`;
+
+            document.getElementById('modal-lots').value = 1;
+            document.getElementById('modal-price').value = 0;
+            document.getElementById('modal-sl').value = 0;
+            document.getElementById('modal-target').value = 0;
+
+            submitEl.textContent = side === 'BUY' ? 'BUY' : 'SELL';
+            submitEl.className = `btn-order ${side === 'BUY' ? 'buy' : 'sell'}`;
+
+            document.getElementById('order-modal').classList.add('show');
+        }
+
+        function closeModal() {
+            document.getElementById('order-modal').classList.remove('show');
+            orderCtx = {};
+        }
+
+        async function submitOrder() {
+            const lots = parseInt(document.getElementById('modal-lots').value) || 1;
+            const price = parseFloat(document.getElementById('modal-price').value) || 0;
+            const sl = parseFloat(document.getElementById('modal-sl').value) || 0;
+            const target = parseFloat(document.getElementById('modal-target').value) || 0;
+            const qty = lots * (orderCtx.lot || LOT_SIZE);
+
+            const submitBtn = document.getElementById('modal-submit');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Placing…';
+
+            const endpoint = orderCtx.side === 'BUY' ? '/api/paper/buy' : '/api/paper/sell';
+            try {
+                const r = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        symbol: orderCtx.symbol || `NIFTY ${orderCtx.strike} ${orderCtx.type}`,
+                        token: orderCtx.token,
+                        option_type: orderCtx.type,
+                        strike: orderCtx.strike,
+                        expiry: selectedExpiry,
+                        qty: qty,
+                        price: price,
+                        stop_loss: sl,
+                        target: target,
+                        source: 'MANUAL',
+                    }),
+                });
+                const d = await r.json();
+                if (r.ok) {
+                    toast(`${orderCtx.side} order placed: ${orderCtx.type} @ ${orderCtx.strike} × ${lots} lot(s)`, 'success');
+                    closeModal();
+                    loadPositions();
+                } else {
+                    toast(d.error || 'Order failed', 'error');
+                }
+            } catch (e) {
+                toast('Network error: ' + e.message, 'error');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = orderCtx.side === 'BUY' ? 'BUY' : 'SELL';
+            }
+        }
+
+        // Close modal on Escape key
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') closeModal();
+        });
+
+        // Close modal clicking outside
+        document.getElementById('order-modal').addEventListener('click', e => {
+            if (e.target === e.currentTarget) closeModal();
+        });
+
+        /* ═══════════════════════════════════════════════════════════ */
+        /*  POSITIONS                                                 */
+        /* ═══════════════════════════════════════════════════════════ */
+        async function loadPositions() {
+            try {
+                const r = await fetch('/api/paper/positions');
+                const d = await r.json();
+                const list = document.getElementById('pos-list');
+                const positions = d.positions || [];
+
+                if (positions.length === 0) {
+                    list.innerHTML = '<div class="no-positions">No open positions</div>';
+                    return;
+                }
+
+                list.innerHTML = positions.map(p => {
+                    const pnl = p.unrealized_pnl || 0;
+                    const pnlClass = pnl >= 0 ? 'up' : 'down';
+                    const pnlSign = pnl >= 0 ? '+' : '';
+                    return `
+            <div class="pos-card">
+              <div class="pos-sym">${p.symbol || 'NIFTY'} ${p.option_type || ''}</div>
+              <div class="pos-detail">
+                ${p.side || 'BUY'} × ${p.quantity || 0} @ ₹${(p.entry_price || 0).toFixed(2)}
+                ${p.ltp ? `· LTP ₹${p.ltp.toFixed(2)}` : ''}
+              </div>
+              <div class="pos-pnl ${pnlClass}">${pnlSign}₹${pnl.toFixed(2)}</div>
+              <button class="btn-exit" onclick="exitPosition('${p.trade_id}')">EXIT</button>
+            </div>
+          `;
+                }).join('');
+            } catch { }
+        }
+
+        async function exitPosition(tradeId) {
+            if (!confirm('Exit this position?')) return;
+            try {
+                const r = await fetch('/api/paper/exit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ trade_id: tradeId }),
+                });
+                const d = await r.json();
+                if (r.ok) {
+                    toast('Position exited', 'success');
+                    loadPositions();
+                } else {
+                    toast(d.error || 'Exit failed', 'error');
+                }
+            } catch (e) {
+                toast('Network error: ' + e.message, 'error');
+            }
+        }
+
+        /* ═══════════════════════════════════════════════════════════ */
+        /*  HELPERS                                                   */
+        /* ═══════════════════════════════════════════════════════════ */
+        function fmtLtp(v) {
+            if (!v || v <= 0) return '—';
+            return v.toFixed(2);
+        }
+
+        function fmtNum(v) {
+            if (!v || v <= 0) return '—';
+            if (v >= 10000000) return (v / 10000000).toFixed(2) + ' Cr';
+            if (v >= 100000) return (v / 100000).toFixed(2) + ' L';
+            if (v >= 1000) return (v / 1000).toFixed(1) + ' K';
+            return v.toLocaleString('en-IN');
+        }
+
+        function toast(msg, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const el = document.createElement('div');
+            el.className = `toast ${type}`;
+            el.textContent = msg;
+            container.appendChild(el);
+            setTimeout(() => el.remove(), 4000);
+        }
+    </script>
+
+</body>
+
+</html>

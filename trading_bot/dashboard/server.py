@@ -516,11 +516,6 @@ def orders_page():
     return render_template("orders.html")
 
 
-@app.route("/opportunities")
-def opportunities_page():
-    return render_template("opportunities.html")
-
-
 @app.route("/history")
 def history_page():
     return render_template("history.html")
@@ -549,6 +544,11 @@ def pnl_page():
 @app.route("/scalping")
 def scalping_page():
     return render_template("scalping.html")
+
+
+@app.route("/option-chain")
+def option_chain_page():
+    return render_template("option_chain.html")
 
 
 @app.route("/api/candles")
