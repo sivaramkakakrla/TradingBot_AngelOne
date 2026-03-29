@@ -1747,12 +1747,13 @@ def api_backtest_run():
                 try:
                     sigs = evaluate_historical(df)
                     last_exit_bar = -4  # cooldown tracker
-                    _BT_MIN_STRENGTH = 55      # match live mode floor
-                    _BT_MIN_CONFIRMS = 3       # need 3/5 filters (stricter)
+                    # NIFTY index has no volume → no +10 bonus → lower floor
+                    _BT_MIN_STRENGTH = 40 if not _has_vol else 55
+                    _BT_MIN_CONFIRMS = 3       # need 3 of active filters
                     _BT_COOLDOWN_BARS = 3      # skip 3 bars after prev exit
                     _BT_ALLOWED_WINDOWS = [    # only trade proven windows
                         ("09:20", "11:30"),
-                        ("13:30", "14:45"),
+                        ("13:00", "14:45"),
                     ]
 
                     for s in sigs:
