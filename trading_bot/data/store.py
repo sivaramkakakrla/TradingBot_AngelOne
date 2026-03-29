@@ -424,6 +424,37 @@ def get_weekly_pnl_breakdown(weeks: int = 4) -> list[dict]:
     return result
 
 
+def get_daily_pnl_breakdown(days: int = 5) -> list[dict]:
+    """Return P&L breakdown for the last N calendar days (newest first).
+
+    Each entry also includes a list of individual trades for that day.
+    """
+    import datetime
+    today = datetime.date.today()
+    result = []
+    for i in range(days):
+        d = today - datetime.timedelta(days=i)
+        ds = d.isoformat()
+        summary = get_pnl_between(ds, ds)
+        # Fetch individual trades for the day
+        sql = """SELECT trade_id, symbol, option_type, strike, direction,
+                        entry_price, exit_price, quantity, pnl,
+                        entry_time, exit_time, exit_reason
+                 FROM trades
+                 WHERE status = 'CLOSED' AND DATE(exit_time) = ?
+                 ORDER BY exit_time DESC"""
+        with get_cursor() as cur:
+            cur.execute(sql, (ds,))
+            rows = cur.fetchall()
+            cols = [desc[0] for desc in cur.description] if cur.description else []
+        trades = [dict(zip(cols, r)) for r in rows] if cols else []
+        summary["date"] = ds
+        summary["day_name"] = d.strftime("%a")
+        summary["trades_list"] = trades
+        result.append(summary)
+    return result
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 #  SIGNAL HELPERS
 # ═══════════════════════════════════════════════════════════════════════════════

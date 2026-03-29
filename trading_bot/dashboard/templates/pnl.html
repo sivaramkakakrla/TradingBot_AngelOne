@@ -229,6 +229,107 @@
             color: var(--red) !important;
         }
 
+        /* ─ Daily P&L Section ─ */
+        .day-section {
+            margin-top: 16px;
+        }
+
+        .day-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            cursor: pointer;
+            user-select: none;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            margin-bottom: 6px;
+            transition: background .15s;
+        }
+
+        .day-header:hover {
+            background: var(--surface-hover);
+        }
+
+        .day-header .day-label {
+            font-size: .78rem;
+            font-weight: 600;
+        }
+
+        .day-header .day-pnl {
+            font-size: .82rem;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .day-header .day-meta {
+            font-size: .62rem;
+            color: var(--txt-mute);
+            margin-left: 8px;
+        }
+
+        .day-header .chevron {
+            font-size: .7rem;
+            color: var(--txt-dim);
+            transition: transform .2s;
+        }
+
+        .day-header.open .chevron {
+            transform: rotate(90deg);
+        }
+
+        .day-trades {
+            display: none;
+            margin-bottom: 10px;
+        }
+
+        .day-trades.show {
+            display: block;
+        }
+
+        .day-trades table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: .72rem;
+        }
+
+        .day-trades th,
+        .day-trades td {
+            padding: 6px 8px;
+            border-bottom: 1px solid var(--border);
+            text-align: left;
+        }
+
+        .day-trades th {
+            color: var(--txt-dim);
+            font-size: .64rem;
+            text-transform: uppercase;
+        }
+
+        .day-empty {
+            text-align: center;
+            color: var(--txt-mute);
+            font-size: .72rem;
+            padding: 12px 0;
+        }
+
+        .day-summary-strip {
+            display: flex;
+            gap: 10px;
+            padding: 0 16px 8px;
+            flex-wrap: wrap;
+        }
+
+        .day-chip {
+            font-size: .64rem;
+            color: var(--txt-dim);
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 3px 8px;
+        }
+
         @media (max-width: 900px) {
             .topbar {
                 height: auto;
@@ -306,10 +407,67 @@
             <div class="ctx-card" id="pnl-weekly-card">
                 <div style="color:var(--txt-mute);font-size:.72rem;text-align:center;padding:6px 0;">Loading...</div>
             </div>
+
+            <div style="font-size:.68rem;font-weight:600;color:var(--txt-dim);margin-bottom:6px;margin-top:12px;">
+                Last 5 Days</div>
+            <div id="pnl-daily-section" class="day-section">
+                <div style="color:var(--txt-mute);font-size:.72rem;text-align:center;padding:6px 0;">Loading...</div>
+            </div>
         </div>
     </div>
     <script>
         const RS = '₹';
+        function fmtPnl(v) { const n = Number(v || 0); return (n >= 0 ? '+' : '-') + RS + Math.abs(n).toFixed(2); }
+        function pnlCls(v) { return Number(v) >= 0 ? 'pos' : 'neg'; }
+        function fmtTime(ts) { if (!ts) return '--'; const d = new Date(ts); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+
+        function renderDaily(days) {
+            const wrap = document.getElementById('pnl-daily-section');
+            if (!days || !days.length) { wrap.innerHTML = '<div class="day-empty">No data</div>'; return; }
+            wrap.innerHTML = days.map((day, i) => {
+                const pnl = day.total_pnl || 0;
+                const cls = pnlCls(pnl);
+                const trades = day.trades_list || [];
+                const label = day.day_name + ' ' + day.date.slice(5);
+                const winLoss = day.trades > 0 ? day.wins + 'W / ' + day.losses + 'L' : 'No trades';
+                let html = '<div class="day-header" onclick="this.classList.toggle(\'open\');this.nextElementSibling.classList.toggle(\'show\');">';
+                html += '<div><span class="day-label">' + label + '</span><span class="day-meta">' + winLoss + '</span></div>';
+                html += '<div><span class="day-pnl ' + cls + '">' + fmtPnl(pnl) + '</span> <span class="chevron">▸</span></div>';
+                html += '</div>';
+                html += '<div class="day-trades' + (i === 0 ? ' show' : '') + '">';
+                if (i === 0) { /* auto-expand today */ }
+                if (!trades.length) {
+                    html += '<div class="day-empty">No closed trades</div>';
+                } else {
+                    html += '<div class="day-summary-strip">';
+                    html += '<span class="day-chip">Trades: ' + day.trades + '</span>';
+                    html += '<span class="day-chip">Wins: ' + day.wins + '</span>';
+                    html += '<span class="day-chip">Losses: ' + day.losses + '</span>';
+                    const wr = day.trades > 0 ? (day.wins / day.trades * 100).toFixed(0) : '0';
+                    html += '<span class="day-chip">Win Rate: ' + wr + '%</span>';
+                    html += '</div>';
+                    html += '<table><thead><tr><th>Time</th><th>Symbol</th><th>Type</th><th>Entry</th><th>Exit</th><th>Qty</th><th>P&L</th><th>Reason</th></tr></thead><tbody>';
+                    trades.forEach(t => {
+                        const tp = Number(t.pnl || 0);
+                        html += '<tr><td>' + fmtTime(t.exit_time) + '</td>';
+                        html += '<td>' + (t.symbol || '--') + ' ' + (t.strike || '') + ' ' + (t.option_type || '') + '</td>';
+                        html += '<td>' + (t.direction || '--') + '</td>';
+                        html += '<td>' + RS + Number(t.entry_price || 0).toFixed(2) + '</td>';
+                        html += '<td>' + RS + Number(t.exit_price || 0).toFixed(2) + '</td>';
+                        html += '<td>' + (t.quantity || 0) + '</td>';
+                        html += '<td class="' + pnlCls(tp) + '" style="font-weight:700">' + fmtPnl(tp) + '</td>';
+                        html += '<td style="font-size:.66rem;color:var(--txt-dim)">' + (t.exit_reason || '--') + '</td></tr>';
+                    });
+                    html += '</tbody></table>';
+                }
+                html += '</div>';
+                return html;
+            }).join('');
+            // Auto-open first day
+            const firstHeader = wrap.querySelector('.day-header');
+            if (firstHeader && !firstHeader.classList.contains('open')) firstHeader.classList.add('open');
+        }
+
         async function pollPnlSummary() {
             try {
                 const r = await fetch('/api/pnl/summary');
@@ -342,6 +500,8 @@
                             '<span class="ctx-val ' + cls + '" style="font-size:.72rem;">' + (pnl >= 0 ? '+' : '') + RS + pnl.toFixed(2) + ' <span style="font-weight:500;color:var(--txt-mute);font-size:.6rem;">(' + winLoss + ')</span></span></div>';
                     }).join('');
                 }
+                // Daily breakdown
+                renderDaily(d.daily || []);
             } catch (e) { console.error('P&L summary error', e); }
         }
         document.addEventListener('DOMContentLoaded', pollPnlSummary);

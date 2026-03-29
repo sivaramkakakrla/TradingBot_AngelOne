@@ -663,6 +663,10 @@ def api_pnl_summary():
     # Last 4 weeks breakdown
     weekly = get_weekly_pnl_breakdown(4)
 
+    # Last 5 days daily breakdown
+    from trading_bot.data.store import get_daily_pnl_breakdown
+    daily = get_daily_pnl_breakdown(5)
+
     return jsonify({
         "today": {"date": today_str, "pnl": round(today_pnl, 2)},
         "this_month": {
@@ -671,6 +675,7 @@ def api_pnl_summary():
             **month_summary,
         },
         "weekly": weekly,
+        "daily": daily,
     })
 
 
