@@ -1731,9 +1731,44 @@ def api_backtest_run():
             else:  # scalping — use existing historical_analysis engine
                 try:
                     sigs = evaluate_historical(df)
+                    last_exit_bar = -4  # cooldown tracker
+                    _BT_MIN_STRENGTH = 55      # match live mode floor
+                    _BT_MIN_CONFIRMS = 3       # need 3/5 filters (stricter)
+                    _BT_COOLDOWN_BARS = 3      # skip 3 bars after prev exit
+                    _BT_ALLOWED_WINDOWS = [    # only trade proven windows
+                        ("09:20", "11:30"),
+                        ("13:30", "14:45"),
+                    ]
+
                     for s in sigs:
                         if s.action != "ENTER" or s.bar_index < 0 or s.entry_price <= 0:
                             continue
+
+                        # ── Gate 1: Strength floor ──
+                        if s.strength < _BT_MIN_STRENGTH:
+                            continue
+
+                        # ── Gate 2: Confirmation floor ──
+                        if s.confirmations < _BT_MIN_CONFIRMS:
+                            continue
+
+                        # ── Gate 3: Cooldown — avoid re-entering right after SL ──
+                        if s.bar_index - last_exit_bar < _BT_COOLDOWN_BARS:
+                            continue
+
+                        # ── Gate 4: Time window — only trade active hours ──
+                        bar_time_str = ""
+                        if "timestamp" in df.columns:
+                            bar_time_str = str(df["timestamp"].iloc[s.bar_index])
+                        import re as _re
+                        _tm = _re.search(r"(\d{2}:\d{2})", bar_time_str)
+                        if _tm:
+                            hhmm = _tm.group(1)
+                            in_window = any(wstart <= hhmm <= wend
+                                            for wstart, wend in _BT_ALLOWED_WINDOWS)
+                            if not in_window:
+                                continue
+
                         entry_px = s.entry_price
                         is_bull = (s.direction == "BULLISH")
                         tgt_px = entry_px + s.target_points if is_bull else entry_px - s.target_points
@@ -1741,6 +1776,7 @@ def api_backtest_run():
                         exit_px = entry_px
                         exit_ts = ""
                         outcome = "OPEN"
+                        exit_bar = s.bar_index
 
                         for bi in range(s.bar_index + 1, len(df)):
                             bar_high  = float(df["high"].iloc[bi])
@@ -1750,20 +1786,22 @@ def api_backtest_run():
 
                             if is_bull:
                                 if bar_low <= sl_px:
-                                    exit_px, exit_ts, outcome = sl_px, bar_ts, "SL_HIT"
+                                    exit_px, exit_ts, outcome, exit_bar = sl_px, bar_ts, "SL_HIT", bi
                                     break
                                 if bar_high >= tgt_px:
-                                    exit_px, exit_ts, outcome = tgt_px, bar_ts, "TARGET_HIT"
+                                    exit_px, exit_ts, outcome, exit_bar = tgt_px, bar_ts, "TARGET_HIT", bi
                                     break
                             else:
                                 if bar_high >= sl_px:
-                                    exit_px, exit_ts, outcome = sl_px, bar_ts, "SL_HIT"
+                                    exit_px, exit_ts, outcome, exit_bar = sl_px, bar_ts, "SL_HIT", bi
                                     break
                                 if bar_low <= tgt_px:
-                                    exit_px, exit_ts, outcome = tgt_px, bar_ts, "TARGET_HIT"
+                                    exit_px, exit_ts, outcome, exit_bar = tgt_px, bar_ts, "TARGET_HIT", bi
                                     break
                             if bi == len(df) - 1:
-                                exit_px, exit_ts, outcome = bar_close, bar_ts, "EOD_EXIT"
+                                exit_px, exit_ts, outcome, exit_bar = bar_close, bar_ts, "EOD_EXIT", bi
+
+                        last_exit_bar = exit_bar  # update cooldown
 
                         pnl = (exit_px - entry_px) if is_bull else (entry_px - exit_px)
                         day_trades.append({
