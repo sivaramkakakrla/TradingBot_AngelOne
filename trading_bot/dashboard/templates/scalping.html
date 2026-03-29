@@ -848,6 +848,114 @@
             margin: 20px 0;
         }
 
+        /* ── P&L Section ── */
+        .pnl-strip {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 14px;
+            margin-bottom: 24px;
+        }
+
+        .pnl-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px 18px;
+        }
+
+        .pnl-card-label {
+            font-size: .65rem;
+            font-weight: 600;
+            color: var(--txt-mute);
+            letter-spacing: .6px;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+
+        .pnl-card-value {
+            font-size: 1.3rem;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .pnl-card-sub {
+            font-size: .68rem;
+            color: var(--txt-mute);
+            margin-top: 3px;
+        }
+
+        .pos-table,
+        .hist-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: .76rem;
+        }
+
+        .pos-table th,
+        .hist-table th {
+            text-align: left;
+            font-size: .65rem;
+            font-weight: 600;
+            color: var(--txt-mute);
+            letter-spacing: .5px;
+            text-transform: uppercase;
+            padding: 8px 10px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .pos-table td,
+        .hist-table td {
+            padding: 10px 10px;
+            border-bottom: 1px solid var(--border);
+            color: var(--txt-dim);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .pos-table tr:hover td,
+        .hist-table tr:hover td {
+            background: rgba(255, 255, 255, .02);
+        }
+
+        .pnl-pos {
+            font-weight: 700;
+        }
+
+        .pnl-pos.profit {
+            color: var(--green);
+        }
+
+        .pnl-pos.loss {
+            color: var(--red);
+        }
+
+        .pnl-pos.zero {
+            color: var(--txt-mute);
+        }
+
+        .btn-exit {
+            background: var(--red-bg);
+            color: var(--red);
+            border: 1px solid var(--red-bdr);
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: .68rem;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+            transition: opacity .15s;
+        }
+
+        .btn-exit:hover {
+            opacity: .8;
+        }
+
+        .pnl-empty {
+            color: var(--txt-mute);
+            font-size: .78rem;
+            padding: 16px 4px;
+            text-align: center;
+        }
+
         /* ── Responsive ── */
         @media (max-width: 900px) {
             .cols {
@@ -855,6 +963,10 @@
             }
 
             .decision-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .pnl-strip {
                 grid-template-columns: repeat(2, 1fr);
             }
 
@@ -938,9 +1050,9 @@
         <div class="page-header">
             <div class="page-title">NIFTY Options Scalping Bot</div>
             <div class="page-subtitle">
-                MA Ribbon + PAC + Pivot + ORB180 confluence &nbsp;·&nbsp;
-                <span>Max 1–2 trades/day</span> &nbsp;·&nbsp;
-                Primary window: <span>9:25–9:45 AM</span>
+                MA Ribbon + PAC + Pivot + VWAP confluence &nbsp;·&nbsp;
+                <span>No trade limits</span> &nbsp;·&nbsp;
+                All market hours: <span>9:15–3:30</span>
             </div>
         </div>
 
@@ -951,9 +1063,7 @@
             </button>
             <span class="scan-ts" id="scanTs">Not yet scanned</span>
             <div class="trade-counter" id="tradeCounter">
-                <div class="tc-dot" id="tc0"></div>
-                <div class="tc-dot" id="tc1"></div>
-                <span class="tc-label" id="tcLabel">0 / 2 trades today</span>
+                <span class="tc-label" id="tcLabel">0 trades today</span>
             </div>
         </div>
 
@@ -975,11 +1085,11 @@
                     <div class="dg-v" id="dgVwap">–</div>
                 </div>
                 <div class="dg-item">
-                    <div class="dg-k">Entry</div>
+                    <div class="dg-k">Entry Premium</div>
                     <div class="dg-v green" id="dgEntry">–</div>
                 </div>
                 <div class="dg-item">
-                    <div class="dg-k">ORB Range</div>
+                    <div class="dg-k">ATM Strike</div>
                     <div class="dg-v amber" id="dgOrb">–</div>
                 </div>
                 <div class="dg-item">
@@ -1247,16 +1357,10 @@
                                 <div class="rule-text"><strong>No confirmation = no trade.</strong> Patience is the
                                     edge.</div>
                             </div>
-                            <div class="rule-item danger">
-                                <div class="rule-num">Rule 3 — Max Loss</div>
-                                <div class="rule-text"><strong>2 SL hits in a day → STOP trading.</strong> Capital
-                                    protection over profit chasing.</div>
-                            </div>
                             <div class="rule-item">
-                                <div class="rule-num">Rule 4</div>
-                                <div class="rule-text">Avoid trades <strong>9:15–9:20</strong> (opening noise) and
-                                    <strong>10:30–1:30</strong> (choppy midday).
-                                </div>
+                                <div class="rule-num">Rule 3</div>
+                                <div class="rule-text"><strong>Track SL hits</strong> for awareness, but no hard stop on
+                                    trading.</div>
                             </div>
                         </div>
 
@@ -1314,6 +1418,92 @@
             </div>
         </div>
 
+        <!-- ── P&L Section ── -->
+        <div class="divider"></div>
+        <div class="page-header" style="margin-bottom:20px;">
+            <div class="page-title" style="font-size:1.1rem;">📊 Scalping P&L</div>
+            <div class="page-subtitle">Live positions &amp; today's closed trades</div>
+        </div>
+
+        <!-- P&L Summary Strip -->
+        <div class="pnl-strip" id="pnlStrip">
+            <div class="pnl-card">
+                <div class="pnl-card-label">Today's Realized</div>
+                <div class="pnl-card-value pnl-pos zero" id="pnlRealized">₹0</div>
+                <div class="pnl-card-sub" id="pnlClosedCount">0 closed trades</div>
+            </div>
+            <div class="pnl-card">
+                <div class="pnl-card-label">Unrealized</div>
+                <div class="pnl-card-value pnl-pos zero" id="pnlUnrealized">₹0</div>
+                <div class="pnl-card-sub" id="pnlOpenCount">0 open positions</div>
+            </div>
+            <div class="pnl-card">
+                <div class="pnl-card-label">Total (Net)</div>
+                <div class="pnl-card-value pnl-pos zero" id="pnlTotal">₹0</div>
+                <div class="pnl-card-sub" id="pnlWinRate">–</div>
+            </div>
+            <div class="pnl-card">
+                <div class="pnl-card-label">Biggest Win / Loss</div>
+                <div class="pnl-card-value" id="pnlBiggest" style="font-size:1rem;">– / –</div>
+                <div class="pnl-card-sub" id="pnlAvg">Avg: –</div>
+            </div>
+        </div>
+
+        <!-- Open Positions -->
+        <div class="section-card" style="margin-bottom:20px;">
+            <div class="section-head">
+                <span class="section-icon">📈</span>
+                <span class="section-title">Open Positions</span>
+                <span class="section-badge" id="posCount"
+                    style="background:var(--card);color:var(--txt-mute);border:1px solid var(--border);">0</span>
+            </div>
+            <div class="section-body" style="padding:0;">
+                <div id="posEmpty" class="pnl-empty">No open positions</div>
+                <table class="pos-table" id="posTable" style="display:none;">
+                    <thead>
+                        <tr>
+                            <th>Option</th>
+                            <th>Entry</th>
+                            <th>LTP</th>
+                            <th>Qty</th>
+                            <th>P&L</th>
+                            <th>SL / TGT</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="posBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Closed Trades Today -->
+        <div class="section-card">
+            <div class="section-head">
+                <span class="section-icon">📋</span>
+                <span class="section-title">Closed Trades Today</span>
+                <span class="section-badge" id="histCount"
+                    style="background:var(--card);color:var(--txt-mute);border:1px solid var(--border);">0</span>
+            </div>
+            <div class="section-body" style="padding:0;">
+                <div id="histEmpty" class="pnl-empty">No closed trades today</div>
+                <table class="hist-table" id="histTable" style="display:none;">
+                    <thead>
+                        <tr>
+                            <th>Option</th>
+                            <th>Direction</th>
+                            <th>Entry</th>
+                            <th>Exit</th>
+                            <th>Qty</th>
+                            <th>P&L</th>
+                            <th>Exit Reason</th>
+                            <th>Time</th>
+                        </tr>
+                    </thead>
+                    <tbody id="histBody"></tbody>
+                </table>
+            </div>
+        </div>
+
     </div>
 
     <!-- Floating AI Chat -->
@@ -1349,12 +1539,8 @@
         function _timeStatus() {
             const hm = _istHM();
             if (hm < 9 * 60 + 15) return { status: 'neutral', label: 'Pre-market' };
-            if (hm < 9 * 60 + 20) return { status: 'fail', label: '9:15–9:20 BLOCKED' };
-            if (hm <= 9 * 60 + 45) return { status: 'pass', label: '✓ Primary 9:25–9:45' };
-            if (hm < 10 * 60 + 30) return { status: 'warn', label: '9:45–10:30 secondary' };
-            if (hm < 13 * 60 + 30) return { status: 'fail', label: '10:30–1:30 CHOPPY ZONE' };
-            if (hm <= 15 * 60 + 15) return { status: 'warn', label: '1:30–3:15 late session' };
-            return { status: 'fail', label: 'Market closed' };
+            if (hm <= 15 * 60 + 30) return { status: 'pass', label: '✓ Market Open' };
+            return { status: 'neutral', label: 'Market closed' };
         }
 
         // ── Market badge ──────────────────────────────────────────────────────
@@ -1451,7 +1637,7 @@
             // Filter results
             const orbPass = orb.range >= 45;
             const vwapAbove = vwap > 0 ? ltp > vwap : null;
-            const timePass = timeS.status === 'pass' || timeS.status === 'warn';
+            const timePass = timeS.status === 'pass';
             const maAligned = maTrend.aligned;
             const bodyStrong = bodyRatio >= 0.60;
             const notOverExt = orb.done ? Math.abs(ltp - (orb.high + orb.low) / 2) < 60 : true;
@@ -1474,7 +1660,6 @@
             let reasons = [];
             let failReasons = [];
 
-            if (!timePass) failReasons.push('Outside primary time window (' + timeS.label + ')');
             if (sideways) failReasons.push('Market sideways / mixed MAs — no trade');
             if (!orbPass && orb.done) failReasons.push('ORB too tight (' + orb.range.toFixed(1) + ' pts < 45 pts required)');
             if (!vwapAgrees && maAligned) failReasons.push('VWAP and MA trend do not agree');
@@ -1534,27 +1719,39 @@
             // Decision grid
             document.getElementById('dgNifty').textContent = ltp ? ltp.toFixed(2) : '–';
             document.getElementById('dgVwap').textContent = sig.vwap ? sig.vwap.toFixed(2) : '–';
-            document.getElementById('dgOrb').textContent = sig.orb.range ? sig.orb.range.toFixed(1) + ' pts' : '–';
+            document.getElementById('dgOrb').textContent = sig.atmStrike ? sig.atmStrike : (sig.orb.range ? sig.orb.range.toFixed(1) + ' pts' : '–');
             document.getElementById('dgTrend').textContent = sig.maTrend.trend;
             document.getElementById('dgTrend').style.color = sig.maTrend.trend === 'BULLISH' ? 'var(--green)' : sig.maTrend.trend === 'BEARISH' ? 'var(--red)' : 'var(--txt-mute)';
 
-            // Trade levels (based on option premium 180 rule)
-            const baseEntry = 180;  // ₹180 base premium per strategy
-            if (sig.decision !== 'NO_TRADE') {
-                const sl = baseEntry - 11;
-                const tgt1 = baseEntry + 20;
-                const tgt2 = baseEntry + 35;
-                const trail = baseEntry + 15;
-                document.getElementById('dgEntry').textContent = '~₹' + baseEntry;
+            // Trade levels based on live ATM option premium
+            if (sig.decision !== 'NO_TRADE' && sig.atmPremium > 0) {
+                const entry = sig.atmPremium;
+                const sl = +(entry - 12).toFixed(2);
+                const tgt1 = +(entry + 20).toFixed(2);
+                const tgt2 = +(entry + 35).toFixed(2);
+                const trail = +(entry + 15).toFixed(2);
+                document.getElementById('dgEntry').textContent = '₹' + entry.toFixed(2);
                 document.getElementById('dgSl').textContent = '₹' + sl;
                 document.getElementById('dgTgt1').textContent = '₹' + tgt1;
                 document.getElementById('dgTgt2').textContent = '₹' + tgt2;
-                document.getElementById('lvEntry').textContent = '₹' + baseEntry + ' (ATM option)';
+                document.getElementById('lvEntry').textContent = '₹' + entry.toFixed(2) + ' (ATM ' + sig.atmStrike + (sig.decision === 'BUY_CE' ? ' CE)' : ' PE)');
                 document.getElementById('lvEntryNote').textContent = sig.decision;
                 document.getElementById('lvSl').textContent = '₹' + sl;
                 document.getElementById('lvTgt1').textContent = '₹' + tgt1;
                 document.getElementById('lvTgt2').textContent = '₹' + tgt2;
                 document.getElementById('lvTrail').textContent = '₹' + trail;
+            } else if (sig.decision !== 'NO_TRADE') {
+                // Signal found but no live premium available
+                document.getElementById('dgEntry').textContent = 'ATM';
+                document.getElementById('dgSl').textContent = '–12 pts';
+                document.getElementById('dgTgt1').textContent = '+20 pts';
+                document.getElementById('dgTgt2').textContent = '+35 pts';
+                document.getElementById('lvEntry').textContent = 'Fetch ATM premium...';
+                document.getElementById('lvEntryNote').textContent = sig.decision;
+                document.getElementById('lvSl').textContent = '–12 pts from entry';
+                document.getElementById('lvTgt1').textContent = '+20 pts from entry';
+                document.getElementById('lvTgt2').textContent = '+35 pts from entry';
+                document.getElementById('lvTrail').textContent = '+15 pts from entry';
             } else {
                 ['dgEntry', 'dgSl', 'dgTgt1', 'dgTgt2'].forEach(id => document.getElementById(id).textContent = '–');
                 ['lvEntry', 'lvSl', 'lvTgt1', 'lvTgt2', 'lvTrail'].forEach(id => document.getElementById(id).textContent = '–');
@@ -1740,27 +1937,15 @@
         function _updateSlCounter() {
             document.getElementById('slHit0').textContent = _slHits;
             const ss = document.getElementById('slHitStatus');
-            if (_slHits >= 2) {
-                ss.textContent = 'STOP TRADING';
-                ss.style.background = 'var(--red-bg)'; ss.style.color = 'var(--red)'; ss.style.borderColor = 'var(--red-bdr)';
-                ['tc0', 'tc1'].forEach(id => document.getElementById(id).className = 'tc-dot full');
-            } else if (_slHits === 1) {
-                ss.textContent = '1 SL HIT';
-                ss.style.background = 'var(--amber-bg)'; ss.style.color = 'var(--amber)'; ss.style.borderColor = 'var(--amber-bdr)';
-                document.getElementById('tc0').className = 'tc-dot full';
-            } else {
-                ss.textContent = 'ACTIVE';
-                ss.style.background = 'var(--green-bg)'; ss.style.color = 'var(--green)'; ss.style.borderColor = 'var(--green-bdr)';
-            }
+            ss.textContent = _slHits > 0 ? _slHits + ' SL HIT' + (_slHits > 1 ? 'S' : '') : 'ACTIVE';
+            ss.style.background = _slHits > 0 ? 'var(--amber-bg)' : 'var(--green-bg)';
+            ss.style.color = _slHits > 0 ? 'var(--amber)' : 'var(--green)';
+            ss.style.borderColor = _slHits > 0 ? 'var(--amber-bdr)' : 'var(--green-bdr)';
         }
 
         function _updateTradeCounter() {
             const realTrades = _tradeLog.filter(t => t.decision !== 'NO_TRADE');
-            document.getElementById('tcLabel').textContent = realTrades.length + ' / 2 trades today';
-            const ids = ['tc0', 'tc1'];
-            ids.forEach((id, i) => {
-                document.getElementById(id).className = 'tc-dot' + (i < realTrades.length ? ' full' : '');
-            });
+            document.getElementById('tcLabel').textContent = realTrades.length + ' trade' + (realTrades.length !== 1 ? 's' : '') + ' today';
         }
 
         // ── Main scan ─────────────────────────────────────────────────────────
@@ -1793,6 +1978,26 @@
 
                 _vwap = sig.vwap;
                 _orb = sig.orb;
+
+                // Fetch live ATM option premium if we have a signal
+                sig.atmPremium = 0;
+                sig.atmStrike = 0;
+                if (sig.decision !== 'NO_TRADE' && _niftyLtp > 0) {
+                    try {
+                        const atmStrike = Math.round(_niftyLtp / 50) * 50;
+                        sig.atmStrike = atmStrike;
+                        const optType = sig.decision === 'BUY_CE' ? 'CE' : 'PE';
+                        const liveResp = await fetch('/api/live').then(r => r.json()).catch(() => ({}));
+                        // Try fetching from option chain for ATM premium
+                        const chainResp = await fetch('/api/options/chain').then(r => r.json()).catch(() => ({}));
+                        if (chainResp.chain) {
+                            const atmRow = chainResp.chain.find(r => r.strike === atmStrike);
+                            if (atmRow) {
+                                sig.atmPremium = optType === 'CE' ? (atmRow.ce_ltp || 0) : (atmRow.pe_ltp || 0);
+                            }
+                        }
+                    } catch (e) { /* ATM premium fetch failed, will show point-based levels */ }
+                }
 
                 // Render
                 _renderResult(sig, _niftyLtp, _candles);
@@ -1842,6 +2047,145 @@
             }
         });
 
+        // ── P&L Functions ─────────────────────────────────────────────────
+        function _pnlClass(v) { return v > 0 ? 'profit' : v < 0 ? 'loss' : 'zero'; }
+        function _fmtPnl(v) { return (v >= 0 ? '+' : '') + '₹' + v.toFixed(2); }
+        function _fmtTime(iso) {
+            if (!iso) return '–';
+            try { return new Date(iso).toLocaleTimeString('en-IN', { timeZone: _IST, hour: '2-digit', minute: '2-digit' }); }
+            catch { return iso.slice(11, 16); }
+        }
+        function _optLabel(t) {
+            const strike = t.strike ? Math.round(t.strike) : '';
+            const type = t.option_type || '';
+            return strike + ' ' + type;
+        }
+
+        async function _fetchPnl() {
+            try {
+                const [posResp, histResp] = await Promise.all([
+                    fetch('/api/paper/positions').then(r => r.json()).catch(() => ({ positions: [] })),
+                    fetch('/api/paper/history').then(r => r.json()).catch(() => ({ trades: [] }))
+                ]);
+
+                const positions = posResp.positions || [];
+                const todayStr = _today();
+                const todayTrades = (histResp.trades || []).filter(t => {
+                    const exitDate = (t.exit_time || '').slice(0, 10);
+                    return exitDate === todayStr;
+                });
+
+                // ─ Summary calculations ─
+                let realized = 0, wins = 0, losses = 0, bigWin = 0, bigLoss = 0, totalPnlArr = [];
+                todayTrades.forEach(t => {
+                    const p = t.pnl || 0;
+                    realized += p;
+                    totalPnlArr.push(p);
+                    if (p > 0) { wins++; if (p > bigWin) bigWin = p; }
+                    else if (p < 0) { losses++; if (p < bigLoss) bigLoss = p; }
+                });
+
+                let unrealized = 0;
+                positions.forEach(p => { unrealized += p.unrealized || 0; });
+
+                const total = realized + unrealized;
+                const totalTrades = todayTrades.length;
+                const winRate = totalTrades > 0 ? (wins / totalTrades * 100).toFixed(0) + '% win rate' : '–';
+                const avg = totalPnlArr.length > 0 ? 'Avg: ₹' + (realized / totalPnlArr.length).toFixed(2) : 'Avg: –';
+
+                // ─ Update summary strip ─
+                const rEl = document.getElementById('pnlRealized');
+                rEl.textContent = _fmtPnl(realized);
+                rEl.className = 'pnl-card-value pnl-pos ' + _pnlClass(realized);
+                document.getElementById('pnlClosedCount').textContent = totalTrades + ' closed trade' + (totalTrades !== 1 ? 's' : '');
+
+                const uEl = document.getElementById('pnlUnrealized');
+                uEl.textContent = _fmtPnl(unrealized);
+                uEl.className = 'pnl-card-value pnl-pos ' + _pnlClass(unrealized);
+                document.getElementById('pnlOpenCount').textContent = positions.length + ' open position' + (positions.length !== 1 ? 's' : '');
+
+                const tEl = document.getElementById('pnlTotal');
+                tEl.textContent = _fmtPnl(total);
+                tEl.className = 'pnl-card-value pnl-pos ' + _pnlClass(total);
+                document.getElementById('pnlWinRate').textContent = winRate;
+
+                const bEl = document.getElementById('pnlBiggest');
+                bEl.innerHTML = '<span style="color:var(--green);">' + (bigWin > 0 ? '+₹' + bigWin.toFixed(0) : '–') + '</span> / <span style="color:var(--red);">' + (bigLoss < 0 ? '₹' + bigLoss.toFixed(0) : '–') + '</span>';
+                document.getElementById('pnlAvg').textContent = avg;
+
+                // ─ Open positions table ─
+                const posBody = document.getElementById('posBody');
+                const posTable = document.getElementById('posTable');
+                const posEmpty = document.getElementById('posEmpty');
+                document.getElementById('posCount').textContent = positions.length;
+
+                if (positions.length) {
+                    posTable.style.display = 'table';
+                    posEmpty.style.display = 'none';
+                    posBody.innerHTML = positions.map(p => {
+                        const unr = p.unrealized || 0;
+                        const cls = _pnlClass(unr);
+                        return `<tr>
+                            <td style="font-weight:600;color:var(--txt);">${_optLabel(p)}</td>
+                            <td>₹${(p.entry_price || 0).toFixed(2)}</td>
+                            <td>₹${(p.ltp || 0).toFixed(2)}</td>
+                            <td>${p.qty || 0}</td>
+                            <td class="pnl-pos ${cls}" style="font-weight:700;">${_fmtPnl(unr)}</td>
+                            <td style="font-size:.68rem;">${p.stop_loss ? '₹' + p.stop_loss : '–'} / ${p.target ? '₹' + p.target : '–'}</td>
+                            <td><button class="btn-exit" onclick="_exitTrade('${p.trade_id}')">EXIT</button></td>
+                        </tr>`;
+                    }).join('');
+                } else {
+                    posTable.style.display = 'none';
+                    posEmpty.style.display = 'block';
+                }
+
+                // ─ Closed trades table ─
+                const histBody = document.getElementById('histBody');
+                const histTable = document.getElementById('histTable');
+                const histEmpty = document.getElementById('histEmpty');
+                document.getElementById('histCount').textContent = totalTrades;
+
+                if (totalTrades) {
+                    histTable.style.display = 'table';
+                    histEmpty.style.display = 'none';
+                    histBody.innerHTML = todayTrades.map(t => {
+                        const p = t.pnl || 0;
+                        const cls = _pnlClass(p);
+                        return `<tr>
+                            <td style="font-weight:600;color:var(--txt);">${_optLabel(t)}</td>
+                            <td>${t.direction || 'LONG'}</td>
+                            <td>₹${(t.entry_price || 0).toFixed(2)}</td>
+                            <td>₹${(t.exit_price || 0).toFixed(2)}</td>
+                            <td>${t.qty || 0}</td>
+                            <td class="pnl-pos ${cls}" style="font-weight:700;">${_fmtPnl(p)}</td>
+                            <td><span style="font-size:.68rem;padding:2px 8px;border-radius:6px;background:var(--card);border:1px solid var(--border);">${t.exit_reason || '–'}</span></td>
+                            <td style="font-size:.68rem;color:var(--txt-mute);">${_fmtTime(t.entry_time)} → ${_fmtTime(t.exit_time)}</td>
+                        </tr>`;
+                    }).join('');
+                } else {
+                    histTable.style.display = 'none';
+                    histEmpty.style.display = 'block';
+                }
+
+            } catch (e) {
+                console.error('P&L fetch error:', e);
+            }
+        }
+
+        async function _exitTrade(tradeId) {
+            if (!confirm('Exit this position?')) return;
+            try {
+                const resp = await fetch('/api/paper/exit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ trade_id: tradeId, reason: 'MANUAL' })
+                });
+                if (resp.ok) { _fetchPnl(); }
+                else { alert('Exit failed: ' + (await resp.text())); }
+            } catch (e) { alert('Exit error: ' + e.message); }
+        }
+
         // ── Init ──────────────────────────────────────────────────────────────
         (function init() {
             _renderTradeLog();
@@ -1851,6 +2195,9 @@
             runScan();
             // Auto-refresh every 60s
             setInterval(runScan, 60000);
+            // P&L: fetch on load + refresh every 15s
+            _fetchPnl();
+            setInterval(_fetchPnl, 15000);
         })();
     </script>
 
