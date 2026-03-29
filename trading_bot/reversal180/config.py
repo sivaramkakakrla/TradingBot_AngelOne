@@ -14,7 +14,7 @@ class Reversal180Config:
     force_exit_time: str = "15:10"
 
     # Entry quality filters
-    min_reversal_body_ratio: float = 0.55
+    min_reversal_body_ratio: float = 0.40
     require_volume_spike: bool = True
     volume_spike_mult: float = 1.4
     volume_lookback: int = 20

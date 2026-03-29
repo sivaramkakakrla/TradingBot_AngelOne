@@ -154,48 +154,93 @@ class ORBStrategy:
 def backtest_orb(df_1m: pd.DataFrame, cfg: ORBConfig) -> dict:
     strategy = ORBStrategy(cfg)
     orb = strategy.compute_orb(df_1m)
-    trades = []
+    trades: list[dict] = []
 
     if not orb.ready:
         return {"summary": {"total": 0, "pnl": 0.0}, "trades": []}
 
+    # ── Quality gates ──
+    _MAX_TRADES = cfg.max_trades_per_day          # default 2
+    _COOLDOWN_BARS = cfg.revenge_cooldown_minutes  # ~15 bars (1-min candles)
+    _ALLOWED_WINDOWS = [
+        ("09:35", "11:30"),
+        ("13:15", "14:30"),
+    ]
+
     open_t = None
+    trade_count = 0
+    last_exit_bar = -_COOLDOWN_BARS - 1  # allow first trade immediately
+
     for i in range(30, len(df_1m)):
         cur = df_1m.iloc[: i + 1]
         row = cur.iloc[-1]
         hhmm = _hhmm(str(row["timestamp"]))
 
-        if open_t is None:
-            sig = strategy.generate_signal(cur, orb)
-            if sig is None:
-                continue
-            entry = 180.0
-            sl = entry - cfg.fixed_sl_points
-            tg = entry + cfg.fixed_sl_points * cfg.rr_ratio
-            open_t = {"ts": sig.timestamp, "side": sig.side, "entry": entry, "sl": sl, "tg": tg}
+        # ── position open → track cumulative underlying movement ──
+        if open_t is not None:
+            under_now = float(row["close"])
+            under_entry = open_t["under_entry"]
+            sign = -1.0 if open_t["side"] == "BUY_PE" else 1.0
+            under_move = (under_now - under_entry) * sign
+            premium_now = open_t["entry"] + under_move * 0.50
+
+            reason = None
+            exit_px = premium_now
+            if premium_now <= open_t["sl"]:
+                reason = "SL_HIT"
+                exit_px = open_t["sl"]
+            elif premium_now >= open_t["tg"]:
+                reason = "TARGET_HIT"
+                exit_px = open_t["tg"]
+            elif hhmm >= cfg.force_exit_time:
+                reason = "TIME_EXIT"
+
+            if reason:
+                pnl = round(exit_px - open_t["entry"], 2)
+                trades.append({**open_t, "exit": round(exit_px, 2), "pnl": pnl, "reason": reason})
+                open_t = None
+                last_exit_bar = i
             continue
 
-        # simple synthetic premium movement proxy from underlying candle body
-        body = float(row["close"]) - float(row["open"])
-        if open_t["side"] == "BUY_PE":
-            body = -body
-        premium_now = open_t["entry"] + body * 0.6
+        # ── gate: max trades per day ──
+        if trade_count >= _MAX_TRADES:
+            continue
 
-        reason = None
-        exit_px = premium_now
-        if premium_now <= open_t["sl"]:
-            reason = "SL_HIT"
-            exit_px = open_t["sl"]
-        elif premium_now >= open_t["tg"]:
-            reason = "TARGET_HIT"
-            exit_px = open_t["tg"]
-        elif hhmm >= cfg.force_exit_time:
-            reason = "TIME_EXIT"
+        # ── gate: cooldown after previous exit ──
+        if i - last_exit_bar < _COOLDOWN_BARS:
+            continue
 
-        if reason:
-            pnl = round(exit_px - open_t["entry"], 2)
-            trades.append({**open_t, "exit": round(exit_px, 2), "pnl": pnl, "reason": reason})
-            open_t = None
+        # ── gate: time window ──
+        in_window = any(ws <= hhmm <= we for ws, we in _ALLOWED_WINDOWS)
+        if not in_window:
+            continue
+
+        sig = strategy.generate_signal(cur, orb)
+        if sig is None:
+            continue
+
+        entry = 180.0
+        sl = entry - cfg.fixed_sl_points
+        tg = entry + cfg.fixed_sl_points * cfg.rr_ratio
+        open_t = {
+            "ts": sig.timestamp,
+            "side": sig.side,
+            "entry": entry,
+            "sl": sl,
+            "tg": tg,
+            "under_entry": float(row["close"]),   # track entry underlying price
+        }
+        trade_count += 1
+
+    # close any still-open position at last bar
+    if open_t is not None:
+        last = df_1m.iloc[-1]
+        under_now = float(last["close"])
+        sign = -1.0 if open_t["side"] == "BUY_PE" else 1.0
+        under_move = (under_now - open_t["under_entry"]) * sign
+        premium_now = open_t["entry"] + under_move * 0.50
+        pnl = round(premium_now - open_t["entry"], 2)
+        trades.append({**open_t, "exit": round(premium_now, 2), "pnl": pnl, "reason": "EOD_EXIT"})
 
     return {
         "summary": {

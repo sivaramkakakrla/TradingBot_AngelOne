@@ -29,8 +29,11 @@ def run_backtest(df_5m: pd.DataFrame, cfg: Reversal180Config | None = None) -> d
     state = BreakoutState()
     trades: list[dict] = []
     open_t = None
+    trade_count = 0
 
-    for i in range(35, len(df_5m)):
+    # Start from bar 6 (right after ORB period: bars 0-3 cover 09:15-09:30)
+    # Bar 35 ≈ 12:10 PM which missed all morning failed-breakout signals
+    for i in range(6, len(df_5m)):
         cur = df_5m.iloc[: i + 1]
         row = cur.iloc[-1]
         ts = str(row["timestamp"])
@@ -57,6 +60,10 @@ def run_backtest(df_5m: pd.DataFrame, cfg: Reversal180Config | None = None) -> d
                 open_t = None
             continue
 
+        # max trades per day
+        if trade_count >= cfg.max_trades_per_day:
+            continue
+
         sig = generate_failed_breakout_signal(cur, orb, state, cfg)
         if not sig:
             continue
@@ -76,6 +83,7 @@ def run_backtest(df_5m: pd.DataFrame, cfg: Reversal180Config | None = None) -> d
             "under_entry": float(row["close"]),
             "reason": sig.reason,
         }
+        trade_count += 1
 
     total = len(trades)
     wins = sum(1 for t in trades if t["pnl"] > 0)
