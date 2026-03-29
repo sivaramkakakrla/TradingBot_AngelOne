@@ -230,6 +230,78 @@
             grid-template-columns: repeat(3, 1fr);
         }
 
+        /* ─ Detailed P&L Section ─ */
+        .pnl-strip-orb {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-bottom: 6px;
+        }
+
+        .pnl-card-orb {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 10px 12px;
+        }
+
+        .pnl-card-orb .k {
+            font-size: .66rem;
+            color: var(--txt-dim);
+            text-transform: uppercase;
+        }
+
+        .pnl-card-orb .v {
+            font-size: 1.05rem;
+            font-weight: 800;
+            margin-top: 4px;
+        }
+
+        .pos-table-orb,
+        .hist-table-orb {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: .76rem;
+        }
+
+        .pos-table-orb th,
+        .pos-table-orb td,
+        .hist-table-orb th,
+        .hist-table-orb td {
+            padding: 7px 6px;
+            border-bottom: 1px solid var(--border);
+            text-align: left;
+        }
+
+        .pos-table-orb th,
+        .hist-table-orb th {
+            color: var(--txt-dim);
+            font-size: .68rem;
+            text-transform: uppercase;
+        }
+
+        .btn-exit-orb {
+            background: rgba(248, 113, 113, .12);
+            color: var(--red);
+            border: 1px solid rgba(248, 113, 113, .25);
+            border-radius: 6px;
+            padding: 4px 10px;
+            font-size: .72rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .btn-exit-orb:hover {
+            background: rgba(248, 113, 113, .22);
+        }
+
+        .pnl-empty-orb {
+            text-align: center;
+            color: var(--txt-dim);
+            font-size: .76rem;
+            padding: 18px 0;
+        }
+
         @media (max-width: 980px) {
 
             .topbar {
@@ -246,6 +318,10 @@
             .row.grid-3,
             .row.grid-5 {
                 grid-template-columns: 1fr;
+            }
+
+            .pnl-strip-orb {
+                grid-template-columns: repeat(2, 1fr);
             }
 
             .topbar nav.desktop-nav {
@@ -523,6 +599,74 @@
                 5. Trail stop uses ORB midpoint or previous candle mode (based on config).
             </div>
         </div>
+
+        <!-- ─ Detailed P&L Dashboard ─ -->
+        <div class="card">
+            <div class="title">P&L Dashboard (Live)</div>
+            <div class="pnl-strip-orb">
+                <div class="pnl-card-orb">
+                    <div class="k">Realized</div>
+                    <div class="v" id="orbRealized">₹0.00</div>
+                </div>
+                <div class="pnl-card-orb">
+                    <div class="k">Unrealized</div>
+                    <div class="v" id="orbUnrealized">₹0.00</div>
+                </div>
+                <div class="pnl-card-orb">
+                    <div class="k">Net P&L</div>
+                    <div class="v" id="orbNetPnl">₹0.00</div>
+                </div>
+                <div class="pnl-card-orb">
+                    <div class="k">Best / Worst</div>
+                    <div class="v" id="orbBestWorst">-- / --</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="title">Open Positions</div>
+            <table class="pos-table-orb">
+                <thead>
+                    <tr>
+                        <th>Symbol</th>
+                        <th>Type</th>
+                        <th>Qty</th>
+                        <th>Entry</th>
+                        <th>LTP</th>
+                        <th>P&L</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="orbPosBody">
+                    <tr>
+                        <td colspan="7" class="pnl-empty-orb">No open positions</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <div class="title">Closed Trades Today</div>
+            <table class="hist-table-orb">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Symbol</th>
+                        <th>Type</th>
+                        <th>Entry</th>
+                        <th>Exit</th>
+                        <th>Qty</th>
+                        <th>P&L</th>
+                        <th>Reason</th>
+                    </tr>
+                </thead>
+                <tbody id="orbHistBody">
+                    <tr>
+                        <td colspan="8" class="pnl-empty-orb">No closed trades today</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <script src="/static/js/rule_engine_shared.js"></script>
@@ -599,10 +743,65 @@
             }
         }
 
+        /* ── Detailed P&L helpers ── */
+        function _pnlClsO(v) { return Number(v) >= 0 ? 'good' : 'bad'; }
+        function _fmtPnlO(v) { const n = Number(v || 0); return (n >= 0 ? '+' : '-') + RS + Math.abs(n).toFixed(2); }
+        function _todayStrO() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+        function _fmtTimeO(ts) { if (!ts) return '--'; const d = new Date(ts); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') + ':' + String(d.getSeconds()).padStart(2, '0'); }
+        function _optLblO(t) { return (t.symbol || 'NIFTY') + ' ' + (t.strike || '--') + ' ' + (t.option_type || '--'); }
+
+        async function refreshDetailedPnl() {
+            try {
+                const [posR, histR] = await Promise.all([fetch('/api/paper/positions'), fetch('/api/paper/history')]);
+                const positions = await posR.json(), history = await histR.json();
+                const today = _todayStrO();
+                const todayHist = (history || []).filter(t => t.exit_time && t.exit_time.startsWith(today));
+
+                /* summary */
+                let realized = 0, unrealized = 0, best = -Infinity, worst = Infinity;
+                todayHist.forEach(t => { const p = Number(t.pnl || 0); realized += p; if (p > best) best = p; if (p < worst) worst = p; });
+                (positions || []).forEach(t => { const p = Number(t.pnl || 0); unrealized += p; });
+                const net = realized + unrealized;
+                document.getElementById('orbRealized').textContent = _fmtPnlO(realized);
+                document.getElementById('orbRealized').className = 'v ' + _pnlClsO(realized);
+                document.getElementById('orbUnrealized').textContent = _fmtPnlO(unrealized);
+                document.getElementById('orbUnrealized').className = 'v ' + _pnlClsO(unrealized);
+                document.getElementById('orbNetPnl').textContent = _fmtPnlO(net);
+                document.getElementById('orbNetPnl').className = 'v ' + _pnlClsO(net);
+                document.getElementById('orbBestWorst').textContent = (best === -Infinity ? '--' : _fmtPnlO(best)) + ' / ' + (worst === Infinity ? '--' : _fmtPnlO(worst));
+
+                /* open positions */
+                const pb = document.getElementById('orbPosBody');
+                if (!positions || !positions.length) { pb.innerHTML = '<tr><td colspan="7" class="pnl-empty-orb">No open positions</td></tr>'; }
+                else {
+                    pb.innerHTML = positions.map(t => {
+                        const p = Number(t.pnl || 0);
+                        return '<tr><td>' + _optLblO(t) + '</td><td>' + (t.direction || '--') + '</td><td>' + (t.quantity || 0) + '</td><td>' + RS + Number(t.entry_price || 0).toFixed(2) + '</td><td>' + RS + Number(t.ltp || t.entry_price || 0).toFixed(2) + '</td><td class="' + _pnlClsO(p) + '" style="font-weight:700">' + _fmtPnlO(p) + '</td><td><button class="btn-exit-orb" onclick="_exitOrb(\'' + t.trade_id + '\')">&times; EXIT</button></td></tr>';
+                    }).join('');
+                }
+
+                /* closed trades today */
+                const hb = document.getElementById('orbHistBody');
+                if (!todayHist.length) { hb.innerHTML = '<tr><td colspan="8" class="pnl-empty-orb">No closed trades today</td></tr>'; }
+                else {
+                    hb.innerHTML = todayHist.map(t => {
+                        const p = Number(t.pnl || 0);
+                        return '<tr><td>' + _fmtTimeO(t.exit_time) + '</td><td>' + _optLblO(t) + '</td><td>' + (t.direction || '--') + '</td><td>' + RS + Number(t.entry_price || 0).toFixed(2) + '</td><td>' + RS + Number(t.exit_price || 0).toFixed(2) + '</td><td>' + (t.quantity || 0) + '</td><td class="' + _pnlClsO(p) + '" style="font-weight:700">' + _fmtPnlO(p) + '</td><td>' + (t.exit_reason || '--') + '</td></tr>';
+                    }).join('');
+                }
+            } catch (e) { console.error('detailedPnl', e); }
+        }
+
+        async function _exitOrb(tid) {
+            if (!confirm('Exit this position?')) return;
+            try { await fetch('/api/paper/exit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ trade_id: tid }) }); await refreshDetailedPnl(); } catch (e) { alert('Exit failed'); }
+        }
+
         async function refreshAll() {
             try {
                 await refreshPnl();
                 await refreshRuleEngine();
+                await refreshDetailedPnl();
             } catch (e) { console.error(e); }
         }
 
