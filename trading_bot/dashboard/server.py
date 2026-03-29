@@ -531,11 +531,6 @@ def orb_strategy_page():
     return render_template("orb_strategy.html")
 
 
-@app.route("/20-day-avg")
-def scoring_page():
-    return render_template("scoring.html", max_date=now_ist().strftime("%Y-%m-%d"))
-
-
 @app.route("/pnl")
 def pnl_page():
     return render_template("pnl.html")
