@@ -1692,41 +1692,56 @@ def api_backtest_run():
 
             day_trades = []
 
+            # NIFTY index often has 0 volume — detect once per day
+            _has_vol = df["volume"].sum() > 0
+
             if strategy == "180rule":
-                from trading_bot.reversal180.backtest import run_backtest as bt_180
-                from trading_bot.reversal180.config import Reversal180Config
-                result = bt_180(df, Reversal180Config())
-                for t in result.get("trades", []):
-                    day_trades.append({
-                        "date": d_str,
-                        "entry_time": t.get("entry_ts", ""),
-                        "exit_time": t.get("exit_ts", ""),
-                        "side": t.get("side", ""),
-                        "entry": t.get("entry", 0),
-                        "exit": t.get("exit", 0),
-                        "sl": t.get("sl", 0),
-                        "target": t.get("tg", 0),
-                        "pnl": t.get("pnl", 0),
-                        "reason": t.get("reason", ""),
-                    })
+                try:
+                    from trading_bot.reversal180.backtest import run_backtest as bt_180
+                    from trading_bot.reversal180.config import Reversal180Config
+                    cfg_180 = Reversal180Config()
+                    if not _has_vol:
+                        cfg_180.require_volume_spike = False
+                    result = bt_180(df, cfg_180)
+                    for t in result.get("trades", []):
+                        day_trades.append({
+                            "date": d_str,
+                            "entry_time": t.get("entry_ts", ""),
+                            "exit_time": t.get("exit_ts", ""),
+                            "side": t.get("side", ""),
+                            "entry": t.get("entry", 0),
+                            "exit": t.get("exit", 0),
+                            "sl": t.get("sl", 0),
+                            "target": t.get("tg", 0),
+                            "pnl": t.get("pnl", 0),
+                            "reason": t.get("reason", ""),
+                        })
+                except Exception as exc:
+                    log.warning("180rule bt %s: %s", d_str, exc)
 
             elif strategy == "orb":
-                from trading_bot.orb_strategy.strategy_orb import backtest_orb
-                from trading_bot.orb_strategy.config import ORBConfig
-                result = backtest_orb(df, ORBConfig())
-                for t in result.get("trades", []):
-                    day_trades.append({
-                        "date": d_str,
-                        "entry_time": t.get("ts", ""),
-                        "exit_time": "",
-                        "side": t.get("side", ""),
-                        "entry": t.get("entry", 0),
-                        "exit": t.get("exit", 0),
-                        "sl": t.get("sl", 0),
-                        "target": t.get("tg", 0),
-                        "pnl": t.get("pnl", 0),
-                        "reason": t.get("reason", ""),
-                    })
+                try:
+                    from trading_bot.orb_strategy.strategy_orb import backtest_orb
+                    from trading_bot.orb_strategy.config import ORBConfig
+                    cfg_orb = ORBConfig()
+                    if not _has_vol:
+                        cfg_orb.require_volume_spike = False
+                    result = backtest_orb(df, cfg_orb)
+                    for t in result.get("trades", []):
+                        day_trades.append({
+                            "date": d_str,
+                            "entry_time": t.get("ts", ""),
+                            "exit_time": "",
+                            "side": t.get("side", ""),
+                            "entry": t.get("entry", 0),
+                            "exit": t.get("exit", 0),
+                            "sl": t.get("sl", 0),
+                            "target": t.get("tg", 0),
+                            "pnl": t.get("pnl", 0),
+                            "reason": t.get("reason", ""),
+                        })
+                except Exception as exc:
+                    log.warning("orb bt %s: %s", d_str, exc)
 
             else:  # scalping — use existing historical_analysis engine
                 try:
