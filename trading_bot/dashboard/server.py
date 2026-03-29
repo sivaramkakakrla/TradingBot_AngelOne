@@ -517,6 +517,7 @@ def orders_page():
 
 
 @app.route("/history")
+@app.route("/backtest")
 def history_page():
     return render_template("history.html")
 
@@ -1582,6 +1583,240 @@ def api_historical_analysis():
 
     except Exception as e:
         log.error("historical_analysis error: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  UNIFIED BACKTEST API
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/api/backtest/run", methods=["POST"])
+def api_backtest_run():
+    """Run backtest for 180 Rule, ORB, or Scalping strategy over a date range.
+
+    JSON body:
+        strategy  – "180rule" | "orb" | "scalping"
+        from_date – YYYY-MM-DD
+        to_date   – YYYY-MM-DD
+    """
+    import datetime as _dt
+    from trading_bot.auth.login import get_session
+
+    body = request.get_json(silent=True) or {}
+    strategy = body.get("strategy", "")
+    from_str = body.get("from_date", "")
+    to_str   = body.get("to_date", "")
+
+    if not strategy or not from_str or not to_str:
+        return jsonify({"error": "Missing strategy, from_date, or to_date"}), 400
+
+    if strategy not in ("180rule", "orb", "scalping"):
+        return jsonify({"error": "Invalid strategy. Use: 180rule, orb, scalping"}), 400
+
+    try:
+        from_date = _dt.date.fromisoformat(from_str)
+        to_date   = _dt.date.fromisoformat(to_str)
+    except ValueError:
+        return jsonify({"error": "Invalid date format"}), 400
+
+    if from_date > to_date:
+        return jsonify({"error": "'from' must be <= 'to'"}), 400
+    if (to_date - from_date).days > 30:
+        return jsonify({"error": "Max 30 days per backtest"}), 400
+
+    # Redis cache
+    cache_key = f"bt:{strategy}:{from_str}:{to_str}"
+    cached = get_cached(cache_key)
+    if cached:
+        return jsonify(cached)
+
+    try:
+        session = get_session()
+        if not session:
+            return jsonify({"error": "Could not authenticate with AngelOne"}), 500
+
+        all_trades = []
+        day_summaries = []
+        days_tested = 0
+
+        # Choose interval based on strategy
+        if strategy == "180rule":
+            interval = "FIVE_MINUTE"
+        elif strategy == "orb":
+            interval = "ONE_MINUTE"
+        else:  # scalping
+            interval = "FIVE_MINUTE"
+
+        current = from_date
+        while current <= to_date:
+            if current.weekday() >= 5:
+                current += _dt.timedelta(days=1)
+                continue
+
+            days_tested += 1
+            d_str = current.strftime("%Y-%m-%d")
+            params = {
+                "exchange":    config.EXCHANGE,
+                "symboltoken": config.NIFTY_TOKEN,
+                "interval":    interval,
+                "fromdate":    f"{d_str} 09:15",
+                "todate":      f"{d_str} 15:30",
+            }
+
+            rows_raw = []
+            try:
+                resp = session.getCandleData(params)
+                if resp and resp.get("status") is not False:
+                    raw = resp.get("data") or []
+                    for bar in raw:
+                        if len(bar) >= 6:
+                            rows_raw.append({
+                                "timestamp": str(bar[0]),
+                                "open":      float(bar[1]),
+                                "high":      float(bar[2]),
+                                "low":       float(bar[3]),
+                                "close":     float(bar[4]),
+                                "volume":    int(bar[5]),
+                            })
+            except Exception as exc:
+                log.warning("backtest fetch %s %s: %s", strategy, d_str, exc)
+
+            if len(rows_raw) < 20:
+                day_summaries.append({"date": d_str, "trades": 0, "pnl": 0})
+                current += _dt.timedelta(days=1)
+                continue
+
+            df = pd.DataFrame(rows_raw)
+            for col in ("close", "open", "high", "low", "volume"):
+                df[col] = df[col].astype(float)
+
+            day_trades = []
+
+            if strategy == "180rule":
+                from trading_bot.reversal180.backtest import run_backtest as bt_180
+                from trading_bot.reversal180.config import Reversal180Config
+                result = bt_180(df, Reversal180Config())
+                for t in result.get("trades", []):
+                    day_trades.append({
+                        "date": d_str,
+                        "entry_time": t.get("entry_ts", ""),
+                        "exit_time": t.get("exit_ts", ""),
+                        "side": t.get("side", ""),
+                        "entry": t.get("entry", 0),
+                        "exit": t.get("exit", 0),
+                        "sl": t.get("sl", 0),
+                        "target": t.get("tg", 0),
+                        "pnl": t.get("pnl", 0),
+                        "reason": t.get("reason", ""),
+                    })
+
+            elif strategy == "orb":
+                from trading_bot.orb_strategy.strategy_orb import backtest_orb
+                from trading_bot.orb_strategy.config import ORBConfig
+                result = backtest_orb(df, ORBConfig())
+                for t in result.get("trades", []):
+                    day_trades.append({
+                        "date": d_str,
+                        "entry_time": t.get("ts", ""),
+                        "exit_time": "",
+                        "side": t.get("side", ""),
+                        "entry": t.get("entry", 0),
+                        "exit": t.get("exit", 0),
+                        "sl": t.get("sl", 0),
+                        "target": t.get("tg", 0),
+                        "pnl": t.get("pnl", 0),
+                        "reason": t.get("reason", ""),
+                    })
+
+            else:  # scalping — use existing historical_analysis engine
+                try:
+                    sigs = evaluate_historical(df)
+                    for s in sigs:
+                        if s.action != "ENTER" or s.bar_index < 0 or s.entry_price <= 0:
+                            continue
+                        entry_px = s.entry_price
+                        is_bull = (s.direction == "BULLISH")
+                        tgt_px = entry_px + s.target_points if is_bull else entry_px - s.target_points
+                        sl_px  = entry_px - s.sl_points     if is_bull else entry_px + s.sl_points
+                        exit_px = entry_px
+                        exit_ts = ""
+                        outcome = "OPEN"
+
+                        for bi in range(s.bar_index + 1, len(df)):
+                            bar_high  = float(df["high"].iloc[bi])
+                            bar_low   = float(df["low"].iloc[bi])
+                            bar_close = float(df["close"].iloc[bi])
+                            bar_ts    = str(df["timestamp"].iloc[bi])
+
+                            if is_bull:
+                                if bar_low <= sl_px:
+                                    exit_px, exit_ts, outcome = sl_px, bar_ts, "SL_HIT"
+                                    break
+                                if bar_high >= tgt_px:
+                                    exit_px, exit_ts, outcome = tgt_px, bar_ts, "TARGET_HIT"
+                                    break
+                            else:
+                                if bar_high >= sl_px:
+                                    exit_px, exit_ts, outcome = sl_px, bar_ts, "SL_HIT"
+                                    break
+                                if bar_low <= tgt_px:
+                                    exit_px, exit_ts, outcome = tgt_px, bar_ts, "TARGET_HIT"
+                                    break
+                            if bi == len(df) - 1:
+                                exit_px, exit_ts, outcome = bar_close, bar_ts, "EOD_EXIT"
+
+                        pnl = (exit_px - entry_px) if is_bull else (entry_px - exit_px)
+                        day_trades.append({
+                            "date": d_str,
+                            "entry_time": s.bar_timestamp if hasattr(s, "bar_timestamp") else "",
+                            "exit_time": exit_ts,
+                            "side": "BUY_CE" if is_bull else "BUY_PE",
+                            "entry": round(entry_px, 2),
+                            "exit": round(exit_px, 2),
+                            "sl": round(sl_px, 2),
+                            "target": round(tgt_px, 2),
+                            "pnl": round(pnl, 2),
+                            "reason": outcome,
+                        })
+                except Exception as exc:
+                    log.warning("scalping bt %s: %s", d_str, exc)
+
+            day_pnl = round(sum(t["pnl"] for t in day_trades), 2)
+            day_wins = sum(1 for t in day_trades if t["pnl"] > 0)
+            day_losses = len(day_trades) - day_wins
+            day_summaries.append({
+                "date": d_str,
+                "trades": len(day_trades),
+                "wins": day_wins,
+                "losses": day_losses,
+                "pnl": day_pnl,
+            })
+            all_trades.extend(day_trades)
+            current += _dt.timedelta(days=1)
+
+        total_pnl = round(sum(t["pnl"] for t in all_trades), 2)
+        wins = sum(1 for t in all_trades if t["pnl"] > 0)
+        losses = len(all_trades) - wins
+        win_rate = round(wins / len(all_trades) * 100, 1) if all_trades else 0
+
+        response = {
+            "strategy":    strategy,
+            "from_date":   from_str,
+            "to_date":     to_str,
+            "days_tested": days_tested,
+            "total_trades": len(all_trades),
+            "wins":        wins,
+            "losses":      losses,
+            "win_rate":    win_rate,
+            "total_pnl":   total_pnl,
+            "trades":      all_trades,
+            "day_summaries": day_summaries,
+        }
+        set_cached(cache_key, response, ttl=300)
+        return jsonify(response)
+
+    except Exception as e:
+        log.error("backtest error: %s", e, exc_info=True)
         return jsonify({"error": str(e)}), 500
 
 

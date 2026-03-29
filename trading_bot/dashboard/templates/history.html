@@ -1,10 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Project Candles — Historical Analysis</title>
+    <title>Project Candles — BackTest</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
@@ -38,8 +38,6 @@
             --red-bdr: rgba(248, 113, 113, .25);
             --amber: #fbbf24;
             --amber-bg: rgba(251, 191, 36, .08);
-            --amber-bdr: rgba(251, 191, 36, .25);
-            --purple: #a78bfa;
             --shadow-sm: 0 1px 3px rgba(0, 0, 0, .3);
             --shadow-md: 0 4px 16px rgba(0, 0, 0, .35);
         }
@@ -48,14 +46,10 @@
             background: var(--bg);
             color: var(--txt);
             font-family: 'Inter', system-ui, sans-serif;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            -webkit-font-smoothing: antialiased;
-            overflow: hidden;
+            min-height: 100vh;
         }
 
-        /* ── Top bar ── */
+        /* -- Top bar -- */
         .topbar {
             display: flex;
             align-items: center;
@@ -67,7 +61,9 @@
             border-bottom: 1px solid var(--border);
             flex-shrink: 0;
             gap: 16px;
-            position: relative;
+            position: sticky;
+            top: 0;
+            z-index: 10;
         }
 
         .logo {
@@ -77,7 +73,6 @@
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
-            letter-spacing: -.3px;
         }
 
         .topbar nav {
@@ -106,7 +101,7 @@
             background: var(--accent-bg);
         }
 
-        /* ─ Hamburger menu ─ */
+        /* Hamburger */
         .topbar-nav-hamburger {
             display: none;
             background: none;
@@ -131,31 +126,13 @@
             transition: all .25s;
         }
 
-        .topbar-nav-hamburger span:nth-child(1) {
-            top: 8px;
-        }
+        .topbar-nav-hamburger span:nth-child(1) { top: 8px; }
+        .topbar-nav-hamburger span:nth-child(2) { top: 15px; }
+        .topbar-nav-hamburger span:nth-child(3) { top: 22px; }
 
-        .topbar-nav-hamburger span:nth-child(2) {
-            top: 15px;
-        }
-
-        .topbar-nav-hamburger span:nth-child(3) {
-            top: 22px;
-        }
-
-        .topbar-nav-hamburger.open span:nth-child(1) {
-            top: 15px;
-            transform: rotate(45deg);
-        }
-
-        .topbar-nav-hamburger.open span:nth-child(2) {
-            opacity: 0;
-        }
-
-        .topbar-nav-hamburger.open span:nth-child(3) {
-            top: 15px;
-            transform: rotate(-45deg);
-        }
+        .topbar-nav-hamburger.open span:nth-child(1) { top: 15px; transform: rotate(45deg); }
+        .topbar-nav-hamburger.open span:nth-child(2) { opacity: 0; }
+        .topbar-nav-hamburger.open span:nth-child(3) { top: 15px; transform: rotate(-45deg); }
 
         .topbar-mobile-menu {
             display: none;
@@ -171,9 +148,7 @@
             flex-direction: column;
         }
 
-        .topbar-mobile-menu.show {
-            display: flex;
-        }
+        .topbar-mobile-menu.show { display: flex; }
 
         .topbar-mobile-menu a {
             color: var(--txt-dim);
@@ -185,75 +160,100 @@
             border-left: 3px solid transparent;
         }
 
-        .topbar-mobile-menu a:hover {
-            background: rgba(255, 255, 255, .03);
-            color: var(--txt);
+        .topbar-mobile-menu a:hover { background: rgba(255, 255, 255, .03); color: var(--txt); }
+        .topbar-mobile-menu a.active { color: var(--accent); background: var(--accent-bg); border-left-color: var(--accent); }
+
+        /* -- Container -- */
+        .wrap {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 0 16px 40px;
         }
 
-        .topbar-mobile-menu a.active {
-            color: var(--accent);
-            background: var(--accent-bg);
-            border-left-color: var(--accent);
+        .page-title {
+            font-size: 1.15rem;
+            font-weight: 800;
+            margin-bottom: 16px;
         }
 
-        /* ── Controls bar ── */
-        .controls-bar {
+        /* -- Controls -- */
+        .controls-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 14px;
+        }
+
+        .controls-row {
             display: flex;
             align-items: center;
-            gap: 12px;
-            padding: 10px 24px;
-            background: var(--surface);
-            border-bottom: 1px solid var(--border);
-            flex-shrink: 0;
+            gap: 14px;
             flex-wrap: wrap;
         }
 
         .ctrl-group {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
         }
 
         .ctrl-label {
-            font-size: .72rem;
+            font-size: .7rem;
             font-weight: 600;
             color: var(--txt-mute);
             text-transform: uppercase;
-            letter-spacing: .4px;
         }
 
-        .ctrl-select,
-        .ctrl-input {
+        .ctrl-input, .ctrl-select {
             background: var(--card);
             border: 1px solid var(--border);
             border-radius: 8px;
-            padding: 6px 10px;
+            padding: 7px 10px;
             font-size: .8rem;
             font-family: inherit;
             color: var(--txt);
             outline: none;
-            cursor: pointer;
-            transition: border-color .15s;
         }
 
-        .ctrl-select:focus,
-        .ctrl-input:focus {
+        .ctrl-input:focus, .ctrl-select:focus { border-color: var(--accent); }
+        .ctrl-input { width: 140px; }
+
+        /* Strategy tabs */
+        .strat-tabs {
+            display: flex;
+            gap: 6px;
+        }
+
+        .strat-tab {
+            padding: 7px 18px;
+            border-radius: 8px;
+            font-size: .78rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1px solid var(--border);
+            background: var(--card);
+            color: var(--txt-dim);
+            transition: all .15s;
+            font-family: inherit;
+        }
+
+        .strat-tab:hover { background: var(--surface-hover); color: var(--txt); }
+
+        .strat-tab.active {
+            background: var(--accent);
+            color: #fff;
             border-color: var(--accent);
         }
 
-        .ctrl-input {
-            width: 130px;
-            cursor: text;
-        }
-
-        .analyse-btn {
+        .run-btn {
             background: var(--accent);
             color: #fff;
             border: none;
-            padding: 7px 20px;
+            padding: 8px 24px;
             border-radius: 8px;
-            font-size: .8rem;
-            font-weight: 600;
+            font-size: .82rem;
+            font-weight: 700;
             cursor: pointer;
             font-family: inherit;
             transition: opacity .15s;
@@ -262,48 +262,25 @@
             gap: 6px;
         }
 
-        .analyse-btn:hover {
-            opacity: .85;
-        }
+        .run-btn:hover { opacity: .85; }
+        .run-btn:disabled { opacity: .5; cursor: not-allowed; }
+        .run-btn .spin { display: inline-block; animation: spin .7s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
-        .analyse-btn:disabled {
-            opacity: .5;
-            cursor: not-allowed;
-        }
-
-        .analyse-btn .spin {
-            display: inline-block;
-            animation: spin .7s linear infinite;
-        }
-
-        @keyframes spin {
-            from {
-                transform: rotate(0deg);
-            }
-
-            to {
-                transform: rotate(360deg);
-            }
-        }
-
-        /* ── Summary strip ── */
+        /* -- Summary strip -- */
         .summary-strip {
-            display: flex;
-            gap: 0;
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+
+        .sum-card {
             background: var(--surface);
-            border-bottom: 1px solid var(--border);
-            flex-shrink: 0;
-        }
-
-        .sum-stat {
-            flex: 1;
-            padding: 10px 16px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px;
             text-align: center;
-            border-right: 1px solid var(--border);
-        }
-
-        .sum-stat:last-child {
-            border-right: none;
         }
 
         .sum-val {
@@ -316,584 +293,99 @@
             font-size: .62rem;
             color: var(--txt-mute);
             text-transform: uppercase;
-            letter-spacing: .4px;
             margin-top: 2px;
         }
 
-        /* ── Main layout ── */
-        .main {
-            flex: 1;
-            display: grid;
-            grid-template-columns: 1fr 340px;
-            gap: 0;
-            overflow: hidden;
-        }
+        .pos { color: var(--green) !important; }
+        .neg { color: var(--red) !important; }
 
-        /* ── Signal list (left) ── */
-        .signals-panel {
-            padding: 16px 20px;
-            overflow-y: auto;
-            border-right: 1px solid var(--border);
-        }
-
-        .panel-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 14px;
-        }
-
-        .panel-title {
-            font-size: .9rem;
-            font-weight: 700;
-        }
-
-        .panel-sub {
-            font-size: .7rem;
-            color: var(--txt-mute);
-            margin-top: 2px;
-        }
-
-        /* filter pills */
-        .filter-pills {
-            display: flex;
-            gap: 6px;
-            flex-wrap: wrap;
-            margin-bottom: 12px;
-        }
-
-        .pill {
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: .72rem;
-            font-weight: 600;
-            cursor: pointer;
-            border: 1px solid var(--border);
-            background: var(--card);
-            color: var(--txt-dim);
-            transition: all .15s;
-        }
-
-        .pill.active {
-            background: var(--accent);
-            color: #fff;
-            border-color: var(--accent);
-        }
-
-        .pill.bullish.active {
-            background: var(--green);
-            border-color: var(--green);
-        }
-
-        .pill.bearish.active {
-            background: var(--red);
-            border-color: var(--red);
-        }
-
-        .signals-list {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        /* ── Signal card ── */
-        .signal-card {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 14px 18px;
-            transition: border-color .2s, box-shadow .2s;
-            cursor: pointer;
-        }
-
-        .signal-card:hover {
-            border-color: var(--border-lt);
-            box-shadow: 0 2px 8px rgba(0, 0, 0, .25);
-        }
-
-        .signal-card.bullish {
-            border-left: 3px solid var(--green);
-        }
-
-        .signal-card.bearish {
-            border-left: 3px solid var(--red);
-        }
-
-        .signal-card.selected {
-            box-shadow: 0 0 0 2px var(--accent);
-        }
-
-        .sig-header {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 8px;
-        }
-
-        .sig-time {
-            font-size: .68rem;
-            font-weight: 600;
-            color: var(--txt-mute);
-            font-variant-numeric: tabular-nums;
-        }
-
-        .sig-date-badge {
-            font-size: .68rem;
-            font-weight: 600;
-            color: var(--txt-dim);
-            background: var(--card);
-            border: 1px solid var(--border);
-            padding: 2px 8px;
-            border-radius: 5px;
-        }
-
-        .sig-badge {
-            font-size: .68rem;
-            font-weight: 700;
-            padding: 3px 10px;
-            border-radius: 6px;
-            letter-spacing: .3px;
-            text-transform: uppercase;
-        }
-
-        .sig-badge.BULLISH {
-            background: var(--green-bg);
-            color: var(--green);
-            border: 1px solid var(--green-bdr);
-        }
-
-        .sig-badge.BEARISH {
-            background: var(--red-bg);
-            color: var(--red);
-            border: 1px solid var(--red-bdr);
-        }
-
-        .sig-action {
-            font-size: .68rem;
-            font-weight: 700;
-            padding: 3px 10px;
-            border-radius: 6px;
-            margin-left: auto;
-        }
-
-        .sig-action.ENTER {
-            background: var(--accent-bg);
-            color: var(--accent);
-            border: 1px solid rgba(129, 140, 248, .3);
-        }
-
-        .sig-action.SKIP {
-            background: var(--card);
-            color: var(--txt-mute);
-            border: 1px solid var(--border);
-        }
-
-        .sig-option {
-            font-size: .95rem;
-            font-weight: 800;
-            letter-spacing: -.3px;
-            margin-bottom: 6px;
-        }
-
-        .opt-type {
-            font-size: .78rem;
-            font-weight: 700;
-            padding: 2px 8px;
-            border-radius: 5px;
-            margin-left: 6px;
-            vertical-align: middle;
-        }
-
-        .opt-type.CE {
-            background: var(--green-bg);
-            color: var(--green);
-            border: 1px solid var(--green-bdr);
-        }
-
-        .opt-type.PE {
-            background: var(--red-bg);
-            color: var(--red);
-            border: 1px solid var(--red-bdr);
-        }
-
-        .sig-body {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 6px;
-            margin-bottom: 8px;
-        }
-
-        .sig-stat {
-            text-align: center;
-            background: var(--card);
-            border-radius: 7px;
-            padding: 7px 4px;
-        }
-
-        .sig-stat-val {
-            font-size: .82rem;
-            font-weight: 700;
-            font-variant-numeric: tabular-nums;
-        }
-
-        .sig-stat-label {
-            font-size: .58rem;
-            color: var(--txt-mute);
-            text-transform: uppercase;
-            letter-spacing: .3px;
-            margin-top: 2px;
-        }
-
-        .sig-patterns {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 4px;
-            margin-bottom: 6px;
-        }
-
-        .pat-tag {
-            font-size: .62rem;
-            font-weight: 600;
-            padding: 2px 7px;
-            border-radius: 4px;
-            background: var(--card);
-            border: 1px solid var(--border);
-            color: var(--txt-dim);
-        }
-
-        .sig-filters {
-            display: flex;
-            gap: 4px;
-            flex-wrap: wrap;
-        }
-
-        .filter-tag {
-            font-size: .6rem;
-            font-weight: 600;
-            padding: 2px 6px;
-            border-radius: 4px;
-        }
-
-        .filter-tag.pass {
-            background: var(--green-bg);
-            color: var(--green);
-            border: 1px solid var(--green-bdr);
-        }
-
-        .filter-tag.fail {
-            background: var(--card);
-            color: var(--txt-mute);
-            border: 1px solid var(--border);
-        }
-
-        .sig-reason {
-            font-size: .7rem;
-            color: var(--txt-dim);
-            margin-top: 6px;
-            line-height: 1.4;
-        }
-
-        .pat-desc-list {
-            margin-bottom: 8px;
-            padding: 8px 10px;
-            background: var(--accent-bg);
-            border: 1px solid rgba(129, 140, 248, .15);
-            border-radius: 8px;
-        }
-
-        .pat-desc-item {
-            font-size: .7rem;
-            color: var(--txt-dim);
-            line-height: 1.5;
-            padding: 3px 0;
-        }
-
-        .pat-desc-item:not(:last-child) {
-            border-bottom: 1px solid rgba(129, 140, 248, .1);
-        }
-
-        .strength-bar-wrap {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 6px;
-        }
-
-        .strength-label {
-            font-size: .6rem;
-            color: var(--txt-mute);
-            white-space: nowrap;
-        }
-
-        .strength-bar {
-            flex: 1;
-            height: 4px;
-            background: var(--card);
-            border-radius: 3px;
-            overflow: hidden;
-        }
-
-        .strength-fill {
-            height: 100%;
-            border-radius: 3px;
-            transition: width .4s;
-        }
-
-        /* ── Right panel ── */
-        .context-panel {
-            padding: 16px;
-            overflow-y: auto;
-            background: var(--bg);
-        }
-
-        .context-section {
-            margin-bottom: 18px;
-        }
-
-        .ctx-title {
-            font-size: .7rem;
-            font-weight: 700;
-            color: var(--txt-mute);
-            text-transform: uppercase;
-            letter-spacing: .5px;
-            margin-bottom: 8px;
-        }
-
-        .ctx-card {
+        /* -- Day-by-day section -- */
+        .day-card {
             background: var(--surface);
             border: 1px solid var(--border);
             border-radius: 10px;
-            padding: 12px 14px;
             margin-bottom: 8px;
-        }
-
-        .ctx-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 5px 0;
-            font-size: .74rem;
-        }
-
-        .ctx-row:not(:last-child) {
-            border-bottom: 1px solid var(--border);
-        }
-
-        .ctx-key {
-            color: var(--txt-dim);
-            font-weight: 500;
-        }
-
-        .ctx-val {
-            font-weight: 700;
-            font-variant-numeric: tabular-nums;
-        }
-
-        /* date nav */
-        .date-nav {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        .date-btn {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px 12px;
-            border-radius: 8px;
-            border: 1px solid var(--border);
-            background: var(--surface);
-            cursor: pointer;
-            transition: all .15s;
-            font-size: .76rem;
-        }
-
-        .date-btn:hover {
-            border-color: var(--accent);
-            background: rgba(129, 140, 248, .04);
-        }
-
-        .date-btn.active {
-            border-color: var(--accent);
-            background: var(--accent-bg);
-            font-weight: 600;
-            color: var(--accent);
-        }
-
-        .date-btn .d-sigs {
-            font-size: .68rem;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-weight: 600;
-        }
-
-        .date-btn .d-sigs.has {
-            background: var(--green-bg);
-            color: var(--green);
-        }
-
-        .date-btn .d-sigs.none {
-            background: var(--card);
-            color: var(--txt-mute);
-        }
-
-        /* Pattern heatmap */
-        .heatmap {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 6px;
-        }
-
-        .heat-item {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 8px 10px;
-        }
-
-        .heat-name {
-            font-size: .68rem;
-            font-weight: 600;
-            color: var(--txt-dim);
-            margin-bottom: 4px;
-            text-transform: capitalize;
-        }
-
-        .heat-bar {
-            height: 4px;
-            background: var(--card);
-            border-radius: 3px;
             overflow: hidden;
         }
 
-        .heat-fill {
-            height: 100%;
-            border-radius: 3px;
-            background: var(--accent);
-            transition: width .5s;
+        .day-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            cursor: pointer;
+            user-select: none;
+            transition: background .15s;
         }
 
-        .heat-count {
-            font-size: .72rem;
+        .day-header:hover { background: var(--surface-hover); }
+
+        .day-left { display: flex; align-items: center; gap: 10px; }
+        .day-date { font-size: .82rem; font-weight: 700; }
+        .day-meta { font-size: .66rem; color: var(--txt-dim); }
+        .day-pnl { font-size: .88rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+        .chevron { font-size: .7rem; color: var(--txt-dim); transition: transform .2s; margin-left: 8px; }
+        .day-header.open .chevron { transform: rotate(90deg); }
+
+        .day-body { display: none; padding: 0 16px 14px; }
+        .day-body.show { display: block; }
+
+        .trades-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: .74rem;
+        }
+
+        .trades-table th, .trades-table td {
+            padding: 7px 8px;
+            border-bottom: 1px solid var(--border);
+            text-align: left;
+        }
+
+        .trades-table th {
+            color: var(--txt-dim);
+            font-size: .66rem;
+            text-transform: uppercase;
+        }
+
+        .chip {
+            display: inline-block;
+            font-size: .64rem;
             font-weight: 700;
-            color: var(--accent);
-            margin-top: 3px;
+            padding: 2px 8px;
+            border-radius: 5px;
         }
 
-        /* Empty state */
+        .chip-ce { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-bdr); }
+        .chip-pe { background: var(--red-bg); color: var(--red); border: 1px solid var(--red-bdr); }
+        .chip-target { background: var(--green-bg); color: var(--green); }
+        .chip-sl { background: var(--red-bg); color: var(--red); }
+        .chip-time { background: var(--amber-bg); color: var(--amber); }
+        .chip-eod { background: var(--amber-bg); color: var(--amber); }
+
         .empty-state {
             text-align: center;
-            padding: 60px 20px;
+            padding: 50px 20px;
             color: var(--txt-mute);
         }
 
-        .empty-icon {
-            font-size: 2.5rem;
-            margin-bottom: 12px;
-        }
-
-        .empty-text {
-            font-size: .85rem;
-            font-weight: 500;
-        }
-
-        .empty-sub {
-            font-size: .75rem;
-            margin-top: 6px;
-        }
-
-        /* Statusbar */
-        .statusbar {
-            padding: 4px 24px;
-            font-size: .68rem;
-            color: var(--txt-mute);
-            background: var(--surface);
-            border-top: 1px solid var(--border);
-            flex-shrink: 0;
-            display: flex;
-            align-items: center;
-            gap: 16px;
-        }
-
-        /* Highlight colours */
-        .pos {
-            color: var(--green) !important;
-        }
-
-        .neg {
-            color: var(--red) !important;
-        }
-
-        ::-webkit-scrollbar {
-            width: 5px;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: transparent;
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: var(--border);
-            border-radius: 3px;
-        }
-
-        ::-webkit-scrollbar-thumb:hover {
-            background: var(--border-lt);
-        }
+        .empty-icon { font-size: 2.2rem; margin-bottom: 10px; }
+        .empty-text { font-size: .88rem; font-weight: 500; }
+        .empty-sub { font-size: .76rem; margin-top: 6px; }
 
         @media (max-width: 980px) {
-            body {
-                height: auto;
-                min-height: 100dvh;
-                overflow-x: hidden;
-            }
-
             .topbar {
                 height: auto;
                 padding: 10px 12px;
                 position: relative;
             }
 
-            .topbar nav.desktop-nav {
-                display: none;
-            }
+            .topbar nav.desktop-nav { display: none; }
+            .topbar-nav-hamburger { display: block; }
 
-            .topbar-nav-hamburger {
-                display: block;
-            }
-
-            .controls-bar {
-                padding: 10px 12px;
-                gap: 10px;
-            }
-
-            .summary-strip {
-                overflow-x: auto;
-            }
-
-            .sum-stat {
-                min-width: 140px;
-            }
-
-            .main {
-                grid-template-columns: 1fr;
-                overflow: auto;
-            }
-
-            .signals-panel {
-                border-right: none;
-                border-bottom: 1px solid var(--border);
-                padding: 14px 12px;
-            }
-
-            .context-panel {
-                padding: 14px 12px;
-            }
-
-            .statusbar {
-                padding: 6px 12px;
-            }
+            .summary-strip { grid-template-columns: repeat(3, 1fr); }
+            .strat-tabs { flex-wrap: wrap; }
+            .controls-row { gap: 8px; }
         }
     </style>
 </head>
@@ -911,7 +403,7 @@
             <a href="/orb-strategy">ORB Strategy</a>
             <a href="/scalping">Scalping</a>
             <a href="/pnl">P&amp;L</a>
-            <a href="/history" class="active">History</a>
+            <a href="/backtest" class="active">BackTest</a>
             <a href="/chat">AI Chat</a>
         </nav>
         <button class="topbar-nav-hamburger" id="topbar-hamburger"
@@ -926,157 +418,60 @@
             <a href="/orb-strategy">ORB Strategy</a>
             <a href="/scalping">Scalping</a>
             <a href="/pnl">P&amp;L</a>
-            <a href="/history" class="active">History</a>
+            <a href="/backtest" class="active">BackTest</a>
             <a href="/chat">AI Chat</a>
         </div>
     </div>
 
-    <!-- Controls bar -->
-    <div class="controls-bar">
-        <div class="ctrl-group">
-            <span class="ctrl-label">From</span>
-            <input type="date" class="ctrl-input" id="from-date" />
-        </div>
-        <div class="ctrl-group">
-            <span class="ctrl-label">To</span>
-            <input type="date" class="ctrl-input" id="to-date" />
-        </div>
-        <div class="ctrl-group">
-            <span class="ctrl-label">Timeframe</span>
-            <select class="ctrl-select" id="tf-select">
-                <option value="1m">1 Minute</option>
-                <option value="5m">5 Minutes</option>
-                <option value="15m">15 Minutes</option>
-            </select>
-        </div>
-        <div class="ctrl-group">
-            <span class="ctrl-label">Direction</span>
-            <select class="ctrl-select" id="dir-select">
-                <option value="ALL">All</option>
-                <option value="BULLISH">Bullish</option>
-                <option value="BEARISH">Bearish</option>
-            </select>
-        </div>
-        <div class="ctrl-group">
-            <span class="ctrl-label">Action</span>
-            <select class="ctrl-select" id="act-select">
-                <option value="ALL">All</option>
-                <option value="ENTER">ENTER only</option>
-            </select>
-        </div>
-        <button class="analyse-btn" id="analyse-btn" onclick="runAnalysis()">
-            <span id="analyse-icon">⟳</span> Analyse
-        </button>
-    </div>
+    <div class="wrap">
+        <div class="page-title">Strategy BackTest</div>
 
-    <!-- Summary strip -->
-    <div class="summary-strip">
-        <div class="sum-stat">
-            <div class="sum-val" id="sum-days">--</div>
-            <div class="sum-lbl">Days Analysed</div>
-        </div>
-        <div class="sum-stat">
-            <div class="sum-val" id="sum-signals">--</div>
-            <div class="sum-lbl">Trades Taken</div>
-        </div>
-        <div class="sum-stat">
-            <div class="sum-val pos" id="sum-wins">--</div>
-            <div class="sum-lbl">Wins (Target Hit)</div>
-        </div>
-        <div class="sum-stat">
-            <div class="sum-val neg" id="sum-losses">--</div>
-            <div class="sum-lbl">Losses (SL Hit)</div>
-        </div>
-        <div class="sum-stat">
-            <div class="sum-val" id="sum-winrate">--</div>
-            <div class="sum-lbl">Win Rate</div>
-        </div>
-        <div class="sum-stat">
-            <div class="sum-val" id="sum-pnl">--</div>
-            <div class="sum-lbl">Total P&amp;L (pts)</div>
-        </div>
-    </div>
-
-    <!-- Main -->
-    <div class="main">
-
-        <!-- Left: signal feed -->
-        <div class="signals-panel">
-            <div class="panel-header">
-                <div>
-                    <div class="panel-title">Historical Signals</div>
-                    <div class="panel-sub" id="result-sub">Select a date range and click Analyse</div>
+        <!-- Controls -->
+        <div class="controls-card">
+            <div class="controls-row">
+                <div class="strat-tabs" id="strat-tabs">
+                    <button class="strat-tab active" data-s="180rule" onclick="pickStrat(this)">180 Rule</button>
+                    <button class="strat-tab" data-s="orb" onclick="pickStrat(this)">ORB Strategy</button>
+                    <button class="strat-tab" data-s="scalping" onclick="pickStrat(this)">Scalping</button>
                 </div>
-                <div class="filter-pills" id="filter-pills">
-                    <span class="pill active" data-f="ALL" onclick="setPillFilter('ALL')">All</span>
-                    <span class="pill bullish" data-f="BULLISH" onclick="setPillFilter('BULLISH')">📈 Bullish</span>
-                    <span class="pill bearish" data-f="BEARISH" onclick="setPillFilter('BEARISH')">📉 Bearish</span>
-                    <span class="pill" data-f="ENTER" onclick="setPillFilter('ENTER')">✅ ENTER</span>
+                <div class="ctrl-group">
+                    <span class="ctrl-label">From</span>
+                    <input type="date" class="ctrl-input" id="from-date" />
                 </div>
-            </div>
-
-            <div class="signals-list" id="signals-list">
-                <div class="empty-state">
-                    <div class="empty-icon">📅</div>
-                    <div class="empty-text">No analysis yet</div>
-                    <div class="empty-sub">Pick a date range above and click Analyse to scan historical NIFTY candles
-                    </div>
+                <div class="ctrl-group">
+                    <span class="ctrl-label">To</span>
+                    <input type="date" class="ctrl-input" id="to-date" />
                 </div>
+                <button class="run-btn" id="run-btn" onclick="runBacktest()">
+                    <span id="run-icon">&#9654;</span> Run Backtest
+                </button>
             </div>
         </div>
 
-        <!-- Right: context panel -->
-        <div class="context-panel">
-
-            <div class="context-section">
-                <div class="ctx-title">Analysis Summary</div>
-                <div class="ctx-card">
-                    <div class="ctx-row"><span class="ctx-key">Date Range</span><span class="ctx-val"
-                            id="ctx-range">--</span></div>
-                    <div class="ctx-row"><span class="ctx-key">Timeframe</span><span class="ctx-val"
-                            id="ctx-tf">--</span></div>
-                    <div class="ctx-row"><span class="ctx-key">Candles Scanned</span><span class="ctx-val"
-                            id="ctx-candles">--</span></div>
-                    <div class="ctx-row"><span class="ctx-key">Days with Signals</span><span class="ctx-val"
-                            id="ctx-days-sigs">--</span></div>
-                    <div class="ctx-row"><span class="ctx-key">Avg Signals/Day</span><span class="ctx-val"
-                            id="ctx-avg">--</span></div>
-                    <div class="ctx-row"><span class="ctx-key">Win Rate</span><span class="ctx-val pos"
-                            id="ctx-enter-rate">--</span></div>
-                </div>
-            </div>
-
-            <div class="context-section">
-                <div class="ctx-title">Top Patterns Found</div>
-                <div class="heatmap" id="pattern-heatmap">
-                    <div
-                        style="color:var(--txt-mute);font-size:.76rem;grid-column:1/-1;text-align:center;padding:16px 0;">
-                        Run analysis to see patterns</div>
-                </div>
-            </div>
-
-            <div class="context-section">
-                <div class="ctx-title">Dates Analysed</div>
-                <div class="date-nav" id="date-nav">
-                    <div style="color:var(--txt-mute);font-size:.76rem;text-align:center;padding:12px 0;">No dates yet
-                    </div>
-                </div>
-            </div>
-
+        <!-- Summary -->
+        <div class="summary-strip" id="summary-strip">
+            <div class="sum-card"><div class="sum-val" id="sum-days">--</div><div class="sum-lbl">Days Tested</div></div>
+            <div class="sum-card"><div class="sum-val" id="sum-trades">--</div><div class="sum-lbl">Total Trades</div></div>
+            <div class="sum-card"><div class="sum-val pos" id="sum-wins">--</div><div class="sum-lbl">Wins</div></div>
+            <div class="sum-card"><div class="sum-val neg" id="sum-losses">--</div><div class="sum-lbl">Losses</div></div>
+            <div class="sum-card"><div class="sum-val" id="sum-wr">--</div><div class="sum-lbl">Win Rate</div></div>
+            <div class="sum-card"><div class="sum-val" id="sum-pnl">--</div><div class="sum-lbl">Total P&amp;L (pts)</div></div>
         </div>
-    </div>
 
-    <div class="statusbar">
-        <span id="status-text">Ready</span>
-        <span style="margin-left:auto;" id="clock"></span>
+        <!-- Results -->
+        <div id="results">
+            <div class="empty-state">
+                <div class="empty-icon">&#128202;</div>
+                <div class="empty-text">No backtest yet</div>
+                <div class="empty-sub">Select a strategy, pick a date range, and click Run Backtest</div>
+            </div>
+        </div>
     </div>
 
     <script>
-        const FMT = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
-        let allSignals = [];     // all signals from last fetch
-        let pillFilter = 'ALL';  // current pill filter
+        let activeStrat = '180rule';
 
-        // ── Init date defaults: last 7 trading days ──────────────────────────────
+        // Init dates: last 7 days
         (function initDates() {
             const today = new Date();
             const d7 = new Date(today);
@@ -1085,284 +480,155 @@
             document.getElementById('from-date').value = d7.toISOString().slice(0, 10);
         })();
 
-        // ── Clock ────────────────────────────────────────────────────────────────
-        function updateClock() {
-            const n = new Date(), ist = new Date(n.getTime() + 5.5 * 36e5);
-            document.getElementById('clock').textContent =
-                'IST ' + String(ist.getUTCHours()).padStart(2, '0') + ':' +
-                String(ist.getUTCMinutes()).padStart(2, '0') + ':' +
-                String(ist.getUTCSeconds()).padStart(2, '0');
-        }
-        setInterval(updateClock, 1000); updateClock();
-
-        // ── Helpers ──────────────────────────────────────────────────────────────
-        function fmt(v) { return v > 0 ? v.toLocaleString('en-IN', FMT) : '--'; }
-        function strengthColor(s) {
-            if (s >= 70) return 'var(--green)';
-            if (s >= 40) return 'var(--amber)';
-            return 'var(--red)';
+        function pickStrat(el) {
+            document.querySelectorAll('.strat-tab').forEach(t => t.classList.remove('active'));
+            el.classList.add('active');
+            activeStrat = el.dataset.s;
         }
 
-        // ── Pill filter ──────────────────────────────────────────────────────────
-        function setPillFilter(f) {
-            pillFilter = f;
-            document.querySelectorAll('.pill').forEach(p => {
-                p.classList.toggle('active', p.dataset.f === f);
-            });
-            renderSignals(applyFilter(allSignals));
+        function fmtPnl(v) {
+            const n = Number(v || 0);
+            return (n >= 0 ? '+' : '-') + Math.abs(n).toFixed(2) + ' pts';
+        }
+        function pnlCls(v) { return Number(v) >= 0 ? 'pos' : 'neg'; }
+
+        function fmtTime(ts) {
+            if (!ts) return '--';
+            const s = String(ts);
+            const m = s.match(/(\d{2}:\d{2})/);
+            return m ? m[0] : s.slice(11, 16) || '--';
         }
 
-        function applyFilter(signals) {
-            if (pillFilter === 'ALL') return signals;
-            if (pillFilter === 'ENTER') return signals.filter(s => s.action === 'ENTER');
-            return signals.filter(s => s.direction === pillFilter);
+        function sideChip(side) {
+            if (!side) return '--';
+            if (side.includes('CE')) return '<span class="chip chip-ce">CE</span>';
+            if (side.includes('PE')) return '<span class="chip chip-pe">PE</span>';
+            return side;
         }
 
-        // ── Render a signal card ─────────────────────────────────────────────────
-        function renderSignalCard(sig) {
-            const isBull = sig.direction === 'BULLISH';
-            const optType = isBull ? 'CE' : 'PE';
-            const dirWord = isBull ? 'NIFTY UP ▲' : 'NIFTY DOWN ▼';
-            const dirStyle = isBull ? 'color:var(--green)' : 'color:var(--red)';
-            const cardClass = isBull ? 'bullish' : 'bearish';
-
-            const patterns = (sig.patterns || []).map(p =>
-                '<span class="pat-tag">' + p.replace(/_/g, ' ') + '</span>'
-            ).join('');
-            const filters = Object.entries(sig.filters || {}).map(([k, v]) =>
-                '<span class="filter-tag ' + (v ? 'pass' : 'fail') + '">' + k.replace(/_/g, ' ') + '</span>'
-            ).join('');
-
-            const ts = sig.bar_timestamp || sig.date || '';
-            let timeStr = '--', dateStr = '';
-            if (ts) {
-                const d = new Date(ts);
-                timeStr = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-                dateStr = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
-            } else if (sig.date) {
-                const dp = sig.date.split('-');
-                dateStr = dp[2] + ' ' + ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][parseInt(dp[1])];
-            }
-            const sl = sig.sl_points > 0 ? sig.sl_points.toFixed(1) : '--';
-            const tgt = sig.target_points > 0 ? sig.target_points.toFixed(1) : '--';
-            const expectedProfit = sig.expected_profit_pts > 0 ? sig.expected_profit_pts.toFixed(1) : tgt;
-
-            // Build pattern descriptions
-            const patDescs = (sig.pattern_descriptions || []);
-            const patDescHtml = patDescs.length > 0
-                ? '<div class="pat-desc-list">' + patDescs.map(d =>
-                    '<div class="pat-desc-item">💡 ' + d + '</div>'
-                ).join('') + '</div>'
-                : '';
-
-            return `
-<div class="signal-card ${cardClass}">
-  <div class="sig-header">
-    <span class="sig-time">${timeStr}</span>
-    ${dateStr ? '<span class="sig-date-badge">' + dateStr + '</span>' : ''}
-    <span class="sig-badge ${sig.direction}">${sig.direction}</span>
-    <span class="sig-action ${sig.action}">${sig.action}</span>
-  </div>
-  <div class="sig-option">
-    <span style="${dirStyle}">${dirWord}</span>
-    <span class="opt-type ${optType}">${optType}</span>
-  </div>
-  <div class="strength-bar-wrap">
-    <span class="strength-label">Strength ${sig.strength}%</span>
-    <div class="strength-bar">
-      <div class="strength-fill" style="width:${sig.strength}%;background:${strengthColor(sig.strength)};"></div>
-    </div>
-  </div>
-  <div class="sig-body">
-    <div class="sig-stat">
-      <div class="sig-stat-val">${sig.confirmations || 0}/5</div>
-      <div class="sig-stat-label">Filters</div>
-    </div>
-    <div class="sig-stat">
-      <div class="sig-stat-val" style="color:var(--green)">+${expectedProfit} pts</div>
-      <div class="sig-stat-label">Expected Profit</div>
-    </div>
-    <div class="sig-stat">
-      <div class="sig-stat-val neg">-${sl} pts</div>
-      <div class="sig-stat-label">Risk (SL)</div>
-    </div>
-  </div>
-  ${patDescHtml}
-  ${patterns ? '<div class="sig-patterns">' + patterns + '</div>' : ''}
-  <div class="sig-filters">${filters}</div>
-  <div class="sig-reason">${sig.reason || ''}</div>
-</div>`;
+        function reasonChip(r) {
+            if (!r) return '--';
+            if (r === 'TARGET_HIT') return '<span class="chip chip-target">TARGET</span>';
+            if (r === 'SL_HIT') return '<span class="chip chip-sl">SL HIT</span>';
+            if (r === 'TIME_EXIT') return '<span class="chip chip-time">TIME</span>';
+            if (r === 'EOD_EXIT') return '<span class="chip chip-eod">EOD</span>';
+            return r;
         }
 
-        // ── Render signal list ───────────────────────────────────────────────────
-        function renderSignals(signals) {
-            const list = document.getElementById('signals-list');
-            if (!signals.length) {
-                list.innerHTML = `
-<div class="empty-state">
-  <div class="empty-icon">🔍</div>
-  <div class="empty-text">No signals match the current filter</div>
-  <div class="empty-sub">Try selecting a different filter above</div>
-</div>`;
+        function renderDaySummaries(data) {
+            const wrap = document.getElementById('results');
+            const days = data.day_summaries || [];
+            const trades = data.trades || [];
+
+            if (!days.length) {
+                wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">&#128237;</div><div class="empty-text">No trading days found</div><div class="empty-sub">Try a different date range</div></div>';
                 return;
             }
-            list.innerHTML = signals.map(renderSignalCard).join('');
-        }
 
-        // ── Update summary strip ──────────────────────────────────────────────────
-        function updateSummary(data) {
-            const sigs = data.signals || [];
-            const days = data.days_analysed || 0;
-            const trades = data.trades_taken || 0;
-            const wins = data.wins || 0;
-            const losses = data.losses || 0;
-            const totalPnl = data.total_pnl || 0;
-            const winRate = trades > 0 ? Math.round(wins / trades * 100) : 0;
-            const daysSigs = new Set(sigs.map(s => (s.bar_timestamp || s.date || '').slice(0, 10))).size;
+            let html = '';
+            days.forEach((day, i) => {
+                const dayTrades = trades.filter(t => t.date === day.date);
+                const pnl = day.pnl || 0;
+                const cls = pnlCls(pnl);
+                const wl = day.trades > 0 ? (day.wins || 0) + 'W / ' + (day.losses || 0) + 'L' : 'No trades';
 
-            document.getElementById('sum-days').textContent = days;
-            document.getElementById('sum-signals').textContent = trades;
-            document.getElementById('sum-wins').textContent = wins;
-            document.getElementById('sum-losses').textContent = losses;
-            document.getElementById('sum-winrate').textContent = trades > 0 ? winRate + '%' : '--';
-            const pnlEl = document.getElementById('sum-pnl');
-            pnlEl.textContent = totalPnl !== 0 ? (totalPnl >= 0 ? '+' : '') + totalPnl.toFixed(2) : '--';
-            pnlEl.className = 'sum-val ' + (totalPnl >= 0 ? 'pos' : 'neg');
+                html += '<div class="day-card">';
+                html += '<div class="day-header' + (i === 0 ? ' open' : '') + '" onclick="this.classList.toggle(\'open\');this.nextElementSibling.classList.toggle(\'show\');">';
+                html += '<div class="day-left"><span class="day-date">' + day.date + '</span><span class="day-meta">' + wl + '</span></div>';
+                html += '<div><span class="day-pnl ' + cls + '">' + fmtPnl(pnl) + '</span><span class="chevron">&#9656;</span></div>';
+                html += '</div>';
+                html += '<div class="day-body' + (i === 0 ? ' show' : '') + '">';
 
-            document.getElementById('ctx-range').textContent =
-                (data.from_date || '--') + ' → ' + (data.to_date || '--');
-            document.getElementById('ctx-tf').textContent = data.timeframe || '--';
-            document.getElementById('ctx-candles').textContent = (data.candle_count || 0).toLocaleString();
-            document.getElementById('ctx-days-sigs').textContent = daysSigs;
-            document.getElementById('ctx-avg').textContent =
-                days > 0 ? (sigs.length / days).toFixed(1) : '--';
-            document.getElementById('ctx-enter-rate').textContent =
-                trades > 0 ? winRate + '%' : '--';
-            document.getElementById('result-sub').textContent =
-                trades + ' trade(s) across ' + days + ' day(s) · P&L: ' + (totalPnl >= 0 ? '+' : '') + totalPnl.toFixed(2) + ' pts';
-        }
-
-        // ── Pattern heatmap ───────────────────────────────────────────────────────
-        function updateHeatmap(signals) {
-            const counts = {};
-            signals.forEach(s => (s.patterns || []).forEach(p => counts[p] = (counts[p] || 0) + 1));
-            const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8);
-            const max = sorted.length ? sorted[0][1] : 1;
-            const hm = document.getElementById('pattern-heatmap');
-            if (!sorted.length) {
-                hm.innerHTML = '<div style="color:var(--txt-mute);font-size:.76rem;grid-column:1/-1;text-align:center;padding:16px 0;">No patterns found</div>';
-                return;
-            }
-            hm.innerHTML = sorted.map(([name, cnt]) => `
-<div class="heat-item">
-  <div class="heat-name">${name.replace(/_/g, ' ')}</div>
-  <div class="heat-bar"><div class="heat-fill" style="width:${Math.round(cnt / max * 100)}%"></div></div>
-  <div class="heat-count">${cnt}×</div>
-</div>`).join('');
-        }
-
-        // ── Date nav ──────────────────────────────────────────────────────────────
-        function updateDateNav(dateResults) {
-            const nav = document.getElementById('date-nav');
-            if (!dateResults || !dateResults.length) {
-                nav.innerHTML = '<div style="color:var(--txt-mute);font-size:.76rem;text-align:center;padding:12px 0;">No dates</div>';
-                return;
-            }
-            nav.innerHTML = dateResults.map(dr => {
-                const cnt = dr.signal_count || 0;
-                const enter = dr.enter_count || 0;
-                return `
-<div class="date-btn" onclick="filterByDate('${dr.date}')">
-  <span>${dr.date}</span>
-  <span class="d-sigs ${cnt > 0 ? 'has' : 'none'}">${cnt} sig${cnt !== 1 ? 's' : ''} · ${enter} ENTER</span>
-</div>`;
-            }).join('');
-        }
-
-        // ── Filter signals to one date ────────────────────────────────────────────
-        function filterByDate(date) {
-            // Highlight button
-            document.querySelectorAll('.date-btn').forEach(b => {
-                b.classList.toggle('active', b.querySelector('span').textContent === date);
+                if (!dayTrades.length) {
+                    html += '<div style="color:var(--txt-mute);font-size:.76rem;padding:12px 0;text-align:center;">No trades on this day</div>';
+                } else {
+                    html += '<table class="trades-table"><thead><tr>';
+                    html += '<th>Entry Time</th><th>Side</th><th>Entry</th><th>SL</th><th>Target</th><th>Exit</th><th>P&L</th><th>Reason</th>';
+                    html += '</tr></thead><tbody>';
+                    dayTrades.forEach(t => {
+                        const tp = Number(t.pnl || 0);
+                        html += '<tr>';
+                        html += '<td>' + fmtTime(t.entry_time) + '</td>';
+                        html += '<td>' + sideChip(t.side) + '</td>';
+                        html += '<td>' + Number(t.entry || 0).toFixed(2) + '</td>';
+                        html += '<td>' + Number(t.sl || 0).toFixed(2) + '</td>';
+                        html += '<td>' + Number(t.target || 0).toFixed(2) + '</td>';
+                        html += '<td>' + Number(t.exit || 0).toFixed(2) + '</td>';
+                        html += '<td class="' + pnlCls(tp) + '" style="font-weight:700">' + fmtPnl(tp) + '</td>';
+                        html += '<td>' + reasonChip(t.reason) + '</td>';
+                        html += '</tr>';
+                    });
+                    html += '</tbody></table>';
+                }
+                html += '</div></div>';
             });
-            // Reset pill to ALL for the date view
-            pillFilter = 'ALL';
-            document.querySelectorAll('.pill').forEach(p => p.classList.toggle('active', p.dataset.f === 'ALL'));
-
-            const filtered = allSignals.filter(s => {
-                const ts = s.bar_timestamp || s.date || '';
-                return ts.slice(0, 10) === date;
-            });
-            renderSignals(filtered);
-            document.getElementById('result-sub').textContent =
-                filtered.length + ' signal(s) on ' + date + ' · click "All" pill to reset';
+            wrap.innerHTML = html;
         }
 
-        // ── Main analysis ─────────────────────────────────────────────────────────
-        async function runAnalysis() {
-            const btn = document.getElementById('analyse-btn');
-            const icon = document.getElementById('analyse-icon');
-            const from = document.getElementById('from-date').value;
-            const to = document.getElementById('to-date').value;
-            const tf = document.getElementById('tf-select').value;
-            const dir = document.getElementById('dir-select').value;
-            const act = document.getElementById('act-select').value;
+        async function runBacktest() {
+            const btn = document.getElementById('run-btn');
+            const icon = document.getElementById('run-icon');
+            const fromDate = document.getElementById('from-date').value;
+            const toDate = document.getElementById('to-date').value;
 
-            if (!from || !to) { alert('Please select a date range.'); return; }
-            if (from > to) { alert('From date must be before To date.'); return; }
+            if (!fromDate || !toDate) { alert('Please select both dates'); return; }
 
             btn.disabled = true;
-            icon.className = 'spin'; icon.textContent = '↻';
-            document.getElementById('status-text').textContent = 'Analysing…';
-            document.getElementById('signals-list').innerHTML =
-                '<div class="empty-state"><div class="empty-icon">⏳</div><div class="empty-text">Fetching candle data from AngelOne…</div><div class="empty-sub">This may take a few seconds for longer date ranges</div></div>';
+            icon.innerHTML = '<span class="spin">&#10227;</span>';
+
+            ['sum-days', 'sum-trades', 'sum-wins', 'sum-losses', 'sum-wr', 'sum-pnl'].forEach(id => {
+                document.getElementById(id).textContent = '...';
+            });
+            document.getElementById('results').innerHTML = '<div class="empty-state"><div class="empty-icon"><span class="spin" style="display:inline-block;font-size:2rem;">&#10227;</span></div><div class="empty-text">Running backtest...</div><div class="empty-sub">Fetching historical candles & simulating trades</div></div>';
 
             try {
-                const url = `/api/historical_analysis?from=${from}&to=${to}&timeframe=${tf}`;
-                const r = await fetch(url);
-                const data = await r.json();
+                const r = await fetch('/api/backtest/run', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        strategy: activeStrat,
+                        from_date: fromDate,
+                        to_date: toDate,
+                    }),
+                });
+                const d = await r.json();
 
-                if (data.error) {
-                    document.getElementById('signals-list').innerHTML =
-                        '<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-text">' + data.error + '</div></div>';
-                    document.getElementById('status-text').textContent = 'Error: ' + data.error;
+                if (d.error) {
+                    document.getElementById('results').innerHTML = '<div class="empty-state"><div class="empty-icon">&#9888;&#65039;</div><div class="empty-text">' + d.error + '</div></div>';
                     return;
                 }
 
-                // Apply direction / action dropdowns
-                let sigs = data.signals || [];
-                if (dir !== 'ALL') sigs = sigs.filter(s => s.direction === dir);
-                if (act !== 'ALL') sigs = sigs.filter(s => s.action === act);
-                data.signals = sigs; // update for summary
+                document.getElementById('sum-days').textContent = d.days_tested || 0;
+                document.getElementById('sum-trades').textContent = d.total_trades || 0;
 
-                allSignals = sigs;
-                pillFilter = 'ALL';
-                document.querySelectorAll('.pill').forEach(p => p.classList.toggle('active', p.dataset.f === 'ALL'));
+                const winsEl = document.getElementById('sum-wins');
+                winsEl.textContent = d.wins || 0;
+                winsEl.className = 'sum-val pos';
 
-                updateSummary(data);
-                updateHeatmap(sigs);
-                updateDateNav(data.date_results || []);
-                renderSignals(sigs);
+                const lossEl = document.getElementById('sum-losses');
+                lossEl.textContent = d.losses || 0;
+                lossEl.className = 'sum-val neg';
 
-                document.getElementById('status-text').textContent =
-                    'Analysis complete · ' + sigs.length + ' signal(s) in ' + (data.days_analysed || 0) + ' day(s)';
+                const wr = d.win_rate || 0;
+                const wrEl = document.getElementById('sum-wr');
+                wrEl.textContent = wr + '%';
+                wrEl.className = 'sum-val ' + (wr >= 50 ? 'pos' : wr > 0 ? 'neg' : '');
 
+                const pnl = d.total_pnl || 0;
+                const pnlEl = document.getElementById('sum-pnl');
+                pnlEl.textContent = fmtPnl(pnl);
+                pnlEl.className = 'sum-val ' + pnlCls(pnl);
+
+                renderDaySummaries(d);
             } catch (e) {
-                document.getElementById('signals-list').innerHTML =
-                    '<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-text">Request failed: ' + e.message + '</div></div>';
-                document.getElementById('status-text').textContent = 'Failed';
+                console.error(e);
+                document.getElementById('results').innerHTML = '<div class="empty-state"><div class="empty-icon">&#10060;</div><div class="empty-text">Backtest failed</div><div class="empty-sub">' + e.message + '</div></div>';
             } finally {
                 btn.disabled = false;
-                icon.className = ''; icon.textContent = '⟳';
+                icon.textContent = '\u25B6';
             }
         }
     </script>
-
-    <!-- Floating AI Chat button -->
-    <a href="/chat" title="AI Assistant"
-        style="position:fixed;bottom:24px;right:24px;width:56px;height:56px;border-radius:50%;background:#7c3aed;color:#fff;display:flex;align-items:center;justify-content:center;text-decoration:none;font-size:1.5rem;box-shadow:0 4px 20px rgba(124,58,237,.45);z-index:999;transition:transform .2s,box-shadow .2s;"
-        onmouseover="this.style.transform='scale(1.12)';this.style.boxShadow='0 6px 28px rgba(124,58,237,.65)'"
-        onmouseout="this.style.transform='scale(1)';this.style.boxShadow='0 4px 20px rgba(124,58,237,.45)'">🤖</a>
 </body>
 
 </html>
