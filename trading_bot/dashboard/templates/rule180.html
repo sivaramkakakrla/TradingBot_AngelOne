@@ -439,6 +439,84 @@
             .engine-grid {
                 grid-template-columns: 1fr;
             }
+
+            .pnl-strip-180 {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        /* ── P&L Detail Section ── */
+        .pnl-strip-180 {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .pnl-card-180 {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 14px;
+        }
+
+        .pnl-card-180 .k {
+            font-size: .65rem;
+            color: var(--txt-dim);
+            text-transform: uppercase;
+            letter-spacing: .5px;
+        }
+
+        .pnl-card-180 .v {
+            font-size: 1.15rem;
+            font-weight: 800;
+            margin-top: 4px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .pnl-card-180 .s {
+            font-size: .66rem;
+            color: var(--txt-mute);
+            margin-top: 2px;
+        }
+
+        .pnl-pos-180 {
+            font-weight: 700;
+        }
+
+        .pnl-pos-180.profit {
+            color: var(--green);
+        }
+
+        .pnl-pos-180.loss {
+            color: var(--red);
+        }
+
+        .pnl-pos-180.zero {
+            color: var(--txt-mute);
+        }
+
+        .btn-exit-180 {
+            background: rgba(248, 113, 113, .08);
+            color: var(--red);
+            border: 1px solid rgba(248, 113, 113, .25);
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: .68rem;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        .btn-exit-180:hover {
+            opacity: .8;
+        }
+
+        .pnl-empty-180 {
+            color: var(--txt-mute);
+            font-size: .78rem;
+            padding: 14px 6px;
+            text-align: center;
         }
     </style>
 </head>
@@ -646,6 +724,72 @@
                 </tbody>
             </table>
         </div>
+
+        <!-- ── 180 Rule — Detailed P&L ── -->
+        <div class="card">
+            <div class="title">📊 180 Rule — P&L Dashboard</div>
+            <div class="pnl-strip-180">
+                <div class="pnl-card-180">
+                    <div class="k">Today's Realized</div>
+                    <div class="v pnl-pos-180 zero" id="r180Realized">₹0</div>
+                    <div class="s" id="r180ClosedCnt">0 closed trades</div>
+                </div>
+                <div class="pnl-card-180">
+                    <div class="k">Unrealized</div>
+                    <div class="v pnl-pos-180 zero" id="r180Unrealized">₹0</div>
+                    <div class="s" id="r180OpenCnt">0 open positions</div>
+                </div>
+                <div class="pnl-card-180">
+                    <div class="k">Total (Net)</div>
+                    <div class="v pnl-pos-180 zero" id="r180Net">₹0</div>
+                    <div class="s" id="r180WinRate2">–</div>
+                </div>
+                <div class="pnl-card-180">
+                    <div class="k">Biggest Win / Loss</div>
+                    <div class="v" id="r180BigWL" style="font-size:.95rem;">– / –</div>
+                    <div class="s" id="r180Avg">Avg: –</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="title">📈 Open Positions</div>
+            <div id="r180PosEmpty" class="pnl-empty-180">No open positions</div>
+            <table id="r180PosTable" style="display:none;">
+                <thead>
+                    <tr>
+                        <th>Option</th>
+                        <th>Entry</th>
+                        <th>LTP</th>
+                        <th>Qty</th>
+                        <th>P&L</th>
+                        <th>SL / TGT</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="r180PosBody"></tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <div class="title">📋 Closed Trades Today</div>
+            <div id="r180HistEmpty" class="pnl-empty-180">No closed trades today</div>
+            <table id="r180HistTable" style="display:none;">
+                <thead>
+                    <tr>
+                        <th>Option</th>
+                        <th>Dir</th>
+                        <th>Entry</th>
+                        <th>Exit</th>
+                        <th>Qty</th>
+                        <th>P&L</th>
+                        <th>Exit Reason</th>
+                        <th>Time</th>
+                    </tr>
+                </thead>
+                <tbody id="r180HistBody"></tbody>
+            </table>
+        </div>
     </div>
 
     <script src="/static/js/rule_engine_shared.js"></script>
@@ -807,6 +951,133 @@
             }
         }
 
+        // ── Detailed P&L (positions + history) ──────────────────────────────
+        function _pnlCls(v) { return v > 0 ? 'profit' : v < 0 ? 'loss' : 'zero'; }
+        function _fmtPnl2(v) { return (v >= 0 ? '+' : '') + RS + v.toFixed(2); }
+        function _fmtTime(iso) {
+            if (!iso) return '–';
+            try { return new Date(iso).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' }); }
+            catch { return iso.slice(11, 16); }
+        }
+        function _optLbl(t) {
+            return (t.strike ? Math.round(t.strike) : '') + ' ' + (t.option_type || '');
+        }
+        function _todayStr() {
+            return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+        }
+
+        async function refreshDetailedPnl() {
+            try {
+                const [posResp, histResp] = await Promise.all([
+                    fetch('/api/paper/positions').then(r => r.json()).catch(() => ({ positions: [] })),
+                    fetch('/api/paper/history').then(r => r.json()).catch(() => ({ trades: [] }))
+                ]);
+
+                const positions = posResp.positions || [];
+                const today = _todayStr();
+                const todayTrades = (histResp.trades || []).filter(t => (t.exit_time || '').slice(0, 10) === today);
+
+                // Summary
+                let realized = 0, wins = 0, losses = 0, bigWin = 0, bigLoss = 0;
+                todayTrades.forEach(t => {
+                    const p = t.pnl || 0;
+                    realized += p;
+                    if (p > 0) { wins++; if (p > bigWin) bigWin = p; }
+                    else if (p < 0) { losses++; if (p < bigLoss) bigLoss = p; }
+                });
+                let unrealized = 0;
+                positions.forEach(p => { unrealized += p.unrealized || 0; });
+                const total = realized + unrealized;
+                const cnt = todayTrades.length;
+                const winRate = cnt > 0 ? (wins / cnt * 100).toFixed(0) + '% win rate' : '–';
+                const avg = cnt > 0 ? 'Avg: ' + RS + (realized / cnt).toFixed(2) : 'Avg: –';
+
+                const rEl = document.getElementById('r180Realized');
+                rEl.textContent = _fmtPnl2(realized);
+                rEl.className = 'v pnl-pos-180 ' + _pnlCls(realized);
+                document.getElementById('r180ClosedCnt').textContent = cnt + ' closed trade' + (cnt !== 1 ? 's' : '');
+
+                const uEl = document.getElementById('r180Unrealized');
+                uEl.textContent = _fmtPnl2(unrealized);
+                uEl.className = 'v pnl-pos-180 ' + _pnlCls(unrealized);
+                document.getElementById('r180OpenCnt').textContent = positions.length + ' open position' + (positions.length !== 1 ? 's' : '');
+
+                const nEl = document.getElementById('r180Net');
+                nEl.textContent = _fmtPnl2(total);
+                nEl.className = 'v pnl-pos-180 ' + _pnlCls(total);
+                document.getElementById('r180WinRate2').textContent = winRate;
+
+                document.getElementById('r180BigWL').innerHTML =
+                    '<span style="color:var(--green);">' + (bigWin > 0 ? '+' + RS + bigWin.toFixed(0) : '–') + '</span> / ' +
+                    '<span style="color:var(--red);">' + (bigLoss < 0 ? RS + bigLoss.toFixed(0) : '–') + '</span>';
+                document.getElementById('r180Avg').textContent = avg;
+
+                // Open positions table
+                const posBody = document.getElementById('r180PosBody');
+                const posTable = document.getElementById('r180PosTable');
+                const posEmpty = document.getElementById('r180PosEmpty');
+                if (positions.length) {
+                    posTable.style.display = 'table';
+                    posEmpty.style.display = 'none';
+                    posBody.innerHTML = positions.map(p => {
+                        const u = p.unrealized || 0;
+                        return '<tr>' +
+                            '<td style="font-weight:600;color:var(--txt);">' + _optLbl(p) + '</td>' +
+                            '<td>' + RS + (p.entry_price || 0).toFixed(2) + '</td>' +
+                            '<td>' + RS + (p.ltp || 0).toFixed(2) + '</td>' +
+                            '<td>' + (p.qty || 0) + '</td>' +
+                            '<td class="pnl-pos-180 ' + _pnlCls(u) + '">' + _fmtPnl2(u) + '</td>' +
+                            '<td style="font-size:.68rem;">' + (p.stop_loss ? RS + p.stop_loss : '–') + ' / ' + (p.target ? RS + p.target : '–') + '</td>' +
+                            '<td><button class="btn-exit-180" onclick="_exit180(\'' + p.trade_id + '\')">EXIT</button></td>' +
+                            '</tr>';
+                    }).join('');
+                } else {
+                    posTable.style.display = 'none';
+                    posEmpty.style.display = 'block';
+                }
+
+                // Closed trades table
+                const histBody = document.getElementById('r180HistBody');
+                const histTable = document.getElementById('r180HistTable');
+                const histEmpty = document.getElementById('r180HistEmpty');
+                if (cnt) {
+                    histTable.style.display = 'table';
+                    histEmpty.style.display = 'none';
+                    histBody.innerHTML = todayTrades.map(t => {
+                        const p = t.pnl || 0;
+                        return '<tr>' +
+                            '<td style="font-weight:600;color:var(--txt);">' + _optLbl(t) + '</td>' +
+                            '<td>' + (t.direction || 'LONG') + '</td>' +
+                            '<td>' + RS + (t.entry_price || 0).toFixed(2) + '</td>' +
+                            '<td>' + RS + (t.exit_price || 0).toFixed(2) + '</td>' +
+                            '<td>' + (t.qty || 0) + '</td>' +
+                            '<td class="pnl-pos-180 ' + _pnlCls(p) + '" style="font-weight:700;">' + _fmtPnl2(p) + '</td>' +
+                            '<td><span style="font-size:.68rem;padding:2px 8px;border-radius:6px;background:var(--card);border:1px solid var(--border);">' + (t.exit_reason || '–') + '</span></td>' +
+                            '<td style="font-size:.68rem;color:var(--txt-mute);">' + _fmtTime(t.entry_time) + ' → ' + _fmtTime(t.exit_time) + '</td>' +
+                            '</tr>';
+                    }).join('');
+                } else {
+                    histTable.style.display = 'none';
+                    histEmpty.style.display = 'block';
+                }
+            } catch (e) {
+                console.error('Detailed P&L error:', e);
+            }
+        }
+
+        async function _exit180(tradeId) {
+            if (!confirm('Exit this position?')) return;
+            try {
+                const resp = await fetch('/api/paper/exit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ trade_id: tradeId, reason: 'MANUAL' })
+                });
+                if (resp.ok) { refreshDetailedPnl(); }
+                else { alert('Exit failed: ' + (await resp.text())); }
+            } catch (e) { alert('Exit error: ' + e.message); }
+        }
+
         function toggleAuto() {
             autoOn = !autoOn;
             document.getElementById('autoBtn').textContent = 'Auto Refresh: ' + (autoOn ? 'ON' : 'OFF');
@@ -816,10 +1087,12 @@
             await loadExpiries();
             await refreshNow();
             await refreshPnl();
+            await refreshDetailedPnl();
             timer = setInterval(() => {
                 if (autoOn) {
                     refreshNow();
                     refreshPnl();
+                    refreshDetailedPnl();
                 }
             }, 20000);
         })();
